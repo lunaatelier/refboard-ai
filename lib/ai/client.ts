@@ -10,13 +10,22 @@ function assertServer(): void {
   }
 }
 
-export async function generateJson<T>(prompt: string): Promise<T> {
+// 멀티모달 입력 (Step 9) — opt-in 동의를 거친 이미지만 이 경로로 들어와야 한다.
+export interface InlineImage {
+  mimeType: string;
+  data: string; // base64
+}
+
+export async function generateJson<T>(
+  prompt: string,
+  images: InlineImage[] = [],
+): Promise<T> {
   assertServer();
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY가 설정되지 않았습니다 (.env.local).");
   }
-  const model = process.env.GEMINI_MODEL || "gemini-3-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
 
   const res = await fetch(`${API_BASE}/models/${model}:generateContent`, {
     method: "POST",
@@ -25,7 +34,16 @@ export async function generateJson<T>(prompt: string): Promise<T> {
       "x-goog-api-key": apiKey, // URL이 아닌 헤더로 — 키가 URL 로그에 남지 않게
     },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: [
+        {
+          parts: [
+            { text: prompt },
+            ...images.map((img) => ({
+              inlineData: { mimeType: img.mimeType, data: img.data },
+            })),
+          ],
+        },
+      ],
       generationConfig: {
         responseMimeType: "application/json",
         temperature: 0.3,

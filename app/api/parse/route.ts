@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { extractPdfText } from "@/lib/parse/pdf";
-import { extractPptxText } from "@/lib/parse/pptx";
+import { extractPptxImages, extractPptxText } from "@/lib/parse/pptx";
 
 // 서버 파싱 (phase1-masking-spec §7.2) — pdf/pptx 텍스트 추출만 담당.
 //
@@ -40,11 +40,16 @@ export async function POST(req: Request) {
 
   try {
     const buffer = await file.arrayBuffer();
-    const text =
-      ext === "pdf"
-        ? await extractPdfText(buffer)
-        : await extractPptxText(buffer);
-    return NextResponse.json({ text });
+    if (ext === "pdf") {
+      return NextResponse.json({ text: await extractPdfText(buffer), images: [] });
+    }
+    // pptx: 텍스트 + 이미지 목록. 이미지는 opt-in 동의 전까지 외부로 나가지 않으며
+    // 이 응답은 자사 서버 → 클라이언트 반환일 뿐이다 (Step 9).
+    const [text, images] = await Promise.all([
+      extractPptxText(buffer),
+      extractPptxImages(buffer),
+    ]);
+    return NextResponse.json({ text, images });
   } catch {
     // 파일 내용·파일명이 에러 메시지로 새지 않도록 고정 문구만 반환
     return NextResponse.json(

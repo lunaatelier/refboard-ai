@@ -102,6 +102,23 @@ export interface UploadedFileMeta {
   displayName: string; // 마스킹된 표시명 (예: "화면정의서_[담당자A].pptx")
 }
 
+// 이미지 자산 (Step 9) — opt-in 분석 경로. 원본 이미지 데이터는 민감 취급(메모리만).
+export interface ImageAsset {
+  assetId: string;
+  sourceSlide?: number; // PPT 계보
+  selectedForAnalysis: boolean; // 기본 false (텍스트만이 기본값)
+  excludedReason?: string;
+  excludedNote?: string;
+  sensitivityHint?: "none" | "possible" | "high";
+}
+
+// 이미지 전송 동의 상태 (Step 9)
+export interface ImageConsent {
+  consented: boolean; // 명시적 동의
+  consentedAssetIds: string[]; // 동의한 이미지만 전송
+  // 멀티모달 응답은 저장 전 마스킹 엔진 재통과(실명 재유입 차단). 저장은 항상 masked 기준.
+}
+
 // 마스킹에서 "유지(실명)"로 확정된 공개 엔티티 → ④ 분석 대상 브랜드 소스로 연결
 export interface ExtractedAnalysisTarget {
   name: string; // 공개 정보라 실명 저장 허용

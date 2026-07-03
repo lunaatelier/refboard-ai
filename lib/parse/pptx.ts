@@ -19,6 +19,66 @@ function decodeXmlEntities(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
+// 슬라이드에서 추출된 이미지 (Step 9) — ⚠️ 원문급 민감. 서버는 메모리 처리만,
+// 클라이언트도 메모리(ref)에만 보관하고 영속화하지 않는다.
+export interface PptxImage {
+  assetId: string;
+  sourceSlide?: number;
+  mimeType: string;
+  base64: string;
+}
+
+const IMAGE_MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+};
+
+const MAX_IMAGES = 20;
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2MB
+
+export async function extractPptxImages(
+  data: ArrayBuffer,
+): Promise<PptxImage[]> {
+  const zip = await JSZip.loadAsync(data);
+
+  // 슬라이드 rels → 어떤 슬라이드가 어떤 media를 참조하는지 (계보)
+  const slideByMedia = new Map<string, number>();
+  const relFiles = Object.keys(zip.files).filter((n) =>
+    /^ppt\/slides\/_rels\/slide\d+\.xml\.rels$/.test(n),
+  );
+  for (const relName of relFiles) {
+    const slideNo = parseInt(relName.match(/slide(\d+)\.xml\.rels$/)![1], 10);
+    const xml = await zip.files[relName].async("string");
+    for (const m of xml.matchAll(/Target="\.\.\/(media\/[^"]+)"/g)) {
+      const mediaPath = `ppt/${m[1]}`;
+      if (!slideByMedia.has(mediaPath)) slideByMedia.set(mediaPath, slideNo);
+    }
+  }
+
+  const mediaFiles = Object.keys(zip.files)
+    .filter((n) => /^ppt\/media\//.test(n))
+    .filter((n) => IMAGE_MIME[n.slice(n.lastIndexOf(".") + 1).toLowerCase()])
+    .sort();
+
+  const images: PptxImage[] = [];
+  for (const name of mediaFiles) {
+    if (images.length >= MAX_IMAGES) break;
+    const bytes = await zip.files[name].async("uint8array");
+    if (bytes.length > MAX_IMAGE_BYTES) continue;
+    const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
+    images.push({
+      assetId: `img-${images.length + 1}`,
+      sourceSlide: slideByMedia.get(name),
+      mimeType: IMAGE_MIME[ext],
+      base64: await zip.files[name].async("base64"),
+    });
+  }
+  return images;
+}
+
 export async function extractPptxText(data: ArrayBuffer): Promise<string> {
   const zip = await JSZip.loadAsync(data);
 

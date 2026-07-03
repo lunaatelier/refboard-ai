@@ -3,6 +3,10 @@
 import { useRef, useState } from "react";
 import AnalysisResult from "@/components/AnalysisResult";
 import DictionaryManager from "@/components/DictionaryManager";
+import ImageConsentPanel, {
+  type ConsentImage,
+  type ImageInsight,
+} from "@/components/ImageConsentPanel";
 import MaskedPreview, { type MaskingStats } from "@/components/MaskedPreview";
 import MaskingReview from "@/components/MaskingReview";
 import LandingUpload from "@/components/shell/LandingUpload";
@@ -13,11 +17,13 @@ import { finalizeMask } from "@/lib/masking/apply";
 import { detect } from "@/lib/masking/detect";
 import { maskFileName } from "@/lib/masking/filename";
 import { detectNumeric } from "@/lib/masking/numeric";
+import { remaskText } from "@/lib/masking/remask";
 import type {
   Detection,
   MaskMapping,
   NumericDetection,
 } from "@/lib/masking/types";
+import type { PptxImage } from "@/lib/parse/pptx";
 import { parseViaServer } from "@/lib/parse/server";
 import { isBrowserParsable, parseTextFile } from "@/lib/parse/txt";
 import { canAccessStep } from "@/lib/state/guards";
@@ -46,6 +52,12 @@ export default function Home() {
   // React 상태가 아닌 ref: 렌더 데이터로 흘러들어가는 것을 구조적으로 차단.
   const secureMappingsRef = useRef<MaskMapping[]>([]);
 
+  // 문서 속 이미지 원본 (Step 9) — 원문급 민감. 메모리에만, opt-in 동의분만 외부 전송.
+  const imagesRef = useRef<(PptxImage & { sensitivityHint: "none" | "possible" })[]>([]);
+  const [imageInsights, setImageInsights] = useState<ImageInsight[]>([]);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageError, setImageError] = useState<string>();
+
   const isLanding =
     workflow.currentStep === "upload" &&
     !workflow.completedSteps.includes("upload");
@@ -62,9 +74,22 @@ export default function Home() {
     let text: string;
     try {
       // txt/md = 브라우저 파싱(원문이 PC를 안 떠남) / pdf·pptx = 자사 서버(메모리·무저장)
-      text = isBrowserParsable(file.name)
-        ? await parseTextFile(file)
-        : await parseViaServer(file);
+      if (isBrowserParsable(file.name)) {
+        text = await parseTextFile(file);
+        imagesRef.current = [];
+      } else {
+        const parsed = await parseViaServer(file);
+        text = parsed.text;
+        // 민감 가능성 힌트: 해당 슬라이드 텍스트에 개인정보성 키워드가 있으면 표시
+        imagesRef.current = parsed.images.map((img) => ({
+          ...img,
+          sensitivityHint: slideHasSensitiveHint(text, img.sourceSlide)
+            ? "possible"
+            : "none",
+        }));
+      }
+      setImageInsights([]);
+      setImageError(undefined);
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : "파싱에 실패했습니다.");
       setParsing(false);
@@ -156,6 +181,59 @@ export default function Home() {
     setDraft(null); // ← 원문·Detection[]·NumericDetection[](raw 포함) 즉시 폐기
   };
 
+  const handleAnalyzeImages = async (assetIds: string[]) => {
+    const consented = imagesRef.current.filter((img) =>
+      assetIds.includes(img.assetId),
+    );
+    if (consented.length === 0) return;
+    setImageBusy(true);
+    setImageError(undefined);
+    try {
+      // 동의한 이미지만 전송 — 나머지는 어떤 경우에도 외부로 나가지 않는다
+      const res = await fetch("/api/analyze-images", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          images: consented.map((i) => ({
+            assetId: i.assetId,
+            mimeType: i.mimeType,
+            data: i.base64,
+          })),
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !Array.isArray(body?.insights)) {
+        throw new Error(body?.error ?? "이미지 분석에 실패했습니다.");
+      }
+      // 응답 재마스킹 (필수) — 실명이 재등장해도 저장 전에 차단.
+      // 기존 복원키를 시드로 넘겨 같은 실명 = 같은 토큰, 새 실명 = 이어지는 토큰.
+      const dictionary = listDictionary();
+      const masked: ImageInsight[] = [];
+      for (const insight of body.insights as { assetId: string; description: string }[]) {
+        const result = remaskText(
+          insight.description,
+          dictionary,
+          secureMappingsRef.current,
+        );
+        secureMappingsRef.current = result.mappings; // 매핑 누적 (superset)
+        masked.push({
+          assetId: insight.assetId,
+          maskedDescription: result.maskedText,
+        });
+      }
+      setImageInsights((prev) => [
+        ...prev.filter((p) => !masked.some((m) => m.assetId === p.assetId)),
+        ...masked,
+      ]);
+    } catch (e) {
+      setImageError(
+        e instanceof Error ? e.message : "이미지 분석에 실패했습니다.",
+      );
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
   const handleAnalyze = async () => {
     if (!workflow.maskedText) return;
     setAnalyzing(true);
@@ -171,6 +249,10 @@ export default function Home() {
             (t) => t.name,
           ),
           directives: workflow.projectDirective ?? [],
+          // 이미지 분석 요약 — 이미 재마스킹된 텍스트만 (Step 9)
+          imageNotes: imageInsights.map(
+            (i) => `(${i.assetId}) ${i.maskedDescription}`,
+          ),
         }),
       });
       const body = await res.json().catch(() => null);
@@ -271,13 +353,35 @@ export default function Home() {
               onConfirm={handleConfirmMasking}
             />
             <DictionaryManager />
+            {imagesRef.current.length > 0 && (
+              <ImageConsentPanel
+                images={imagesRef.current.map(toConsentImage)}
+                insights={imageInsights}
+                canAnalyze={false}
+                busy={imageBusy}
+                error={imageError}
+                onAnalyze={handleAnalyzeImages}
+              />
+            )}
           </div>
         ) : workflow.maskedText ? (
-          <MaskedPreview
-            maskedText={workflow.maskedText}
-            stats={maskingStats}
-            onNext={() => handleNavigate("analysis")}
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <MaskedPreview
+              maskedText={workflow.maskedText}
+              stats={maskingStats}
+              onNext={() => handleNavigate("analysis")}
+            />
+            {imagesRef.current.length > 0 && (
+              <ImageConsentPanel
+                images={imagesRef.current.map(toConsentImage)}
+                insights={imageInsights}
+                canAnalyze={true}
+                busy={imageBusy}
+                error={imageError}
+                onAnalyze={handleAnalyzeImages}
+              />
+            )}
+          </div>
         ) : (
           <Panel title="② 마스킹 검수">
             <p style={{ color: "var(--text-muted)" }}>
@@ -381,6 +485,42 @@ export default function Home() {
         )}
     </Workspace>
   );
+}
+
+// 해당 슬라이드 텍스트에 개인정보성 키워드가 있으면 민감 가능성 힌트 (Step 9, 실사용#10)
+const SENSITIVE_SLIDE_KEYWORDS = [
+  "로그인",
+  "비밀번호",
+  "신청",
+  "개인정보",
+  "연락처",
+  "이력서",
+  "계약",
+  "회원",
+  "결제",
+];
+
+function slideHasSensitiveHint(text: string, slideNo?: number): boolean {
+  if (slideNo == null) {
+    return SENSITIVE_SLIDE_KEYWORDS.some((k) => text.includes(k));
+  }
+  const marker = `--- 슬라이드 ${slideNo} ---`;
+  const start = text.indexOf(marker);
+  if (start < 0) return false;
+  const nextMarker = text.indexOf("--- 슬라이드", start + marker.length);
+  const slideText = text.slice(start, nextMarker < 0 ? undefined : nextMarker);
+  return SENSITIVE_SLIDE_KEYWORDS.some((k) => slideText.includes(k));
+}
+
+function toConsentImage(
+  img: PptxImage & { sensitivityHint: "none" | "possible" },
+): ConsentImage {
+  return {
+    assetId: img.assetId,
+    dataUrl: `data:${img.mimeType};base64,${img.base64}`,
+    sourceSlide: img.sourceSlide,
+    sensitivityHint: img.sensitivityHint,
+  };
 }
 
 function Alert({

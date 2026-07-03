@@ -5,6 +5,7 @@ import { detect } from "./detect";
 import { maskFileName } from "./filename";
 import { detectWordOccurrences } from "./manual";
 import { detectNumeric, generalizeNumeric } from "./numeric";
+import { remaskText } from "./remask";
 import { classifyUrl } from "./urlRules";
 import { restore } from "./restore";
 import type { DictionaryEntry } from "./types";
@@ -249,6 +250,39 @@ describe("Step 6 — 법정 의무고지 태깅 (실사용#28)", () => {
   it("일반 문맥의 이메일에는 태깅되지 않는다", () => {
     const ds = detect("문의는 hello@corp.co.kr로 주세요.");
     assert.equal(ds[0].isLegallyRequiredDisclosure, undefined);
+  });
+});
+
+describe("Step 9 — 응답 재마스킹 (remaskText)", () => {
+  it("기존 실명이 응답에 재등장하면 같은 토큰으로 다시 가려진다", () => {
+    // 본문 마스킹으로 그린테크=[고객사A]가 이미 존재하는 상황
+    const seed = [{ token: "[고객사A]", raw: "그린테크", kind: "client" as const }];
+    const response = "이 화면은 그린테크 로고가 있는 로그인 화면입니다.";
+    const { maskedText } = remaskText(response, [], seed);
+    assert.ok(maskedText.includes("[고객사A]"));
+    assert.ok(!maskedText.includes("그린테크"));
+  });
+
+  it("새 실명은 이어지는 토큰([고객사B])을 받아 충돌하지 않는다", () => {
+    const seed = [{ token: "[고객사A]", raw: "그린테크", kind: "client" as const }];
+    const dict: DictionaryEntry[] = [
+      { id: "x", value: "블루오션", kind: "client", scope: "project" },
+    ];
+    const response = "그린테크와 블루오션 두 로고가 보입니다.";
+    const { maskedText, mappings } = remaskText(response, dict, seed);
+    assert.ok(maskedText.includes("[고객사A]와 [고객사B]"));
+    // 매핑은 기존+신규 superset
+    assert.equal(mappings.filter((m) => m.kind === "client").length, 2);
+  });
+
+  it("응답 속 이메일·전화도 규칙으로 재차 가려진다", () => {
+    const { maskedText } = remaskText(
+      "화면 하단에 contact@corp.co.kr, 02-555-1234가 보입니다.",
+      [],
+      [],
+    );
+    assert.ok(!maskedText.includes("contact@corp.co.kr"));
+    assert.ok(!maskedText.includes("02-555-1234"));
   });
 });
 

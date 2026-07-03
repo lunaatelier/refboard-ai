@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import JSZip from "jszip";
-import { extractPptxText } from "./pptx";
+import { extractPptxImages, extractPptxText } from "./pptx";
 
 function slideXml(texts: string[]): string {
   const runs = texts.map((t) => `<a:r><a:t>${t}</a:t></a:r>`).join("");
@@ -43,5 +43,34 @@ describe("pptx — 슬라이드 텍스트 추출", () => {
     const data = await buildPptx([["내용"], []]);
     const text = await extractPptxText(data);
     assert.ok(!text.includes("--- 슬라이드 2 ---"));
+  });
+});
+
+describe("pptx — 이미지 추출 (Step 9)", () => {
+  // 1x1 투명 PNG
+  const PNG_B64 =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+  async function buildPptxWithImage(): Promise<ArrayBuffer> {
+    const zip = new JSZip();
+    zip.file("ppt/slides/slide1.xml", slideXml(["로그인 화면"]));
+    zip.file("ppt/slides/slide2.xml", slideXml(["일반 내용"]));
+    zip.file(
+      "ppt/slides/_rels/slide2.xml.rels",
+      `<?xml version="1.0"?><Relationships><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/></Relationships>`,
+    );
+    zip.file("ppt/media/image1.png", PNG_B64, { base64: true });
+    zip.file("ppt/media/skip.emf", "not-an-image");
+    zip.file("[Content_Types].xml", "<Types/>");
+    return zip.generateAsync({ type: "arraybuffer" });
+  }
+
+  it("이미지가 추출되고 참조한 슬라이드 번호가 계보로 기록된다", async () => {
+    const images = await extractPptxImages(await buildPptxWithImage());
+    assert.equal(images.length, 1); // emf는 제외
+    assert.equal(images[0].assetId, "img-1");
+    assert.equal(images[0].sourceSlide, 2); // rels 계보
+    assert.equal(images[0].mimeType, "image/png");
+    assert.ok(images[0].base64.length > 0);
   });
 });

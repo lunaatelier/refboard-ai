@@ -41,9 +41,13 @@ export async function POST(req: Request) {
     );
   }
 
+  const imageNotes: string[] = Array.isArray(body?.imageNotes)
+    ? body.imageNotes.filter((x: unknown): x is string => typeof x === "string")
+    : [];
+
   try {
     const raw = await generateJson(
-      buildAnalysisPrompt(maskedText, keptTargets, directives),
+      buildAnalysisPrompt(maskedText, keptTargets, directives, imageNotes),
     );
     return NextResponse.json({ analysis: normalizeAnalysis(raw) });
   } catch (e) {

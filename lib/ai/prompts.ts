@@ -18,7 +18,12 @@ export function buildAnalysisPrompt(
   maskedText: string,
   keptTargets: string[] = [],
   directives: ProjectDirective[] = [],
+  imageNotes: string[] = [], // 재마스킹 완료된 이미지 분석 요약만 (Step 9)
 ): string {
+  const imageBlock =
+    imageNotes.length > 0
+      ? `\n## 이미지 분석 요약 (사용자 동의분, 마스킹됨 — 페이지·섹션 재구성에 참고)\n${imageNotes.map((n) => `- ${n}`).join("\n")}\n`
+      : "";
   const targetNote =
     keptTargets.length > 0
       ? `\n다음 이름들은 사용자가 공개 엔티티(경쟁사·벤치마킹 브랜드 등)로 확정해 실명이 유지된 것이다: ${keptTargets.join(", ")}. 분석에 활용하라.`
@@ -26,7 +31,7 @@ export function buildAnalysisPrompt(
 
   return `당신은 시니어 프로덕트 디자이너다. 아래는 민감정보가 마스킹된 기획서 텍스트다.
 [회사A], [이메일A] 같은 대괄호 토큰은 마스킹된 민감정보다. 토큰을 그대로 유지하고 실명을 추측·복원하지 마라.${targetNote}
-${buildDirectiveBlock(directives)}
+${buildDirectiveBlock(directives)}${imageBlock}
 
 ## 작업
 

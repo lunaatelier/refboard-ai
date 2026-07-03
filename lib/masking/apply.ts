@@ -43,13 +43,20 @@ function buildMask(
   text: string,
   detections: Detection[],
   numericDetections: NumericDetection[] = [],
+  seedMappings: MaskMapping[] = [],
 ): { maskedText: string; mappings: MaskMapping[] } {
   const active = detections.filter(isMaskable);
 
-  // 같은 (kind, raw) → 같은 토큰
+  // 같은 (kind, raw) → 같은 토큰.
+  // seedMappings(기존 복원키)로 시드하면 재마스킹 시 같은 실명 = 같은 토큰이 유지되고
+  // 새 실명은 이어지는 인덱스([회사B]...)를 받아 토큰 충돌이 없다 (Step 9 응답 재마스킹).
   const tokenByKey = new Map<string, string>();
   const countByKind = new Map<string, number>();
-  const mappings: MaskMapping[] = [];
+  const mappings: MaskMapping[] = [...seedMappings];
+  for (const m of seedMappings) {
+    tokenByKey.set(`${m.kind} ${m.raw}`, m.token);
+    countByKind.set(m.kind, (countByKind.get(m.kind) ?? 0) + 1);
+  }
 
   const tokenFor = (kind: Detection["kind"], raw: string): string => {
     const key = `${kind} ${raw}`;
@@ -109,6 +116,7 @@ export function finalizeMask(
   text: string,
   detections: Detection[],
   numericDetections: NumericDetection[] = [],
+  seedMappings: MaskMapping[] = [],
 ): FinalMaskResult {
-  return buildMask(text, detections, numericDetections);
+  return buildMask(text, detections, numericDetections, seedMappings);
 }
