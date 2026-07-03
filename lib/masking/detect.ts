@@ -82,6 +82,17 @@ export function detect(
       // 더미 추정 항목은 기본 미적용(검수 부담 경감, 실사용#13/#29) — 사용자가 최종 판단
       enabled: dummyConfidence !== "likely-dummy",
       ...(dummyConfidence ? { dummyConfidence } : {}),
+      // 법정 의무고지 (실사용#28): 개인정보 보호책임자 등. 외부 전송 시 가림은 동일,
+      // 최종 산출물에서 "직접 입력 필요" 자리로 표시하기 위한 태깅.
+      ...(isLegalDisclosureContext(text, c) ? { isLegallyRequiredDisclosure: true } : {}),
     };
   });
+}
+
+const LEGAL_DISCLOSURE_KINDS: SensitiveKind[] = ["personName", "email", "phone"];
+const LEGAL_CONTEXT = /개인\s*정보\s*보호\s*책임자|정보\s*보호\s*최고\s*책임자/;
+
+function isLegalDisclosureContext(text: string, c: Candidate): boolean {
+  if (!LEGAL_DISCLOSURE_KINDS.includes(c.kind)) return false;
+  return LEGAL_CONTEXT.test(text.slice(Math.max(0, c.start - 60), c.start));
 }

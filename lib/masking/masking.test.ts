@@ -4,6 +4,8 @@ import { createDraft, finalizeMask } from "./apply";
 import { detect } from "./detect";
 import { maskFileName } from "./filename";
 import { detectWordOccurrences } from "./manual";
+import { detectNumeric, generalizeNumeric } from "./numeric";
+import { classifyUrl } from "./urlRules";
 import { restore } from "./restore";
 import type { DictionaryEntry } from "./types";
 
@@ -141,6 +143,112 @@ describe("manual — 단어 직접 추가", () => {
     const existing = detect(text);
     const ds = detectWordOccurrences(text, "example.com", "url", existing);
     assert.equal(ds.length, 0);
+  });
+});
+
+describe("Step 6 — 신규 kind 탐지 (사업자번호는 Step 3부터)", () => {
+  it("인증번호·주소가 탐지된다", () => {
+    const ds = detect(
+      "신용평가 GC1-2023-02618 / 본사: 서울특별시 강남구 테헤란로 123, 5층",
+    );
+    const kinds = ds.map((d) => d.kind);
+    assert.ok(kinds.includes("certificationNo"));
+    assert.ok(kinds.includes("address"));
+  });
+});
+
+describe("Step 6 — 민감 수치 마스킹", () => {
+  const sample =
+    "그린테크는 누적 투자금 35억을 유치했고 고객 43곳, 성장률 120%를 기록. ARR 12억 달성.";
+
+  it("투자금·고객수·성장률·ARR이 후보 탐지된다", () => {
+    const ns = detectNumeric(sample);
+    const kinds = ns.map((n) => n.kind);
+    assert.ok(kinds.includes("financialMetric"));
+    assert.ok(kinds.includes("businessMetric"));
+    assert.ok(ns.length >= 4);
+  });
+
+  it("기본 모드: 투자금=exact, 고객수=range", () => {
+    const ns = detectNumeric(sample);
+    const invest = ns.find((n) => n.label?.includes("투자금"));
+    const customers = ns.find((n) => n.label?.includes("고객"));
+    assert.equal(invest?.mode, "exact-mask");
+    assert.equal(customers?.mode, "range-generalize");
+  });
+
+  it("exact-mask → [투자금A] 토큰 + 복원매핑", () => {
+    const ns = detectNumeric(sample);
+    const { maskedText, mappings } = finalizeMask(sample, [], ns);
+    assert.ok(maskedText.includes("누적 투자금 [투자금A]"));
+    assert.ok(mappings.some((m) => m.raw === "35억"));
+  });
+
+  it("range-generalize → '수십억 원대'로 일반화 (모드 변경 가능)", () => {
+    const ns = detectNumeric(sample).map((n) =>
+      n.label?.includes("투자금")
+        ? { ...n, mode: "range-generalize" as const }
+        : n,
+    );
+    const { maskedText } = finalizeMask(sample, [], ns);
+    assert.ok(maskedText.includes("누적 투자금 수십억 원대"));
+    assert.ok(maskedText.includes("고객 수십 곳"));
+  });
+
+  it("keep → 원문 유지", () => {
+    const ns = detectNumeric(sample).map((n) => ({
+      ...n,
+      mode: "keep" as const,
+    }));
+    const { maskedText } = finalizeMask(sample, [], ns);
+    assert.equal(maskedText, sample);
+  });
+
+  it("generalizeNumeric 규모 버킷", () => {
+    assert.equal(generalizeNumeric("35억"), "수십억 원대");
+    assert.equal(generalizeNumeric("1,200억"), "수천억 원대");
+    assert.equal(generalizeNumeric("43곳"), "수십 곳");
+    assert.equal(generalizeNumeric("7%"), "한 자릿수 % 수준");
+  });
+});
+
+describe("Step 6 — URL 마스킹 예외 규칙", () => {
+  it("유지된 공개 브랜드 도메인 → 유지 후보 (benchmark-source)", () => {
+    const rule = classifyUrl("https://www.patagonia.com/kr/stories", [
+      "Patagonia",
+    ]);
+    assert.equal(rule.reason, "benchmark-source");
+    assert.equal(rule.suggestedAction, "keep");
+  });
+
+  it("사내 협업툴 URL → 가림 확정 (internal-tool)", () => {
+    const rule = classifyUrl("https://myteam.atlassian.net/wiki/spaces/PROJ", [
+      "Patagonia",
+    ]);
+    assert.equal(rule.reason, "internal-tool");
+    assert.equal(rule.suggestedAction, "mask");
+  });
+
+  it("매칭 없는 일반 URL → 기본 가림", () => {
+    const rule = classifyUrl("https://www.example.com/page", ["Patagonia"]);
+    assert.equal(rule.suggestedAction, "mask");
+  });
+});
+
+describe("Step 6 — 법정 의무고지 태깅 (실사용#28)", () => {
+  it("개인정보 보호책임자 문맥의 이메일·전화가 태깅된다", () => {
+    const ds = detect(
+      "개인정보 보호책임자: 김민수 (privacy@corp.co.kr, 02-555-7777)",
+    );
+    const email = ds.find((d) => d.kind === "email");
+    const phone = ds.find((d) => d.kind === "phone");
+    assert.equal(email?.isLegallyRequiredDisclosure, true);
+    assert.equal(phone?.isLegallyRequiredDisclosure, true);
+  });
+
+  it("일반 문맥의 이메일에는 태깅되지 않는다", () => {
+    const ds = detect("문의는 hello@corp.co.kr로 주세요.");
+    assert.equal(ds[0].isLegallyRequiredDisclosure, undefined);
   });
 });
 

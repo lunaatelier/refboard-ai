@@ -3,8 +3,20 @@
 import { useMemo, useState } from "react";
 import TokenText from "./TokenText";
 import { createDraft } from "@/lib/masking/apply";
+import {
+  ENTITY_KIND_LABELS,
+  isPublicEntityKind,
+} from "@/lib/masking/entity";
 import { detectWordOccurrences } from "@/lib/masking/manual";
-import type { Detection, DictionaryEntry, SensitiveKind } from "@/lib/masking/types";
+import { classifyUrl } from "@/lib/masking/urlRules";
+import type {
+  AnalysisTargetKind,
+  Detection,
+  DictionaryEntry,
+  NumericDetection,
+  NumericMaskingMode,
+  SensitiveKind,
+} from "@/lib/masking/types";
 
 // 마스킹 검수 화면 (phase1-masking-spec §8.3)
 // 탐지 리스트(종류별 그룹) + 켜기/끄기 + 회사명 가림/유지 토글(Step 4 = 2분) +
@@ -18,14 +30,22 @@ const KIND_LABELS: Partial<Record<SensitiveKind, string>> = {
   apikey: "API키",
   rrn: "주민번호",
   businessRegNo: "사업자번호",
+  certificationNo: "인증번호",
+  address: "주소",
   company: "회사명",
   client: "고객사",
   product: "제품",
   personName: "인명",
 };
 
-// 가림/유지 토글 대상 — 회사·기관명 계열 (공개 엔티티일 수 있는 종류)
-const KEEP_TOGGLE_KINDS: SensitiveKind[] = ["company", "client"];
+// 엔티티 등급 태깅 대상 — 회사·기관명 계열 (Step 6: 6종 드롭다운)
+const ENTITY_KINDS: SensitiveKind[] = ["company", "client"];
+
+const NUMERIC_KIND_LABELS: Record<NumericDetection["kind"], string> = {
+  financialMetric: "재무 수치",
+  businessMetric: "비즈니스 지표",
+  internalKpi: "내부 KPI",
+};
 
 const MANUAL_KIND_OPTIONS: {
   value: DictionaryEntry["kind"];
@@ -47,7 +67,9 @@ const DICT_TO_SENSITIVE: Record<DictionaryEntry["kind"], SensitiveKind> = {
 interface MaskingReviewProps {
   parsedText: string; // ⚠️ 원문 — 이 컴포넌트(검수) 밖으로 내보내지 않는다
   detections: Detection[];
+  numericDetections: NumericDetection[];
   onUpdateDetections: (next: Detection[]) => void;
+  onUpdateNumeric: (next: NumericDetection[]) => void;
   onAddToDictionary: (value: string, kind: DictionaryEntry["kind"]) => void;
   onConfirm: () => void;
 }
@@ -55,7 +77,9 @@ interface MaskingReviewProps {
 export default function MaskingReview({
   parsedText,
   detections,
+  numericDetections,
   onUpdateDetections,
+  onUpdateNumeric,
   onAddToDictionary,
   onConfirm,
 }: MaskingReviewProps) {
@@ -67,13 +91,23 @@ export default function MaskingReview({
   const [notice, setNotice] = useState<string>();
 
   const preview = useMemo(
-    () => createDraft(parsedText, detections).previewMaskedText,
-    [parsedText, detections],
+    () =>
+      createDraft(parsedText, detections, numericDetections).previewMaskedText,
+    [parsedText, detections, numericDetections],
   );
 
   const enabledCount = detections.filter(
     (d) => d.enabled && !d.keepPlaintext,
   ).length;
+
+  // "유지"로 태깅된 공개 엔티티 이름 → URL 도메인 대조에 사용 (실사용#1/#6)
+  const keptBrandNames = useMemo(
+    () =>
+      detections
+        .filter((d) => d.keepPlaintext && ENTITY_KINDS.includes(d.kind))
+        .map((d) => d.raw),
+    [detections],
+  );
 
   const grouped = useMemo(() => {
     const map = new Map<SensitiveKind, Detection[]>();
@@ -184,20 +218,100 @@ export default function MaskingReview({
                 {d.source === "manual" && (
                   <span style={badge("#16a34a", "#dcfce7")}>직접 추가</span>
                 )}
-                {KEEP_TOGGLE_KINDS.includes(d.kind) && d.enabled && (
-                  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <input
-                      type="checkbox"
-                      checked={d.keepPlaintext ?? false}
-                      onChange={(e) =>
-                        patch(d.id, { keepPlaintext: e.target.checked })
-                      }
-                    />
-                    <span style={{ color: "var(--text-muted)" }}>
-                      유지 (분석 대상 브랜드·참고)
-                    </span>
-                  </label>
+                {d.isLegallyRequiredDisclosure && (
+                  <span style={badge("#7c3aed", "#f3e8ff")}>
+                    법정 고지 — 최종본 직접 입력
+                  </span>
                 )}
+                {ENTITY_KINDS.includes(d.kind) && d.enabled && (
+                  <>
+                    <select
+                      value={d.entityKind ?? "customer"}
+                      onChange={(e) => {
+                        const entityKind = e.target
+                          .value as AnalysisTargetKind;
+                        // 공개 등급 선택 = 유지 의사로 보고 기본 체크, 기밀은 강제 가림
+                        patch(d.id, {
+                          entityKind,
+                          keepPlaintext: isPublicEntityKind(entityKind)
+                            ? true
+                            : false,
+                        });
+                      }}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        border: "1px solid var(--border)",
+                        font: "inherit",
+                        fontSize: 14,
+                      }}
+                    >
+                      {(
+                        Object.keys(ENTITY_KIND_LABELS) as AnalysisTargetKind[]
+                      ).map((k) => (
+                        <option key={k} value={k}>
+                          {ENTITY_KIND_LABELS[k]}
+                        </option>
+                      ))}
+                    </select>
+                    {isPublicEntityKind(d.entityKind ?? "customer") && (
+                      <label
+                        style={{ display: "flex", alignItems: "center", gap: 6 }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={d.keepPlaintext ?? false}
+                          onChange={(e) =>
+                            patch(d.id, { keepPlaintext: e.target.checked })
+                          }
+                        />
+                        <span style={{ color: "var(--text-muted)" }}>
+                          실명 유지
+                        </span>
+                      </label>
+                    )}
+                  </>
+                )}
+                {d.kind === "url" &&
+                  (() => {
+                    const rule = classifyUrl(d.raw, keptBrandNames);
+                    if (rule.reason === "internal-tool") {
+                      return (
+                        <span style={badge("#dc2626", "#fee2e2")}>
+                          사내 협업툴 — 가림 확정
+                        </span>
+                      );
+                    }
+                    return (
+                      <>
+                        {rule.reason === "benchmark-source" && (
+                          <span style={badge("#16a34a", "#dcfce7")}>
+                            유지 후보 — 사례분석 출처
+                          </span>
+                        )}
+                        {d.enabled && (
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={d.keepPlaintext ?? false}
+                              onChange={(e) =>
+                                patch(d.id, { keepPlaintext: e.target.checked })
+                              }
+                            />
+                            <span style={{ color: "var(--text-muted)" }}>
+                              유지 (공개 출처)
+                            </span>
+                          </label>
+                        )}
+                      </>
+                    );
+                  })()}
                 {d.source !== "dictionary" &&
                   (["company", "client", "product", "personName"] as SensitiveKind[]).includes(d.kind) && (
                     <button
@@ -225,6 +339,71 @@ export default function MaskingReview({
           </ul>
         </div>
       ))}
+
+      {numericDetections.length > 0 && (
+        <div style={card}>
+          <h3 style={{ fontSize: 15 }}>
+            민감 수치{" "}
+            <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
+              {numericDetections.length}건 — 후보 탐지이며 최종 판단은
+              검수로 확정합니다
+            </span>
+          </h3>
+          <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+            {numericDetections.map((n) => (
+              <li
+                key={n.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  padding: "8px 12px",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                }}
+              >
+                <span style={{ flex: 1, minWidth: 200 }}>
+                  {n.label && <b>{n.label} </b>}
+                  {n.raw}
+                </span>
+                <span style={badge("#0e7490", "#cffafe")}>
+                  {NUMERIC_KIND_LABELS[n.kind]}
+                </span>
+                <select
+                  value={n.mode}
+                  onChange={(e) =>
+                    onUpdateNumeric(
+                      numericDetections.map((x) =>
+                        x.id === n.id
+                          ? { ...x, mode: e.target.value as NumericMaskingMode }
+                          : x,
+                      ),
+                    )
+                  }
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid var(--border)",
+                    font: "inherit",
+                    fontSize: 14,
+                  }}
+                >
+                  <option value="exact-mask">정확 마스킹 (토큰)</option>
+                  <option value="range-generalize">
+                    범위 일반화 — {n.generalized ?? "규모 유지"}
+                  </option>
+                  <option value="keep">유지 (공개 확정)</option>
+                </select>
+              </li>
+            ))}
+          </ul>
+          <p style={{ color: "var(--text-muted)" }}>
+            범위 일반화는 &ldquo;수십억 원대&rdquo;처럼 규모감만 남깁니다 —
+            기밀을 지키면서 AI가 맥락을 읽을 수 있습니다.
+          </p>
+        </div>
+      )}
 
       <div style={card}>
         <h3 style={{ fontSize: 15 }}>단어 직접 추가</h3>

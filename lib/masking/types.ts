@@ -29,6 +29,23 @@ export type AnalysisTargetKind =
   | "roleModel"
   | "publicReference";
 
+// 민감 수치 마스킹 모드 (Step 6)
+// range-generalize가 핵심: 완전히 가리면 Gemini가 규모감을 못 읽는다.
+// "수십억 원대"면 기밀을 지키며 맥락 유지 (flow-spec ②).
+export type NumericMaskingMode = "exact-mask" | "range-generalize" | "keep";
+
+// 숫자 지표는 "후보 탐지"다 — 최종 민감 여부·마스킹 방식은 사용자 검수로 확정.
+export interface NumericDetection {
+  id: string;
+  kind: "financialMetric" | "businessMetric" | "internalKpi";
+  raw: string; // "35억" (치환 대상 수치+단위)
+  label?: string; // "누적 투자금" (검수 표시용 문맥)
+  start: number;
+  end: number;
+  generalized?: string; // "수십억 원대" (range-generalize 시 치환 문구)
+  mode: NumericMaskingMode;
+}
+
 export type DummyConfidence = "likely-dummy" | "uncertain" | "likely-real";
 
 // 더미/플레이스홀더 패턴 — 탐지는 하되 "더미 추정" 배지로 구분 (실사용#13/#29)
@@ -69,6 +86,7 @@ export interface MaskMapping {
 // ── 검수 중: raw 포함(민감). 검수 UI에서만. WorkflowState에 넣지 말 것. ──
 export interface DraftMaskResult {
   detections: Detection[];
+  numericDetections?: NumericDetection[]; // (Step 6)
   previewMaskedText: string;
 }
 

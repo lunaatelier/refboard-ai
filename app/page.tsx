@@ -10,7 +10,12 @@ import { addDictionaryEntry, listDictionary } from "@/lib/dictionary/store";
 import { finalizeMask } from "@/lib/masking/apply";
 import { detect } from "@/lib/masking/detect";
 import { maskFileName } from "@/lib/masking/filename";
-import type { Detection, MaskMapping } from "@/lib/masking/types";
+import { detectNumeric } from "@/lib/masking/numeric";
+import type {
+  Detection,
+  MaskMapping,
+  NumericDetection,
+} from "@/lib/masking/types";
 import { parseViaServer } from "@/lib/parse/server";
 import { isBrowserParsable, parseTextFile } from "@/lib/parse/txt";
 import { canAccessStep } from "@/lib/state/guards";
@@ -26,6 +31,7 @@ import {
 interface DraftState {
   parsedText: string;
   detections: Detection[];
+  numericDetections: NumericDetection[];
 }
 
 export default function Home() {
@@ -65,7 +71,12 @@ export default function Home() {
       return;
     }
     const dictionary = listDictionary();
-    setDraft({ parsedText: text, detections: detect(text, dictionary) });
+    const detections = detect(text, dictionary);
+    setDraft({
+      parsedText: text,
+      detections,
+      numericDetections: detectNumeric(text, detections),
+    });
     // 원본 파일명도 마스킹 (실사용#32) — 화면에는 displayName만
     setFileDisplayName(maskFileName(file.name, dictionary).displayName);
     setWorkflow((prev) => ({
@@ -93,25 +104,30 @@ export default function Home() {
     const { maskedText, mappings } = finalizeMask(
       draft.parsedText,
       draft.detections,
+      draft.numericDetections,
     );
 
     // 복원키 → SecureClientMemory (WorkflowState 아님)
     secureMappingsRef.current = mappings;
 
+    const numericMasked = draft.numericDetections.filter(
+      (n) => n.mode !== "keep",
+    ).length;
     setMaskingStats({
-      detected: draft.detections.length,
-      applied: draft.detections.filter((d) => d.enabled && !d.keepPlaintext)
-        .length,
-      keptPlaintext: draft.detections.filter(
-        (d) => d.enabled && d.keepPlaintext,
-      ).length,
+      detected: draft.detections.length + draft.numericDetections.length,
+      applied:
+        draft.detections.filter((d) => d.enabled && !d.keepPlaintext).length +
+        numericMasked,
+      keptPlaintext:
+        draft.detections.filter((d) => d.enabled && d.keepPlaintext).length +
+        (draft.numericDetections.length - numericMasked),
     });
 
     setWorkflow((prev) => ({
       ...prev,
       maskedText,
       // "유지"로 확정된 공개 엔티티 → ④ 분석 대상 브랜드 소스 (실명 = 공개 정보)
-      // Step 4는 2분 토글이라 등급은 publicReference로 통일, 6종 세분화는 Step 6.
+      // 엔티티 등급(6종)은 검수 드롭다운에서 사용자가 확정한 값을 계승.
       extractedAnalysisTargets: draft.detections
         .filter(
           (d) =>
@@ -119,13 +135,16 @@ export default function Home() {
             d.keepPlaintext &&
             (d.kind === "company" || d.kind === "client"),
         )
-        .map((d) => ({ name: d.raw, entityKind: "publicReference" as const })),
+        .map((d) => ({
+          name: d.raw,
+          entityKind: d.entityKind ?? ("publicReference" as const),
+        })),
       completedSteps: prev.completedSteps.includes("masking")
         ? prev.completedSteps
         : [...prev.completedSteps, "masking"],
     }));
 
-    setDraft(null); // ← 원문·Detection[](raw 포함) 즉시 폐기
+    setDraft(null); // ← 원문·Detection[]·NumericDetection[](raw 포함) 즉시 폐기
   };
 
   if (isLanding) {
@@ -158,8 +177,14 @@ export default function Home() {
             <MaskingReview
               parsedText={draft.parsedText}
               detections={draft.detections}
+              numericDetections={draft.numericDetections}
               onUpdateDetections={(next) =>
                 setDraft((prev) => prev && { ...prev, detections: next })
+              }
+              onUpdateNumeric={(next) =>
+                setDraft(
+                  (prev) => prev && { ...prev, numericDetections: next },
+                )
               }
               onAddToDictionary={(value, kind) => {
                 addDictionaryEntry(value, kind);
