@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import AnalysisResult from "@/components/AnalysisResult";
 import DictionaryManager from "@/components/DictionaryManager";
 import MaskedPreview, { type MaskingStats } from "@/components/MaskedPreview";
 import MaskingReview from "@/components/MaskingReview";
@@ -50,6 +51,8 @@ export default function Home() {
 
   const [uploadError, setUploadError] = useState<string>();
   const [parsing, setParsing] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string>();
 
   const handleFile = async (file: File) => {
     setUploadError(undefined);
@@ -147,6 +150,60 @@ export default function Home() {
     setDraft(null); // ← 원문·Detection[]·NumericDetection[](raw 포함) 즉시 폐기
   };
 
+  const handleAnalyze = async () => {
+    if (!workflow.maskedText) return;
+    setAnalyzing(true);
+    setAnalysisError(undefined);
+    try {
+      // 외부(Gemini)로는 maskedText + 유지 확정된 공개 엔티티 실명만 나간다
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          maskedText: workflow.maskedText,
+          keptTargets: (workflow.extractedAnalysisTargets ?? []).map(
+            (t) => t.name,
+          ),
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body?.analysis) {
+        throw new Error(body?.error ?? "분석에 실패했습니다.");
+      }
+      setWorkflow((prev) => ({ ...prev, analysis: body.analysis }));
+    } catch (e) {
+      setAnalysisError(
+        e instanceof Error ? e.message : "분석에 실패했습니다.",
+      );
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleConfirmAnalysis = () => {
+    setWorkflow((prev) => {
+      if (!prev.analysis) return prev;
+      return {
+        ...prev,
+        // 확정 게이트: 남긴 후보 섹션을 confirmed로 전환 (Phase 3 입력 자격)
+        analysis: {
+          ...prev.analysis,
+          pages: prev.analysis.pages.map((p) => ({
+            ...p,
+            sections: p.sections.map((s) => ({
+              ...s,
+              status: "confirmed" as const,
+            })),
+          })),
+        },
+        completedSteps: prev.completedSteps.includes("analysis")
+          ? prev.completedSteps
+          : [...prev.completedSteps, "analysis"],
+        currentStep: "reference",
+      };
+    });
+  };
+
   if (isLanding) {
     return (
       <LandingUpload
@@ -207,23 +264,62 @@ export default function Home() {
           </Panel>
         ))}
 
-      {workflow.currentStep !== "upload" &&
-        workflow.currentStep !== "masking" && (
-          <Panel title={STEP_LABELS[workflow.currentStep]}>
+      {workflow.currentStep === "analysis" &&
+        (workflow.analysis ? (
+          <AnalysisResult
+            analysis={workflow.analysis}
+            onChange={(next) =>
+              setWorkflow((prev) => ({ ...prev, analysis: next }))
+            }
+            onConfirm={handleConfirmAnalysis}
+          />
+        ) : (
+          <Panel title="③ 분석 결과">
             <p style={{ color: "var(--text-muted)" }}>
-              이 단계는 이후 Phase에서 구현됩니다. (분석 = Phase 2,
-              레퍼런스·무드 = Phase 3, 컨셉 = Phase 4, 디자인 MD = Phase 5)
+              마스킹된 텍스트를 Gemini로 분석합니다. 외부로는 마스킹본과
+              &ldquo;유지&rdquo;로 확정한 공개 엔티티 실명만 전송됩니다.
             </p>
-            {workflow.currentStep === "analysis" &&
-              workflow.extractedAnalysisTargets &&
+            {workflow.extractedAnalysisTargets &&
               workflow.extractedAnalysisTargets.length > 0 && (
                 <p style={{ color: "var(--text-muted)" }}>
-                  마스킹에서 유지된 분석 대상:{" "}
+                  유지된 분석 대상:{" "}
                   {workflow.extractedAnalysisTargets
                     .map((t) => t.name)
                     .join(", ")}
                 </p>
               )}
+            <button
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              style={{
+                alignSelf: "flex-start",
+                padding: "12px 24px",
+                borderRadius: 10,
+                border: "none",
+                background: analyzing ? "var(--locked)" : "var(--primary)",
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 15,
+              }}
+            >
+              {analyzing ? "분석 중… (수십 초 걸릴 수 있음)" : "분석 시작"}
+            </button>
+            {analysisError && (
+              <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+                {analysisError}
+              </p>
+            )}
+          </Panel>
+        ))}
+
+      {workflow.currentStep !== "upload" &&
+        workflow.currentStep !== "masking" &&
+        workflow.currentStep !== "analysis" && (
+          <Panel title={STEP_LABELS[workflow.currentStep]}>
+            <p style={{ color: "var(--text-muted)" }}>
+              이 단계는 이후 Phase에서 구현됩니다. (레퍼런스·무드 = Phase 3,
+              컨셉 = Phase 4, 디자인 MD = Phase 5)
+            </p>
           </Panel>
         )}
     </Workspace>
