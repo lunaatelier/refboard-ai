@@ -30,6 +30,7 @@ export const STEP_LABELS: Record<Step, string> = {
 import type { DocumentPurpose } from "../analysis/documentPurpose";
 import type { ProjectAnalysis, ProjectDirective } from "../analysis/types";
 import type { ExtractedAnalysisTarget } from "../masking/types";
+import type { ReferenceResult } from "../reference/types";
 
 export interface WorkflowState {
   currentStep: Step;
@@ -40,6 +41,7 @@ export interface WorkflowState {
   documentPurpose?: DocumentPurpose; // 업로드 직후 로컬 판정 (Step 8, 실사용#14)
   projectDirective?: ProjectDirective[]; // 전역 지시 — 이후 모든 프롬프트에 주입 (Step 8)
   analysis?: ProjectAnalysis; // Phase 2 (마스킹된 내용만 보유)
+  references?: ReferenceResult; // Phase 3 (Step 10-a부터 점진적으로 채움)
 }
 
 export const initialWorkflowState: WorkflowState = {

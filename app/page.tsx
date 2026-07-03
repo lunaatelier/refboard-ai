@@ -7,6 +7,7 @@ import ImageConsentPanel, {
   type ConsentImage,
   type ImageInsight,
 } from "@/components/ImageConsentPanel";
+import ReferenceWorkspace from "@/components/reference/ReferenceWorkspace";
 import MaskedPreview, { type MaskingStats } from "@/components/MaskedPreview";
 import MaskingReview from "@/components/MaskingReview";
 import LandingUpload from "@/components/shell/LandingUpload";
@@ -473,16 +474,33 @@ export default function Home() {
           </Panel>
         ))}
 
-      {workflow.currentStep !== "upload" &&
-        workflow.currentStep !== "masking" &&
-        workflow.currentStep !== "analysis" && (
-          <Panel title={STEP_LABELS[workflow.currentStep]}>
+      {workflow.currentStep === "reference" &&
+        (workflow.analysis ? (
+          <ReferenceWorkspace
+            analysis={workflow.analysis}
+            directives={workflow.projectDirective ?? []}
+            references={workflow.references ?? {}}
+            onChange={(next) =>
+              setWorkflow((prev) => ({ ...prev, references: next }))
+            }
+          />
+        ) : (
+          <Panel title="④ 레퍼런스·무드">
             <p style={{ color: "var(--text-muted)" }}>
-              이 단계는 이후 Phase에서 구현됩니다. (레퍼런스·무드 = Phase 3,
-              컨셉 = Phase 4, 디자인 MD = Phase 5)
+              분석 결과가 없습니다. ③ 분석을 먼저 완료하세요.
             </p>
           </Panel>
-        )}
+        ))}
+
+      {(workflow.currentStep === "concept" ||
+        workflow.currentStep === "design-md") && (
+        <Panel title={STEP_LABELS[workflow.currentStep]}>
+          <p style={{ color: "var(--text-muted)" }}>
+            이 단계는 이후 Phase에서 구현됩니다. (컨셉 = Phase 4, 디자인 MD =
+            Phase 5)
+          </p>
+        </Panel>
+      )}
     </Workspace>
   );
 }
