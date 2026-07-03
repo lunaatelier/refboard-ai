@@ -84,6 +84,12 @@ export interface UploadedFileMeta {
   displayName: string; // 마스킹된 표시명 (예: "화면정의서_[담당자A].pptx")
 }
 
+// 마스킹에서 "유지(실명)"로 확정된 공개 엔티티 → ④ 분석 대상 브랜드 소스로 연결
+export interface ExtractedAnalysisTarget {
+  name: string; // 공개 정보라 실명 저장 허용
+  entityKind: AnalysisTargetKind;
+}
+
 // 내 사전 항목 (lib/dictionary는 Step 4에서 — 여기선 탐지 입력 계약만 정의)
 export interface DictionaryEntry {
   id: string;

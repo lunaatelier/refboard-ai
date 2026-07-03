@@ -27,10 +27,14 @@ export const STEP_LABELS: Record<Step, string> = {
   "design-md": "디자인 MD",
 };
 
+import type { ExtractedAnalysisTarget } from "../masking/types";
+
 export interface WorkflowState {
   currentStep: Step;
   completedSteps: Step[];
   maskedText?: string; // 마스킹 확정 후에만 존재 — analysis 이후 단계의 보안 게이트 키
+  // 마스킹 검수에서 "유지"로 확정된 공개 엔티티 (실명 = 공개 정보라 허용)
+  extractedAnalysisTargets?: ExtractedAnalysisTarget[];
 }
 
 export const initialWorkflowState: WorkflowState = {

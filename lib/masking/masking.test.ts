@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { createDraft, finalizeMask } from "./apply";
 import { detect } from "./detect";
 import { maskFileName } from "./filename";
+import { detectWordOccurrences } from "./manual";
 import { restore } from "./restore";
 import type { DictionaryEntry } from "./types";
 
@@ -124,6 +125,22 @@ describe("filename — 파일명 마스킹 (실사용#32)", () => {
     assert.equal(meta.displayName, "화면정의서_수정본_[담당자A].pptx");
     assert.ok(!meta.displayName.includes("신연주"));
     assert.equal(meta.originalFileName, "화면정의서_수정본_신연주.pptx");
+  });
+});
+
+describe("manual — 단어 직접 추가", () => {
+  it("단어의 모든 출현이 manual Detection으로 생성된다", () => {
+    const text = "그린테크 소개. 그린테크는 좋은 회사.";
+    const ds = detectWordOccurrences(text, "그린테크", "company");
+    assert.equal(ds.length, 2);
+    assert.ok(ds.every((d) => d.source === "manual" && d.enabled));
+  });
+
+  it("기존 탐지와 겹치는 구간은 건너뛴다", () => {
+    const text = "메일 hong@example.com";
+    const existing = detect(text);
+    const ds = detectWordOccurrences(text, "example.com", "url", existing);
+    assert.equal(ds.length, 0);
   });
 });
 
