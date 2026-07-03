@@ -479,9 +479,20 @@ export default function Home() {
           <ReferenceWorkspace
             analysis={workflow.analysis}
             directives={workflow.projectDirective ?? []}
+            extractedTargets={workflow.extractedAnalysisTargets ?? []}
             references={workflow.references ?? {}}
             onChange={(next) =>
               setWorkflow((prev) => ({ ...prev, references: next }))
+            }
+            onConfirm={() =>
+              setWorkflow((prev) => ({
+                ...prev,
+                references: { ...prev.references, referenceConfirmed: true },
+                completedSteps: prev.completedSteps.includes("reference")
+                  ? prev.completedSteps
+                  : [...prev.completedSteps, "reference"],
+                currentStep: "concept",
+              }))
             }
           />
         ) : (

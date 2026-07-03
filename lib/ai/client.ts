@@ -67,3 +67,56 @@ export async function generateJson<T>(
     throw new Error("AI 응답 JSON 파싱에 실패했습니다.");
   }
 }
+
+// 검색 grounding 호출 (Step 10-c) — 분석 대상 브랜드의 실서비스 URL 확보용 (환각 방지).
+// google_search 도구는 JSON 응답 모드와 함께 쓸 수 없어 텍스트에서 JSON을 추출한다.
+// 주의: 무료 티어에서 grounding 쿼터는 모델별로 다르다 — gemini-3.5-flash는 쿼터가 없어
+// grounding 전용 모델(기본 gemini-2.5-flash)을 분리해서 쓴다.
+export async function generateGroundedJson<T>(prompt: string): Promise<T> {
+  assertServer();
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY가 설정되지 않았습니다 (.env.local).");
+  }
+  const model = process.env.GEMINI_GROUNDING_MODEL || "gemini-2.5-flash";
+
+  const res = await fetch(`${API_BASE}/models/${model}:generateContent`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      tools: [{ google_search: {} }],
+      generationConfig: { temperature: 0.3 },
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`AI 호출 실패 (HTTP ${res.status})`);
+  }
+
+  const data = await res.json();
+  const parts: unknown[] = data?.candidates?.[0]?.content?.parts ?? [];
+  const text = parts
+    .map((p) => (typeof (p as { text?: unknown })?.text === "string" ? (p as { text: string }).text : ""))
+    .join("");
+
+  // 코드펜스/설명문 속에서 JSON 본문만 추출
+  const start = Math.min(
+    ...["[", "{"].map((c) => {
+      const i = text.indexOf(c);
+      return i < 0 ? Number.POSITIVE_INFINITY : i;
+    }),
+  );
+  const end = Math.max(text.lastIndexOf("]"), text.lastIndexOf("}"));
+  if (!Number.isFinite(start) || end <= start) {
+    throw new Error("AI 응답에서 JSON을 찾지 못했습니다.");
+  }
+  try {
+    return JSON.parse(text.slice(start, end + 1)) as T;
+  } catch {
+    throw new Error("AI 응답 JSON 파싱에 실패했습니다.");
+  }
+}

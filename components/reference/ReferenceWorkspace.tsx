@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import PaletteMoodTab from "./PaletteMoodTab";
 import SectionRefsTab from "./SectionRefsTab";
+import TargetsTab from "./TargetsTab";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
+import type { ExtractedAnalysisTarget } from "@/lib/masking/types";
 import { generatePaletteOptions } from "@/lib/reference/palette";
 import type { ReferenceResult } from "@/lib/reference/types";
 
@@ -15,21 +17,25 @@ type TabId = "palette-mood" | "section-refs" | "targets";
 const TABS: { id: TabId; label: string; ready: boolean }[] = [
   { id: "palette-mood", label: "컬러·무드", ready: true },
   { id: "section-refs", label: "섹션별 레퍼런스", ready: true },
-  { id: "targets", label: "분석 대상 브랜드", ready: false },
+  { id: "targets", label: "분석 대상 브랜드", ready: true },
 ];
 
 interface ReferenceWorkspaceProps {
   analysis: ProjectAnalysis;
   directives: ProjectDirective[];
+  extractedTargets: ExtractedAnalysisTarget[];
   references: ReferenceResult;
   onChange: (next: ReferenceResult) => void;
+  onConfirm: () => void;
 }
 
 export default function ReferenceWorkspace({
   analysis,
   directives,
+  extractedTargets,
   references,
   onChange,
+  onConfirm,
 }: ReferenceWorkspaceProps) {
   const [tab, setTab] = useState<TabId>("palette-mood");
 
@@ -99,6 +105,42 @@ export default function ReferenceWorkspace({
           onChange={onChange}
         />
       )}
+      {tab === "targets" && (
+        <TargetsTab
+          analysis={analysis}
+          directives={directives}
+          extractedTargets={extractedTargets}
+          references={references}
+          onChange={onChange}
+        />
+      )}
+
+      <button
+        onClick={onConfirm}
+        disabled={!references.paletteConfirmed || references.referenceConfirmed}
+        title={
+          !references.paletteConfirmed
+            ? "컬러·무드 탭에서 팔레트·무드를 먼저 확정하세요"
+            : undefined
+        }
+        style={{
+          alignSelf: "flex-start",
+          padding: "12px 24px",
+          borderRadius: 10,
+          border: "none",
+          background:
+            !references.paletteConfirmed || references.referenceConfirmed
+              ? "var(--locked)"
+              : "var(--primary)",
+          color: "#fff",
+          fontWeight: 700,
+          fontSize: 15,
+        }}
+      >
+        {references.referenceConfirmed
+          ? "✓ 레퍼런스·무드 확정됨"
+          : "레퍼런스·무드 확정 — ⑤ 컨셉으로"}
+      </button>
     </div>
   );
 }

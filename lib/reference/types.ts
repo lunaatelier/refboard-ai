@@ -66,6 +66,38 @@ export interface SectionReference {
   platformQueries: ReferenceQuery[];
 }
 
+// 분석 대상 브랜드 (Step 10-c) — 경쟁사·롤모델·벤치마킹 브랜드·공개 투자사 포함.
+// 소스 3갈래: 설계서 자동추출(spec) / 사용자 직접입력(manual) / Gemini 추천(gemini).
+export type AnalysisTargetSource = "spec" | "manual" | "gemini";
+
+// 1단계(넓게 훑기) 목록 항목 — 가벼움
+export interface AnalysisTargetListItem {
+  id: string;
+  name: string; // 공개 정보라 실명 저장 OK
+  url: string;
+  source: AnalysisTargetSource;
+  oneLineSummary: string;
+  analysisStatus: "listed" | "analyzing" | "analyzed";
+  adopted: boolean; // 분석됨 ≠ 채택
+}
+
+// 2단계(깊게) 분석 결과 — 7개 축
+export interface AnalysisTargetAnalysis {
+  id: string; // AnalysisTargetListItem.id 계승
+  name: string;
+  depth: "deep"; // very-deep(스크린샷 멀티모달)은 스크린샷 API 도입 후
+  layoutStrategy: string; // 1. 레이아웃 전략
+  colorVisualStrategy: string; // 2. 컬러·비주얼 전략
+  componentPattern: string; // 3. 컴포넌트 패턴
+  painPoints: string[]; // 4. 페인포인트
+  wowPoints: string[]; // 5. 와우포인트
+  estimatedIntent: string; // 6. 추정 의도
+  implications: string; // 7. 우리 프로젝트 시사점
+  sourceUrl: string; // grounding 출처 (환각 방지)
+  confidence: "추천"; // 확정 아님 — "추정 포함, 확인 필요"
+  analyzedAt: string; // 캐시용 ("N일 전 분석" 표시)
+}
+
 // Phase 3 결과 — 프로젝트 전체 결정(팔레트/무드)은 위, 섹션별은 bySectionId(10-b).
 // 진행 중 단계별로 채워지므로 필드는 optional로 열어둔다.
 export interface ReferenceResult {
@@ -78,4 +110,7 @@ export interface ReferenceResult {
   globalMood?: MoodBoard; // 선택 무드 + 이미지
   paletteConfirmed?: boolean;
   bySectionId?: Record<string, SectionReference>; // 섹션별 (Step 10-b)
+  analysisTargetList?: AnalysisTargetListItem[]; // 1단계 목록 (누적, 사라지지 않음)
+  targetAnalyses?: Record<string, AnalysisTargetAnalysis>; // id → 깊은 분석 (누적)
+  referenceConfirmed?: boolean; // ④ 전체 확정 (Step 10-c)
 }
