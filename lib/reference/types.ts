@@ -98,6 +98,24 @@ export interface AnalysisTargetAnalysis {
   analyzedAt: string; // 캐시용 ("N일 전 분석" 표시)
 }
 
+// 이미지 힌트 (Step 11) — 실제 생성은 후순위(NVIDIA NIM). 프롬프트+타입 표출이 기본.
+export interface ImageHint {
+  area: string; // 적용 영역 (예: "표지 키비주얼", "연혁 섹션")
+  scale: "hero" | "section" | "icon"; // 표지급 / 섹션 삽화 / 아이콘
+  prompt: string; // 이미지 생성 프롬프트 (영어 — 다른 도구에 바로 사용 가능)
+  direction: string; // 일러스트/3D/사진 방향
+  aspectRatio?: string;
+  // 원본 이미지 참고 금지 플래그 (실사용#20 — 제안서 템플릿 케이스)
+  sourceReferenceMode: "use-source-image" | "text-only-ignore-source";
+  generatedImageUrl?: string; // 후순위 — NVIDIA 도입 시
+}
+
+// 대표 페이지 추천 (Step 11) — "표지 ≠ 대표" 2종 분리. Phase 4 ConceptOutputSelection의 씨앗.
+export interface RepresentativePages {
+  visualPageId?: string; // 시각 대표 (보통 cover — 첫인상·키비주얼)
+  contentPageId?: string; // 내용 대표 (content/metrics — 정보구조가 드러나는 페이지)
+}
+
 // Phase 3 결과 — 프로젝트 전체 결정(팔레트/무드)은 위, 섹션별은 bySectionId(10-b).
 // 진행 중 단계별로 채워지므로 필드는 optional로 열어둔다.
 export interface ReferenceResult {
@@ -112,5 +130,7 @@ export interface ReferenceResult {
   bySectionId?: Record<string, SectionReference>; // 섹션별 (Step 10-b)
   analysisTargetList?: AnalysisTargetListItem[]; // 1단계 목록 (누적, 사라지지 않음)
   targetAnalyses?: Record<string, AnalysisTargetAnalysis>; // id → 깊은 분석 (누적)
+  imageHints?: ImageHint[]; // Step 11
+  representative?: RepresentativePages; // Step 11 (Phase 4에서 계승)
   referenceConfirmed?: boolean; // ④ 전체 확정 (Step 10-c)
 }

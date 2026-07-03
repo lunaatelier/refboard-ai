@@ -480,6 +480,7 @@ export default function Home() {
             analysis={workflow.analysis}
             directives={workflow.projectDirective ?? []}
             extractedTargets={workflow.extractedAnalysisTargets ?? []}
+            documentPurpose={workflow.documentPurpose}
             references={workflow.references ?? {}}
             onChange={(next) =>
               setWorkflow((prev) => ({ ...prev, references: next }))

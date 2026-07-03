@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ImageHintsTab from "./ImageHintsTab";
 import PaletteMoodTab from "./PaletteMoodTab";
 import SectionRefsTab from "./SectionRefsTab";
 import TargetsTab from "./TargetsTab";
+import type { DocumentPurpose } from "@/lib/analysis/documentPurpose";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
 import type { ExtractedAnalysisTarget } from "@/lib/masking/types";
 import { generatePaletteOptions } from "@/lib/reference/palette";
@@ -12,18 +14,20 @@ import type { ReferenceResult } from "@/lib/reference/types";
 // ④ 레퍼런스·무드 (Step 10) — 정보량이 많아 탭으로 분할, 세로 무한 스크롤 금지 (flow-spec ④).
 // 10-a: [컬러·무드] / 10-b: [섹션별 레퍼런스] / 10-c: [분석 대상 브랜드]
 
-type TabId = "palette-mood" | "section-refs" | "targets";
+type TabId = "palette-mood" | "section-refs" | "targets" | "image-hints";
 
 const TABS: { id: TabId; label: string; ready: boolean }[] = [
   { id: "palette-mood", label: "컬러·무드", ready: true },
   { id: "section-refs", label: "섹션별 레퍼런스", ready: true },
   { id: "targets", label: "분석 대상 브랜드", ready: true },
+  { id: "image-hints", label: "이미지 힌트", ready: true },
 ];
 
 interface ReferenceWorkspaceProps {
   analysis: ProjectAnalysis;
   directives: ProjectDirective[];
   extractedTargets: ExtractedAnalysisTarget[];
+  documentPurpose?: DocumentPurpose;
   references: ReferenceResult;
   onChange: (next: ReferenceResult) => void;
   onConfirm: () => void;
@@ -33,6 +37,7 @@ export default function ReferenceWorkspace({
   analysis,
   directives,
   extractedTargets,
+  documentPurpose,
   references,
   onChange,
   onConfirm,
@@ -110,6 +115,15 @@ export default function ReferenceWorkspace({
           analysis={analysis}
           directives={directives}
           extractedTargets={extractedTargets}
+          references={references}
+          onChange={onChange}
+        />
+      )}
+      {tab === "image-hints" && (
+        <ImageHintsTab
+          analysis={analysis}
+          directives={directives}
+          documentPurpose={documentPurpose}
           references={references}
           onChange={onChange}
         />
