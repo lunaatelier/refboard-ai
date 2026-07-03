@@ -29,6 +29,7 @@ export const STEP_LABELS: Record<Step, string> = {
 
 import type { DocumentPurpose } from "../analysis/documentPurpose";
 import type { ProjectAnalysis, ProjectDirective } from "../analysis/types";
+import type { ConceptJson } from "../concept/types";
 import type { ExtractedAnalysisTarget } from "../masking/types";
 import type { ReferenceResult } from "../reference/types";
 
@@ -42,6 +43,7 @@ export interface WorkflowState {
   projectDirective?: ProjectDirective[]; // 전역 지시 — 이후 모든 프롬프트에 주입 (Step 8)
   analysis?: ProjectAnalysis; // Phase 2 (마스킹된 내용만 보유)
   references?: ReferenceResult; // Phase 3 (Step 10-a부터 점진적으로 채움)
+  conceptJson?: ConceptJson; // Phase 4 (SSoT — maskedContent만 보유)
 }
 
 export const initialWorkflowState: WorkflowState = {

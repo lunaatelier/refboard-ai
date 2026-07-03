@@ -22,10 +22,13 @@ export function buildSourceMaterial(analysis: ProjectAnalysis): string {
   const parts: string[] = [];
 
   for (const page of included) {
-    const lines = [`## 페이지: ${page.pageTitle} (역할: ${page.pageRole})`];
+    // pageId/sectionId를 명시해 후속 생성(컨셉 등)이 같은 ID로 계보를 유지하게 한다
+    const lines = [
+      `## 페이지: ${page.pageTitle} (pageId: ${page.pageId}, 역할: ${page.pageRole})`,
+    ];
     for (const s of page.sections) {
       lines.push(
-        `- [${s.contentType} / ${s.recommendedLayout}] ${s.sectionTitle}: ${s.contentSummary}`,
+        `- (sectionId: ${s.sectionId}) [${s.contentType} / ${s.recommendedLayout}] ${s.sectionTitle}: ${s.contentSummary}`,
       );
     }
     parts.push(lines.join("\n"));

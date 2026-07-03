@@ -7,6 +7,7 @@ import ImageConsentPanel, {
   type ConsentImage,
   type ImageInsight,
 } from "@/components/ImageConsentPanel";
+import ConceptWorkspace from "@/components/concept/ConceptWorkspace";
 import ReferenceWorkspace from "@/components/reference/ReferenceWorkspace";
 import MaskedPreview, { type MaskingStats } from "@/components/MaskedPreview";
 import MaskingReview from "@/components/MaskingReview";
@@ -504,12 +505,29 @@ export default function Home() {
           </Panel>
         ))}
 
-      {(workflow.currentStep === "concept" ||
-        workflow.currentStep === "design-md") && (
+      {workflow.currentStep === "concept" &&
+        (workflow.analysis ? (
+          <ConceptWorkspace
+            analysis={workflow.analysis}
+            directives={workflow.projectDirective ?? []}
+            references={workflow.references ?? {}}
+            concept={workflow.conceptJson}
+            onChange={(next) =>
+              setWorkflow((prev) => ({ ...prev, conceptJson: next }))
+            }
+          />
+        ) : (
+          <Panel title="⑤ 컨셉 3안">
+            <p style={{ color: "var(--text-muted)" }}>
+              분석·레퍼런스를 먼저 완료하세요.
+            </p>
+          </Panel>
+        ))}
+
+      {workflow.currentStep === "design-md" && (
         <Panel title={STEP_LABELS[workflow.currentStep]}>
           <p style={{ color: "var(--text-muted)" }}>
-            이 단계는 이후 Phase에서 구현됩니다. (컨셉 = Phase 4, 디자인 MD =
-            Phase 5)
+            디자인 MD는 Phase 5 (제품 B 스키마 확정 후) 구현됩니다.
           </p>
         </Panel>
       )}
