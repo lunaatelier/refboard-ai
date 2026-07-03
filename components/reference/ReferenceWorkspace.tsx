@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import PaletteMoodTab from "./PaletteMoodTab";
+import SectionRefsTab from "./SectionRefsTab";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
 import { generatePaletteOptions } from "@/lib/reference/palette";
 import type { ReferenceResult } from "@/lib/reference/types";
@@ -13,7 +14,7 @@ type TabId = "palette-mood" | "section-refs" | "targets";
 
 const TABS: { id: TabId; label: string; ready: boolean }[] = [
   { id: "palette-mood", label: "컬러·무드", ready: true },
-  { id: "section-refs", label: "섹션별 레퍼런스", ready: false },
+  { id: "section-refs", label: "섹션별 레퍼런스", ready: true },
   { id: "targets", label: "분석 대상 브랜드", ready: false },
 ];
 
@@ -84,6 +85,14 @@ export default function ReferenceWorkspace({
 
       {tab === "palette-mood" && (
         <PaletteMoodTab
+          analysis={analysis}
+          directives={directives}
+          references={references}
+          onChange={onChange}
+        />
+      )}
+      {tab === "section-refs" && (
+        <SectionRefsTab
           analysis={analysis}
           directives={directives}
           references={references}

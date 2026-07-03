@@ -51,6 +51,21 @@ export interface MoodBoard {
   images: MoodImage[];
 }
 
+export interface ReferenceQuery {
+  platform: string; // Dribbble, Behance, Mobbin ...
+  query: string; // 플랫폼 강점에 매핑된 검색어
+  mode: "auto-search" | "copy-keyword";
+  url?: string; // auto-search일 때 검색 이동 URL
+}
+
+// 섹션별 결정 (Step 10-b)
+export interface SectionReference {
+  sectionId: string;
+  layoutPattern: string; // 사용자 선택 확정
+  searchQuery: string; // 이 섹션의 대표 검색어 (Gemini 생성, 편집 가능)
+  platformQueries: ReferenceQuery[];
+}
+
 // Phase 3 결과 — 프로젝트 전체 결정(팔레트/무드)은 위, 섹션별은 bySectionId(10-b).
 // 진행 중 단계별로 채워지므로 필드는 optional로 열어둔다.
 export interface ReferenceResult {
@@ -62,4 +77,5 @@ export interface ReferenceResult {
   selectedMoodId?: string;
   globalMood?: MoodBoard; // 선택 무드 + 이미지
   paletteConfirmed?: boolean;
+  bySectionId?: Record<string, SectionReference>; // 섹션별 (Step 10-b)
 }
