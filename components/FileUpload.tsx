@@ -14,12 +14,8 @@ export default function FileUpload({ onFile }: FileUploadProps) {
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
-    if (isServerParsable(file.name)) {
-      setError("pdf/pptx는 Step 5(서버 파싱)에서 지원됩니다. 지금은 txt/md만 가능합니다.");
-      return;
-    }
-    if (!isBrowserParsable(file.name)) {
-      setError("지원하지 않는 형식입니다. txt 또는 md 파일을 올려주세요.");
+    if (!isBrowserParsable(file.name) && !isServerParsable(file.name)) {
+      setError("지원하지 않는 형식입니다. txt/md/pdf/pptx 파일을 올려주세요.");
       return;
     }
     setError(undefined);
@@ -62,12 +58,16 @@ export default function FileUpload({ onFile }: FileUploadProps) {
           파일을 끌어다 놓거나 클릭해서 선택하세요
         </p>
         <p style={{ color: "var(--text-muted)" }}>
-          지원 형식: txt · md (pdf/pptx는 곧 지원, URL·이미지·캡처는 이후 확장)
+          지원 형식: txt · md · pdf · pptx — 텍스트만 (URL·이미지·캡처는 이후 확장)
+        </p>
+        <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
+          txt/md는 브라우저에서 처리(원문이 PC를 떠나지 않음) ·
+          pdf/pptx는 자사 서버에서 파싱(메모리 처리, 저장 안 함)
         </p>
         <input
           ref={inputRef}
           type="file"
-          accept=".txt,.md"
+          accept=".txt,.md,.pdf,.pptx"
           hidden
           onChange={(e) => {
             handleFile(e.target.files?.[0]);

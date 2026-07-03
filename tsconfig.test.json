@@ -10,6 +10,6 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["lib/**/*.ts"],
+  "include": ["lib/**/*.test.ts"],
   "exclude": ["node_modules", ".next", ".test-dist"]
 }

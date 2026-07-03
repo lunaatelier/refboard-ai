@@ -9,9 +9,11 @@
     "test": "tsc -p tsconfig.test.json && node --test \".test-dist/**/*.test.js\""
   },
   "dependencies": {
+    "jszip": "^3.10.1",
     "next": "^15.3.4",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "unpdf": "^1.6.2"
   },
   "devDependencies": {
     "@types/node": "^22",

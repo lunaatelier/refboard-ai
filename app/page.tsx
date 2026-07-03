@@ -11,7 +11,8 @@ import { finalizeMask } from "@/lib/masking/apply";
 import { detect } from "@/lib/masking/detect";
 import { maskFileName } from "@/lib/masking/filename";
 import type { Detection, MaskMapping } from "@/lib/masking/types";
-import { parseTextFile } from "@/lib/parse/txt";
+import { parseViaServer } from "@/lib/parse/server";
+import { isBrowserParsable, parseTextFile } from "@/lib/parse/txt";
 import { canAccessStep } from "@/lib/state/guards";
 import {
   initialWorkflowState,
@@ -41,8 +42,28 @@ export default function Home() {
     workflow.currentStep === "upload" &&
     !workflow.completedSteps.includes("upload");
 
+  const [uploadError, setUploadError] = useState<string>();
+  const [parsing, setParsing] = useState(false);
+
   const handleFile = async (file: File) => {
-    const text = await parseTextFile(file); // 브라우저 파싱 — 서버 호출 없음
+    setUploadError(undefined);
+    setParsing(true);
+    let text: string;
+    try {
+      // txt/md = 브라우저 파싱(원문이 PC를 안 떠남) / pdf·pptx = 자사 서버(메모리·무저장)
+      text = isBrowserParsable(file.name)
+        ? await parseTextFile(file)
+        : await parseViaServer(file);
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "파싱에 실패했습니다.");
+      setParsing(false);
+      return;
+    }
+    setParsing(false);
+    if (!text.trim()) {
+      setUploadError("추출된 텍스트가 없습니다. 텍스트가 포함된 문서인지 확인하세요.");
+      return;
+    }
     const dictionary = listDictionary();
     setDraft({ parsedText: text, detections: detect(text, dictionary) });
     // 원본 파일명도 마스킹 (실사용#32) — 화면에는 displayName만
@@ -108,7 +129,13 @@ export default function Home() {
   };
 
   if (isLanding) {
-    return <LandingUpload onFile={handleFile} />;
+    return (
+      <LandingUpload
+        onFile={handleFile}
+        error={uploadError}
+        parsing={parsing}
+      />
+    );
   }
 
   return (

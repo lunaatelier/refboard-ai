@@ -7,9 +7,15 @@ import FileUpload from "../FileUpload";
 
 interface LandingUploadProps {
   onFile: (file: File) => void;
+  error?: string;
+  parsing?: boolean;
 }
 
-export default function LandingUpload({ onFile }: LandingUploadProps) {
+export default function LandingUpload({
+  onFile,
+  error,
+  parsing,
+}: LandingUploadProps) {
   return (
     <main
       style={{
@@ -31,8 +37,18 @@ export default function LandingUpload({ onFile }: LandingUploadProps) {
         </p>
       </div>
 
-      <div style={{ width: "min(560px, 90vw)" }}>
+      <div style={{ width: "min(560px, 90vw)", display: "flex", flexDirection: "column", gap: 8 }}>
         <FileUpload onFile={onFile} />
+        {parsing && (
+          <p style={{ color: "var(--primary)", fontWeight: 600, textAlign: "center" }}>
+            텍스트 추출 중…
+          </p>
+        )}
+        {error && (
+          <p role="alert" style={{ color: "#dc2626", fontWeight: 600, textAlign: "center" }}>
+            {error}
+          </p>
+        )}
       </div>
 
       <p
