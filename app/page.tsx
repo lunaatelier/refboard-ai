@@ -7,6 +7,7 @@ import MaskedPreview, { type MaskingStats } from "@/components/MaskedPreview";
 import MaskingReview from "@/components/MaskingReview";
 import LandingUpload from "@/components/shell/LandingUpload";
 import Workspace from "@/components/shell/Workspace";
+import { classifyDocumentPurpose } from "@/lib/analysis/documentPurpose";
 import { addDictionaryEntry, listDictionary } from "@/lib/dictionary/store";
 import { finalizeMask } from "@/lib/masking/apply";
 import { detect } from "@/lib/masking/detect";
@@ -53,6 +54,7 @@ export default function Home() {
   const [parsing, setParsing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string>();
+  const [directiveInput, setDirectiveInput] = useState("");
 
   const handleFile = async (file: File) => {
     setUploadError(undefined);
@@ -82,6 +84,8 @@ export default function Home() {
     });
     // 원본 파일명도 마스킹 (실사용#32) — 화면에는 displayName만
     setFileDisplayName(maskFileName(file.name, dictionary).displayName);
+    // 문서 성격 판정 (Step 8, 실사용#14) — 마스킹 전 원문이므로 로컬 휴리스틱만 사용
+    const { purpose } = classifyDocumentPurpose(text);
     setWorkflow((prev) => ({
       ...prev,
       completedSteps: prev.completedSteps.includes("upload")
@@ -90,6 +94,8 @@ export default function Home() {
       currentStep: "masking",
       maskedText: undefined, // 재업로드 시 이전 마스킹 무효화
       extractedAnalysisTargets: undefined,
+      documentPurpose: purpose,
+      analysis: undefined,
     }));
     setMaskingStats(undefined);
     secureMappingsRef.current = [];
@@ -164,6 +170,7 @@ export default function Home() {
           keptTargets: (workflow.extractedAnalysisTargets ?? []).map(
             (t) => t.name,
           ),
+          directives: workflow.projectDirective ?? [],
         }),
       });
       const body = await res.json().catch(() => null);
@@ -231,6 +238,21 @@ export default function Home() {
       {workflow.currentStep === "masking" &&
         (draft ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {workflow.documentPurpose === "company-profile" && (
+              <Alert tone="warn">
+                이 문서는 <b>회사소개서</b>로 보입니다. 프로젝트 기획서와 함께
+                분석하면 도메인 판정이 왜곡될 수 있습니다. 별도 문서라면 그대로
+                진행해도 됩니다 (판정은 참고용).
+              </Alert>
+            )}
+            {workflow.documentPurpose === "template-only" && (
+              <Alert tone="info">
+                본문 없이 <b>표지·간지·목차 구조만</b> 감지됐습니다. 이런
+                템플릿 문서는 전체 분석 없이 표지·간지·목차만 빠르게 만드는
+                경량 경로가 적합합니다 (경량 경로는 이후 스텝에서 제공 —
+                지금은 일반 경로로 진행됩니다).
+              </Alert>
+            )}
             <MaskingReview
               parsedText={draft.parsedText}
               detections={draft.detections}
@@ -266,13 +288,25 @@ export default function Home() {
 
       {workflow.currentStep === "analysis" &&
         (workflow.analysis ? (
-          <AnalysisResult
-            analysis={workflow.analysis}
-            onChange={(next) =>
-              setWorkflow((prev) => ({ ...prev, analysis: next }))
-            }
-            onConfirm={handleConfirmAnalysis}
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {workflow.projectDirective &&
+              workflow.projectDirective.length > 0 && (
+                <Alert tone="info">
+                  전역 지시 적용 중:{" "}
+                  <b>
+                    {workflow.projectDirective.map((d) => d.text).join(" · ")}
+                  </b>{" "}
+                  — 레퍼런스 검색어·컨셉 방향까지 유지됩니다.
+                </Alert>
+              )}
+            <AnalysisResult
+              analysis={workflow.analysis}
+              onChange={(next) =>
+                setWorkflow((prev) => ({ ...prev, analysis: next }))
+              }
+              onConfirm={handleConfirmAnalysis}
+            />
+          </div>
         ) : (
           <Panel title="③ 분석 결과">
             <p style={{ color: "var(--text-muted)" }}>
@@ -288,6 +322,29 @@ export default function Home() {
                     .join(", ")}
                 </p>
               )}
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontWeight: 600 }}>추가 요청사항 (선택)</span>
+              <textarea
+                value={directiveInput}
+                onChange={(e) => {
+                  setDirectiveInput(e.target.value);
+                  const text = e.target.value.trim();
+                  setWorkflow((prev) => ({
+                    ...prev,
+                    projectDirective: text ? [{ text }] : undefined,
+                  }));
+                }}
+                placeholder='예: "ESG 강조" — 분석·레퍼런스·컨셉 전 단계에 반영됩니다. 실명·기밀 정보는 넣지 마세요.'
+                rows={2}
+                style={{
+                  padding: "8px 12px",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  font: "inherit",
+                  resize: "vertical",
+                }}
+              />
+            </label>
             <button
               onClick={handleAnalyze}
               disabled={analyzing}
@@ -323,6 +380,33 @@ export default function Home() {
           </Panel>
         )}
     </Workspace>
+  );
+}
+
+function Alert({
+  tone,
+  children,
+}: {
+  tone: "warn" | "info";
+  children: React.ReactNode;
+}) {
+  const colors =
+    tone === "warn"
+      ? { border: "#f59e0b", background: "#fffbeb", color: "#92400e" }
+      : { border: "#0ea5e9", background: "#f0f9ff", color: "#075985" };
+  return (
+    <p
+      role="alert"
+      style={{
+        ...colors,
+        border: `1px solid ${colors.border}`,
+        borderRadius: 10,
+        padding: "12px 16px",
+        maxWidth: 860,
+      }}
+    >
+      {children}
+    </p>
   );
 }
 

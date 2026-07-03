@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildSourceMaterial } from "../ai/exclusion";
+import { buildAnalysisPrompt, buildDirectiveBlock } from "../ai/prompts";
+import { classifyDocumentPurpose } from "./documentPurpose";
 import { normalizeAnalysis } from "./normalize";
 import type { ProjectAnalysis } from "./types";
 
@@ -67,6 +69,45 @@ describe("normalizeAnalysis — Gemini 응답 정규화", () => {
     ]);
     assert.equal(a.existingContentVariants?.length, 2);
     assert.equal(a.detectedCaseStudies?.[0].name, "파타고니아");
+  });
+});
+
+describe("classifyDocumentPurpose — 문서 성격 판정 (Step 8, 실사용#14)", () => {
+  it("기획서/화면설계서 → project-brief", () => {
+    const r = classifyDocumentPurpose(
+      "홈페이지 리뉴얼 기획서\n프로젝트 개요\n요구사항 정의\n화면설계: 메인 레이아웃과 와이어프레임\nUI 구성",
+    );
+    assert.equal(r.purpose, "project-brief");
+  });
+
+  it("회사소개서 → company-profile", () => {
+    const r = classifyDocumentPurpose(
+      "회사소개서\n경영이념과 비전\n조직도\n연혁: 2018 설립\n주요 고객사: 테슬라, BMW\n수상 및 인증 내역\n재무제표 요약",
+    );
+    assert.equal(r.purpose, "company-profile");
+  });
+
+  it("표지·간지·목차만 → template-only", () => {
+    const r = classifyDocumentPurpose(
+      "--- 슬라이드 1 ---\n표지: 사업명 들어갈 자리\n--- 슬라이드 2 ---\n목차\n--- 슬라이드 3 ---\n간지: 1장",
+    );
+    assert.equal(r.purpose, "template-only");
+  });
+});
+
+describe("buildDirectiveBlock — 전역 지시 주입 (Step 8)", () => {
+  it("지시가 분석 프롬프트에 포함된다", () => {
+    const prompt = buildAnalysisPrompt("[회사A] 기획서", [], [
+      { text: "ESG 강조" },
+    ]);
+    assert.ok(prompt.includes("전역 지시"));
+    assert.ok(prompt.includes("- ESG 강조"));
+  });
+
+  it("지시가 없으면 블록도 없다", () => {
+    assert.equal(buildDirectiveBlock([]), "");
+    const prompt = buildAnalysisPrompt("[회사A] 기획서");
+    assert.ok(!prompt.includes("전역 지시"));
   });
 });
 

@@ -73,6 +73,14 @@ export interface DetectedCaseStudy {
   sourceUrls?: string[];
 }
 
+// 전역 지시 (Step 8) — "ESG 강조"가 레퍼런스 검색어·컨셉 방향까지 관통한다.
+// 지금은 text만 사용, scope/priority는 열어두되 기본 전체 적용.
+export interface ProjectDirective {
+  text: string;
+  scope?: ("analysis" | "reference" | "mood" | "concept" | "output")[];
+  priority?: "normal" | "high";
+}
+
 export interface ProjectAnalysis {
   title: string;
   description: string;
