@@ -36,6 +36,9 @@ import type { ReferenceResult } from "../reference/types";
 export interface WorkflowState {
   currentStep: Step;
   completedSteps: Step[];
+  // 재활용 모드 (Step 13). 미설정 = "raw-document" (일반 경로).
+  // "analysis-json" = 저장된 분석 JSON으로 시작 → 마스킹 건너뛰고 ④ 직행, 복원키 없음.
+  sourceType?: "raw-document" | "analysis-json";
   maskedText?: string; // 마스킹 확정 후에만 존재 — analysis 이후 단계의 보안 게이트 키
   // 마스킹 검수에서 "유지"로 확정된 공개 엔티티 (실명 = 공개 정보라 허용)
   extractedAnalysisTargets?: ExtractedAnalysisTarget[];

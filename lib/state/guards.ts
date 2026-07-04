@@ -16,7 +16,10 @@ export function canAccessStep(target: Step, state: WorkflowState): boolean {
   if (!prerequisitesDone) return false;
 
   if (targetIdx >= STEP_ORDER.indexOf("analysis") && !state.maskedText) {
-    return false;
+    // 재활용 (Step 13): 분석 JSON 시작이면 마스킹 없이 reference 이후 접근 허용.
+    // 저장된 JSON은 마스킹된 상태라(실명 없음) 보안 게이트를 이미 통과한 데이터다.
+    const recycled = state.sourceType === "analysis-json" && !!state.analysis;
+    if (!recycled) return false;
   }
 
   return true;

@@ -14,8 +14,14 @@ export default function FileUpload({ onFile }: FileUploadProps) {
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
-    if (!isBrowserParsable(file.name) && !isServerParsable(file.name)) {
-      setError("지원하지 않는 형식입니다. txt/md/pdf/pptx 파일을 올려주세요.");
+    if (
+      !isBrowserParsable(file.name) &&
+      !isServerParsable(file.name) &&
+      !file.name.toLowerCase().endsWith(".json") // 분석 JSON 재활용 (Step 13)
+    ) {
+      setError(
+        "지원하지 않는 형식입니다. txt/md/pdf/pptx 또는 저장한 분석 JSON을 올려주세요.",
+      );
       return;
     }
     setError(undefined);
@@ -61,13 +67,17 @@ export default function FileUpload({ onFile }: FileUploadProps) {
           지원 형식: txt · md · pdf · pptx — 텍스트만 (URL·이미지·캡처는 이후 확장)
         </p>
         <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
+          저장해둔 분석 JSON을 올리면 마스킹·분석을 건너뛰고 ④ 레퍼런스부터
+          다시 시작합니다.
+        </p>
+        <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
           txt/md는 브라우저에서 처리(원문이 PC를 떠나지 않음) ·
           pdf/pptx는 자사 서버에서 파싱(메모리 처리, 저장 안 함)
         </p>
         <input
           ref={inputRef}
           type="file"
-          accept=".txt,.md,.pdf,.pptx"
+          accept=".txt,.md,.pdf,.pptx,.json"
           hidden
           onChange={(e) => {
             handleFile(e.target.files?.[0]);

@@ -31,6 +31,11 @@ import { parseViaServer } from "@/lib/parse/server";
 import { isBrowserParsable, parseTextFile } from "@/lib/parse/txt";
 import { canAccessStep } from "@/lib/state/guards";
 import {
+  buildAnalysisExport,
+  isAnalysisJsonFile,
+  parseAnalysisImport,
+} from "@/lib/state/recycle";
+import {
   initialWorkflowState,
   STEP_LABELS,
   type Step,
@@ -73,6 +78,37 @@ export default function Home() {
 
   const handleFile = async (file: File) => {
     setUploadError(undefined);
+
+    // ── 재활용 모드 (Step 13): 분석 JSON → 마스킹·분석 건너뛰고 ④ 직행 ──
+    if (isAnalysisJsonFile(file.name)) {
+      try {
+        const data = parseAnalysisImport(await file.text());
+        // 주의: secureMappingsRef는 초기화하지 않는다 — 같은 세션에서 방금 저장한
+        // JSON을 다시 올린 경우(같은세션 재활용) 복원키가 살아있으면 실명본 가능.
+        imagesRef.current = [];
+        setImageInsights([]);
+        setDraft(null);
+        setMaskingStats(undefined);
+        setWorkflow({
+          currentStep: "reference",
+          completedSteps: ["upload", "masking", "analysis"],
+          sourceType: "analysis-json",
+          analysis: data.analysis,
+          extractedAnalysisTargets: data.extractedAnalysisTargets,
+          projectDirective:
+            data.projectDirective.length > 0
+              ? data.projectDirective
+              : undefined,
+          documentPurpose: data.documentPurpose,
+        });
+      } catch (e) {
+        setUploadError(
+          e instanceof Error ? e.message : "분석 JSON을 읽지 못했습니다.",
+        );
+      }
+      return;
+    }
+
     setParsing(true);
     let text: string;
     try {
@@ -114,17 +150,13 @@ export default function Home() {
     setFileDisplayName(maskFileName(file.name, dictionary).displayName);
     // 문서 성격 판정 (Step 8, 실사용#14) — 마스킹 전 원문이므로 로컬 휴리스틱만 사용
     const { purpose } = classifyDocumentPurpose(text);
-    setWorkflow((prev) => ({
-      ...prev,
-      completedSteps: prev.completedSteps.includes("upload")
-        ? prev.completedSteps
-        : [...prev.completedSteps, "upload"],
+    // 재업로드 = 새 워크플로 시작 (이전 분석·레퍼런스·컨셉 전부 무효화)
+    setWorkflow({
       currentStep: "masking",
-      maskedText: undefined, // 재업로드 시 이전 마스킹 무효화
-      extractedAnalysisTargets: undefined,
+      completedSteps: ["upload"],
+      sourceType: "raw-document",
       documentPurpose: purpose,
-      analysis: undefined,
-    }));
+    });
     setMaskingStats(undefined);
     secureMappingsRef.current = [];
   };
@@ -235,6 +267,18 @@ export default function Home() {
     } finally {
       setImageBusy(false);
     }
+  };
+
+  const handleSaveAnalysisJson = () => {
+    // 저장 내용 = 마스킹된 분석 + 공개 엔티티 + 지시. 복원키는 절대 포함 안 됨 (Step 13).
+    const json = buildAnalysisExport(workflow);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `drg-analysis-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleAnalyze = async () => {
@@ -413,6 +457,22 @@ export default function Home() {
               }
               onConfirm={handleConfirmAnalysis}
             />
+            {workflow.completedSteps.includes("analysis") && (
+              <button
+                onClick={handleSaveAnalysisJson}
+                style={{
+                  alignSelf: "flex-start",
+                  padding: "10px 20px",
+                  borderRadius: 10,
+                  border: "1px solid var(--border)",
+                  background: "transparent",
+                  fontWeight: 600,
+                }}
+              >
+                💾 분석 결과 JSON 저장 — 나중에 ④부터 재시작 (마스킹본이라
+                안전)
+              </button>
+            )}
           </div>
         ) : (
           <Panel title="③ 분석 결과">
@@ -478,7 +538,20 @@ export default function Home() {
 
       {workflow.currentStep === "reference" &&
         (workflow.analysis ? (
-          <ReferenceWorkspace
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {workflow.sourceType === "analysis-json" &&
+              (secureMappingsRef.current.length > 0 ? (
+                <Alert tone="info">
+                  같은 세션 재활용 모드 — 복원키가 아직 메모리에 있어{" "}
+                  <b>실명본 다운로드가 가능</b>합니다.
+                </Alert>
+              ) : (
+                <Alert tone="warn">
+                  재활용 모드 (분석 JSON 시작) — 복원키가 없으므로 이 모드의
+                  산출물은 <b>마스킹본만</b> 출력됩니다.
+                </Alert>
+              ))}
+            <ReferenceWorkspace
             analysis={workflow.analysis}
             directives={workflow.projectDirective ?? []}
             extractedTargets={workflow.extractedAnalysisTargets ?? []}
@@ -497,7 +570,8 @@ export default function Home() {
                 currentStep: "concept",
               }))
             }
-          />
+            />
+          </div>
         ) : (
           <Panel title="④ 레퍼런스·무드">
             <p style={{ color: "var(--text-muted)" }}>
