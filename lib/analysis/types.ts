@@ -83,10 +83,17 @@ export interface ParentSiteRelation {
 }
 
 // 전역 지시 (Step 8) — "ESG 강조"가 레퍼런스 검색어·컨셉 방향까지 관통한다.
-// 지금은 text만 사용, scope/priority는 열어두되 기본 전체 적용.
+// Step 15: scope 미지정(또는 빈 배열) = 전체 적용. 지정 시 해당 단계 프롬프트에만 주입.
+export type DirectiveScope =
+  | "analysis"
+  | "reference"
+  | "mood"
+  | "concept"
+  | "output";
+
 export interface ProjectDirective {
   text: string;
-  scope?: ("analysis" | "reference" | "mood" | "concept" | "output")[];
+  scope?: DirectiveScope[];
   priority?: "normal" | "high";
 }
 

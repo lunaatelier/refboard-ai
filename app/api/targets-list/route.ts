@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
   const prompt = `당신은 디자인 벤치마킹 리서처다. 아래 프로젝트가 참고할 만한 "분석 대상 브랜드/서비스"를 실제 웹 검색으로 찾아라.
 경쟁사·벤치마킹 브랜드·롤모델을 두루 포함하고, 실존하며 접속 가능한 서비스만.
-${buildDirectiveBlock(directives)}
+${buildDirectiveBlock(directives, "reference")}
 프로젝트: ${title}
 설명: ${typeof description === "string" ? description : ""}
 도메인: ${domain} / 종류: ${typeof projectType === "string" ? projectType : "-"}

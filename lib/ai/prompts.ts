@@ -1,14 +1,21 @@
-import type { ProjectDirective } from "../analysis/types";
+import type { DirectiveScope, ProjectDirective } from "../analysis/types";
 
 // 분석 프롬프트 (Step 7) — 입력은 항상 maskedText만 (보안 하드 게이트).
 
-// 전역 지시 블록 (Step 8) — 분석·레퍼런스·컨셉 등 이후 모든 Gemini 프롬프트에
-// 이 블록을 주입한다. "ESG 강조"가 전 단계를 관통하는 메커니즘.
+// 전역 지시 블록 (Step 8 + Step 15) — 이후 모든 Gemini 프롬프트에 주입한다.
+// scope 인자 = 호출처 단계. 지시의 scope가 비어있으면 전체 적용,
+// 지정돼 있으면 그 단계가 포함될 때만 주입된다 ("reference에만" 같은 세밀 제어).
 export function buildDirectiveBlock(
   directives: ProjectDirective[] = [],
+  scope?: DirectiveScope,
 ): string {
-  if (directives.length === 0) return "";
-  const lines = directives.map(
+  const applicable = scope
+    ? directives.filter(
+        (d) => !d.scope || d.scope.length === 0 || d.scope.includes(scope),
+      )
+    : directives;
+  if (applicable.length === 0) return "";
+  const lines = applicable.map(
     (d) => `- ${d.text}${d.priority === "high" ? " (중요)" : ""}`,
   );
   return `\n## 전역 지시 (사용자 요청 — 모든 판단·산출물에 반드시 반영)\n${lines.join("\n")}\n`;
@@ -31,7 +38,7 @@ export function buildAnalysisPrompt(
 
   return `당신은 시니어 프로덕트 디자이너다. 아래는 민감정보가 마스킹된 기획서 텍스트다.
 [회사A], [이메일A] 같은 대괄호 토큰은 마스킹된 민감정보다. 토큰을 그대로 유지하고 실명을 추측·복원하지 마라.${targetNote}
-${buildDirectiveBlock(directives)}${imageBlock}
+${buildDirectiveBlock(directives, "analysis")}${imageBlock}
 
 ## 작업
 

@@ -55,7 +55,7 @@ ${variants.map((v) => `- ${v.label}: ${v.contentSummary}`).join("\n")}\n`
 
   const prompt = `당신은 시니어 프로덕트 디자이너다. 아래 자료로 프로젝트 전체를 관통하는 디자인 컨셉 3안을 만들어라.
 ([회사A] 같은 대괄호 토큰은 마스킹된 실명이다 — 그대로 유지하고 복원하지 마라.)
-${buildDirectiveBlock(directives)}
+${buildDirectiveBlock(directives, "concept")}
 ## 프로젝트
 ${analysis.title} — ${analysis.description}
 도메인: ${analysis.domain} / 종류: ${analysis.projectType} / 타겟: ${analysis.targetUser}

@@ -34,7 +34,7 @@ export async function POST(req: Request) {
 
   const prompt = `당신은 이미지 생성 프롬프트 엔지니어다. 아래 각 항목에 대해 이미지 생성 AI에 넣을 영어 프롬프트를 만들어라.
 ([회사A] 같은 대괄호 토큰은 마스킹된 실명이다 — 프롬프트에 절대 옮기지 말고, 사업의 성격을 나타내는 일반 키워드만 사용하라.)
-${buildDirectiveBlock(directives)}
+${buildDirectiveBlock(directives, "mood")}
 무드 키워드: ${moodKeywords.join(", ") || "-"}
 메인 컬러: ${primaryColor ?? "-"}
 ${textOnly ? "주의: 원본 문서의 기존 이미지는 참고 대상이 아니다. 위 텍스트 의미만으로 새로 구상하라." : ""}

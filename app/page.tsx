@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import AnalysisResult from "@/components/AnalysisResult";
 import DictionaryManager from "@/components/DictionaryManager";
+import DirectiveEditor, { describeScope } from "@/components/DirectiveEditor";
 import ImageConsentPanel, {
   type ConsentImage,
   type ImageInsight,
@@ -88,7 +89,11 @@ export default function Home() {
   const [parsing, setParsing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string>();
-  const [directiveInput, setDirectiveInput] = useState("");
+
+  // 편집 중 빈 행은 상태에 남되, 프롬프트·하위 컴포넌트로는 내용 있는 지시만 전달
+  const activeDirectives = (workflow.projectDirective ?? []).filter((d) =>
+    d.text.trim(),
+  );
 
   const handleFile = async (file: File) => {
     setUploadError(undefined);
@@ -360,7 +365,7 @@ export default function Home() {
           keptTargets: (workflow.extractedAnalysisTargets ?? []).map(
             (t) => t.name,
           ),
-          directives: workflow.projectDirective ?? [],
+          directives: activeDirectives,
           // 이미지 분석 요약 — 이미 재마스킹된 텍스트만 (Step 9)
           imageNotes: imageInsights.map(
             (i) => `(${i.assetId}) ${i.maskedDescription}`,
@@ -520,16 +525,17 @@ export default function Home() {
       {workflow.currentStep === "analysis" &&
         (workflow.analysis ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {workflow.projectDirective &&
-              workflow.projectDirective.length > 0 && (
-                <Alert tone="info">
-                  전역 지시 적용 중:{" "}
-                  <b>
-                    {workflow.projectDirective.map((d) => d.text).join(" · ")}
-                  </b>{" "}
-                  — 레퍼런스 검색어·컨셉 방향까지 유지됩니다.
-                </Alert>
-              )}
+            {activeDirectives.length > 0 && (
+              <Alert tone="info">
+                지시 적용 중:{" "}
+                <b>
+                  {activeDirectives
+                    .map((d) => `${d.text} [${describeScope(d)}]`)
+                    .join(" · ")}
+                </b>{" "}
+                — 각 지시는 선택한 단계의 프롬프트에만 주입됩니다.
+              </Alert>
+            )}
             <AnalysisResult
               analysis={workflow.analysis}
               onChange={(next) =>
@@ -585,29 +591,15 @@ export default function Home() {
                     .join(", ")}
                 </p>
               )}
-            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontWeight: 600 }}>추가 요청사항 (선택)</span>
-              <textarea
-                value={directiveInput}
-                onChange={(e) => {
-                  setDirectiveInput(e.target.value);
-                  const text = e.target.value.trim();
-                  setWorkflow((prev) => ({
-                    ...prev,
-                    projectDirective: text ? [{ text }] : undefined,
-                  }));
-                }}
-                placeholder='예: "ESG 강조" — 분석·레퍼런스·컨셉 전 단계에 반영됩니다. 실명·기밀 정보는 넣지 마세요.'
-                rows={2}
-                style={{
-                  padding: "8px 12px",
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  font: "inherit",
-                  resize: "vertical",
-                }}
-              />
-            </label>
+            <DirectiveEditor
+              directives={activeDirectives}
+              onChange={(next) =>
+                setWorkflow((prev) => ({
+                  ...prev,
+                  projectDirective: next.length > 0 ? next : undefined,
+                }))
+              }
+            />
             <button
               onClick={handleAnalyze}
               disabled={analyzing}
@@ -677,7 +669,7 @@ export default function Home() {
             )}
             <ReferenceWorkspace
             analysis={workflow.analysis}
-            directives={workflow.projectDirective ?? []}
+            directives={activeDirectives}
             extractedTargets={workflow.extractedAnalysisTargets ?? []}
             documentPurpose={workflow.documentPurpose}
             references={workflow.references ?? {}}
@@ -706,9 +698,22 @@ export default function Home() {
 
       {workflow.currentStep === "concept" &&
         (workflow.analysis ? (
-          <ConceptWorkspace
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* 출력 scope 지시는 렌더링이 로컬 결정론적이라 프롬프트 주입이 없음 → 확인용 리마인더 */}
+            {activeDirectives.some((d) => d.scope?.includes("output")) && (
+              <Alert tone="info">
+                출력 단계 지시 (산출물 다운로드 전 확인용):{" "}
+                <b>
+                  {activeDirectives
+                    .filter((d) => d.scope?.includes("output"))
+                    .map((d) => d.text)
+                    .join(" · ")}
+                </b>
+              </Alert>
+            )}
+            <ConceptWorkspace
             analysis={workflow.analysis}
-            directives={workflow.projectDirective ?? []}
+            directives={activeDirectives}
             references={workflow.references ?? {}}
             concept={workflow.conceptJson}
             onChange={(next) =>
@@ -729,7 +734,8 @@ export default function Home() {
                   : [...prev.completedSteps, "concept"],
               }))
             }
-          />
+            />
+          </div>
         ) : (
           <Panel title="컨셉 3안">
             <p style={{ color: "var(--text-muted)" }}>

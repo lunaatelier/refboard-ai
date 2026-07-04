@@ -19,7 +19,7 @@ export async function POST(req: Request) {
 
   const prompt = `당신은 시니어 브랜드/프로덕트 디자이너다. 아래 프로젝트에 어울리는 서로 다른 무드 방향 3가지를 제안하라.
 ([회사A] 같은 대괄호 토큰은 마스킹된 실명이다. 그대로 두라.)
-${buildDirectiveBlock(directives)}
+${buildDirectiveBlock(directives, "mood")}
 프로젝트: ${title}
 설명: ${typeof description === "string" ? description : ""}
 도메인: ${domain} / 종류: ${typeof projectType === "string" ? projectType : "-"}

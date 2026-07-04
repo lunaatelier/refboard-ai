@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
   const prompt = `당신은 디자인 레퍼런스 큐레이터다. 아래 섹션 각각에 대해 Dribbble/Behance 등 디자인 플랫폼 검색에 쓸 키워드를 만들어라.
 ([회사A] 같은 대괄호 토큰은 마스킹된 실명이다.)
-${buildDirectiveBlock(directives)}${parentSiteBlock}
+${buildDirectiveBlock(directives, "reference")}${parentSiteBlock}
 도메인: ${domain}
 섹션 목록:
 ${sectionLines}

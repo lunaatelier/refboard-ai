@@ -271,10 +271,13 @@ type ExclusionReason =
   | "sensitive" | "out-of-scope" | "low-priority"
   | "duplicate" | "quality-issue" | "user-choice" | "other";
 
-// 전역 지시 (Step 8). 지금은 text만, scope/priority는 열어두되 기본 전체 적용.
+// 전역 지시 (Step 8 + Step 15). scope 미지정/빈 배열 = 전체 적용.
+// 지정 시 buildDirectiveBlock(directives, scope)가 호출처 단계와 일치하는 지시만 주입.
+// scope ↔ 호출처: analysis=/api/analyze, reference=targets-list·target-analyze·section-queries,
+// mood=/api/mood·image-hints, concept=/api/concept, output=프롬프트 미주입(컨셉 단계 리마인더 표시).
 interface ProjectDirective {
   text: string;                                        // "ESG 강조"
-  scope?: ("analysis" | "reference" | "mood" | "concept" | "output")[];
+  scope?: DirectiveScope[];  // "analysis" | "reference" | "mood" | "concept" | "output"
   priority?: "normal" | "high";
 }
 

@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const directives = Array.isArray(body?.directives) ? body.directives : [];
 
   const prompt = `당신은 시니어 프로덕트 디자이너다. 웹 검색을 활용해 "${name}" (${url})의 디자인을 깊게 분석하라.
-${buildDirectiveBlock(directives)}
+${buildDirectiveBlock(directives, "reference")}
 우리 프로젝트 맥락: ${typeof projectSummary === "string" ? projectSummary : "-"}
 
 아래 7개 축을 각각 구체적으로 답하라 (얕은 요약 금지):
