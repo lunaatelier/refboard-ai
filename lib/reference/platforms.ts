@@ -60,3 +60,19 @@ export function buildPlatformQueries(
       : {}),
   }));
 }
+
+// 붙여넣은 레퍼런스 URL → 플랫폼명 (Step 10-b ReferenceItem 수집용).
+// 등록 플랫폼 20종의 homepage 호스트와 매칭, 아니면 호스트명 그대로 반환.
+export function platformNameFromUrl(url: string): string | null {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+  for (const p of PLATFORMS) {
+    const pHost = new URL(p.homepage).hostname.toLowerCase().replace(/^www\./, "");
+    if (host === pHost || host.endsWith(`.${pHost}`)) return p.name;
+  }
+  return host;
+}

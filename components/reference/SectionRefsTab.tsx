@@ -2,8 +2,12 @@
 
 import { useState } from "react";
 import type { ProjectAnalysis, ProjectDirective, Section } from "@/lib/analysis/types";
-import { buildPlatformQueries } from "@/lib/reference/platforms";
-import type { ReferenceResult, SectionReference } from "@/lib/reference/types";
+import { buildPlatformQueries, platformNameFromUrl } from "@/lib/reference/platforms";
+import type {
+  ReferenceItem,
+  ReferenceResult,
+  SectionReference,
+} from "@/lib/reference/types";
 
 // [섹션별 레퍼런스] 탭 (Step 10-b, flow-spec ④)
 // 아코디언: 접힌 상태 기본, 펼친 것만 상세. 플랫폼 칩 = 자동검색(새 탭) / 키워드복사.
@@ -138,6 +142,38 @@ export default function SectionRefsTab({
     setCopied(`${sectionId}:${platform}`);
     setTimeout(() => setCopied(undefined), 1500);
   };
+
+  const patchRef = (sectionId: string, patch: Partial<SectionReference>) => {
+    const ref = bySectionId[sectionId];
+    if (!ref) return;
+    onChange({
+      ...references,
+      bySectionId: { ...bySectionId, [sectionId]: { ...ref, ...patch } },
+    });
+  };
+
+  const addReferenceItem = (sectionId: string, item: ReferenceItem) =>
+    patchRef(sectionId, {
+      references: [...(bySectionId[sectionId]?.references ?? []), item],
+    });
+
+  const removeReferenceItem = (sectionId: string, index: number) =>
+    patchRef(sectionId, {
+      references: (bySectionId[sectionId]?.references ?? []).filter(
+        (_, i) => i !== index,
+      ),
+    });
+
+  const updateReferenceItem = (
+    sectionId: string,
+    index: number,
+    patch: Partial<ReferenceItem>,
+  ) =>
+    patchRef(sectionId, {
+      references: (bySectionId[sectionId]?.references ?? []).map((r, i) =>
+        i === index ? { ...r, ...patch } : r,
+      ),
+    });
 
   if (confirmedSections.length === 0) {
     return (
@@ -332,6 +368,14 @@ export default function SectionRefsTab({
                     </li>
                   ))}
                 </ul>
+                <CollectedReferences
+                  items={ref.references ?? []}
+                  onAdd={(item) => addReferenceItem(s.sectionId, item)}
+                  onRemove={(i) => removeReferenceItem(s.sectionId, i)}
+                  onUpdate={(i, patch) =>
+                    updateReferenceItem(s.sectionId, i, patch)
+                  }
+                />
               </div>
             )}
             {open && !ref && (
@@ -347,6 +391,201 @@ export default function SectionRefsTab({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// 수집한 레퍼런스 (Step 10-b, data-model §5 ReferenceItem)
+// 플랫폼 검색에서 찾은 URL을 직접 붙여 수집. 기본 usage = 참고용(안전).
+// "삽입 가능"은 라이선스를 확인한 경우에만 사용자가 명시적으로 바꾼다.
+function CollectedReferences({
+  items,
+  onAdd,
+  onRemove,
+  onUpdate,
+}: {
+  items: ReferenceItem[];
+  onAdd: (item: ReferenceItem) => void;
+  onRemove: (index: number) => void;
+  onUpdate: (index: number, patch: Partial<ReferenceItem>) => void;
+}) {
+  const [url, setUrl] = useState("");
+  const [title, setTitle] = useState("");
+  const [inputError, setInputError] = useState<string>();
+
+  const handleAdd = () => {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    const platform = platformNameFromUrl(trimmed);
+    if (!platform) {
+      setInputError("올바른 URL이 아닙니다 (https://... 형태로 붙여넣어 주세요).");
+      return;
+    }
+    setInputError(undefined);
+    onAdd({
+      platform,
+      sourceUrl: trimmed,
+      usage: "inspiration-only",
+      ...(title.trim() ? { title: title.trim() } : {}),
+    });
+    setUrl("");
+    setTitle("");
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        borderTop: "1px solid var(--border)",
+        paddingTop: 12,
+      }}
+    >
+      <span style={{ fontSize: 14, fontWeight: 600 }}>
+        수집한 레퍼런스{" "}
+        <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 13 }}>
+          — 검색에서 찾은 URL을 붙여 기록. 기본은 참고용이며, 라이선스를
+          확인한 것만 &ldquo;삽입 가능&rdquo;으로 바꾸세요
+        </span>
+      </span>
+
+      {items.length > 0 && (
+        <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+          {items.map((r, i) => (
+            <li
+              key={`${r.sourceUrl}-${i}`}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                padding: "8px 12px",
+                background: "var(--bg)",
+                borderRadius: 8,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{r.platform}</span>
+                <a
+                  href={r.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  style={{
+                    flex: 1,
+                    minWidth: 160,
+                    fontSize: 13,
+                    color: "var(--primary)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {r.title || r.sourceUrl}
+                </a>
+                <select
+                  value={r.usage}
+                  onChange={(e) =>
+                    onUpdate(i, {
+                      usage: e.target.value as ReferenceItem["usage"],
+                    })
+                  }
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    border: "1px solid var(--border)",
+                    font: "inherit",
+                    fontSize: 13,
+                    color: r.usage === "embeddable" ? "#16a34a" : "#b45309",
+                    fontWeight: 600,
+                  }}
+                >
+                  <option value="inspiration-only">참고용 (기본)</option>
+                  <option value="embeddable">삽입 가능 — 라이선스 확인함</option>
+                </select>
+                <button
+                  onClick={() => onRemove(i)}
+                  aria-label="레퍼런스 삭제"
+                  title="삭제"
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    color: "var(--text-muted)",
+                    fontSize: 13,
+                    padding: "2px 6px",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              {r.usage === "embeddable" && (
+                <input
+                  value={r.licenseNote ?? ""}
+                  onChange={(e) => onUpdate(i, { licenseNote: e.target.value })}
+                  placeholder="라이선스 근거 메모 (예: CC BY 4.0, 구매 라이선스 보유)"
+                  style={{
+                    padding: "6px 10px",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    font: "inherit",
+                    fontSize: 13,
+                  }}
+                />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+          placeholder="레퍼런스 URL 붙여넣기"
+          style={{
+            flex: 2,
+            minWidth: 200,
+            padding: "8px 12px",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            font: "inherit",
+            fontSize: 13,
+          }}
+        />
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+          placeholder="제목 (선택)"
+          style={{
+            flex: 1,
+            minWidth: 120,
+            padding: "8px 12px",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            font: "inherit",
+            fontSize: 13,
+          }}
+        />
+        <button
+          onClick={handleAdd}
+          style={{
+            padding: "8px 16px",
+            borderRadius: 8,
+            border: "1px solid var(--border)",
+            background: "transparent",
+            fontWeight: 600,
+            fontSize: 13,
+          }}
+        >
+          추가
+        </button>
+      </div>
+      {inputError && (
+        <p role="alert" style={{ color: "#dc2626", fontWeight: 600, fontSize: 13 }}>
+          {inputError}
+        </p>
+      )}
     </div>
   );
 }

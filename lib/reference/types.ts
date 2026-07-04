@@ -58,12 +58,24 @@ export interface ReferenceQuery {
   url?: string; // auto-search일 때 검색 이동 URL
 }
 
+// 레퍼런스 항목 (Step 10, data-model §5) — 문서형 레퍼런스는 저작권 민감 → usage/license 구분.
+// 크롤러를 쓰지 않으므로(CLAUDE.md §7) 항목은 사용자가 플랫폼 검색에서 찾은 URL을 직접 붙여 수집한다.
+export interface ReferenceItem {
+  platform: string; // URL에서 자동 인식 (등록 플랫폼 매칭, 아니면 호스트명)
+  title?: string;
+  sourceUrl: string;
+  usage: "inspiration-only" | "embeddable"; // 참고만(기본·안전) / 산출물 삽입 가능
+  licenseNote?: string; // embeddable일 때 라이선스 확인 근거 기록 권장
+  thumbnail?: string;
+}
+
 // 섹션별 결정 (Step 10-b)
 export interface SectionReference {
   sectionId: string;
   layoutPattern: string; // 사용자 선택 확정
   searchQuery: string; // 이 섹션의 대표 검색어 (Gemini 생성, 편집 가능)
   platformQueries: ReferenceQuery[];
+  references?: ReferenceItem[]; // 수집한 레퍼런스 (usage/권리 포함)
 }
 
 // 분석 대상 브랜드 (Step 10-c) — 경쟁사·롤모델·벤치마킹 브랜드·공개 투자사 포함.

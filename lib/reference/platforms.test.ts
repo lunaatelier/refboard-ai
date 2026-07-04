@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   buildPlatformQueries,
   PLATFORMS,
+  platformNameFromUrl,
   platformsForDomain,
 } from "./platforms";
 
@@ -34,5 +35,21 @@ describe("platforms — 20종 등록 규칙 (Step 10-b)", () => {
 
   it("빈 검색어는 빈 배열", () => {
     assert.deepEqual(buildPlatformQueries("  ", "generic"), []);
+  });
+});
+
+describe("platformNameFromUrl — 수집 URL의 플랫폼 인식 (ReferenceItem)", () => {
+  it("등록 플랫폼 URL은 플랫폼명으로 매칭된다 (서브도메인·www 포함)", () => {
+    assert.equal(platformNameFromUrl("https://dribbble.com/shots/123-eco-hero"), "Dribbble");
+    assert.equal(platformNameFromUrl("https://www.behance.net/gallery/456/brand"), "Behance");
+    assert.equal(platformNameFromUrl("https://kr.pinterest.com/pin/789/"), "Pinterest");
+  });
+
+  it("미등록 사이트는 호스트명을 반환한다", () => {
+    assert.equal(platformNameFromUrl("https://www.example-design.io/work/1"), "example-design.io");
+  });
+
+  it("URL이 아니면 null", () => {
+    assert.equal(platformNameFromUrl("그냥 텍스트"), null);
   });
 });
