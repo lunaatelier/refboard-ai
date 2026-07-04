@@ -1,10 +1,13 @@
 "use client";
 
+import { useEffect } from "react";
+import { clipboardFileName } from "@/lib/parse/image";
 import AnalysisJsonUpload from "../AnalysisJsonUpload";
 import FileUpload from "../FileUpload";
 
 // 랜딩 모드 — LNB 없이 중앙 업로드 UI만 (phase1-masking-spec §8.1).
 // txt/md는 브라우저에서 직접 파싱되어 원문이 PC를 떠나지 않는다.
+// Step 16: 클립보드 캡처 붙여넣기(Ctrl+V) — Figma/V0 화면 캡처를 바로 올리는 경로.
 
 interface LandingUploadProps {
   onFile: (file: File) => void;
@@ -24,6 +27,11 @@ const TIPS = [
     body: "서버에서 분석 후 즉시 삭제됩니다.",
   },
   {
+    icon: "📋",
+    title: "이미지 / 캡처 붙여넣기",
+    body: "PNG·JPG·GIF 업로드 또는 화면 캡처를 Ctrl+V로 바로 붙여넣으세요. 전송 전 동의 단계를 거칩니다.",
+  },
+  {
     icon: "🔄",
     title: "분석 결과 JSON",
     body: "업로드하면 레퍼런스 단계부터 다시 시작합니다.",
@@ -35,6 +43,23 @@ export default function LandingUpload({
   error,
   parsing,
 }: LandingUploadProps) {
+  // 클립보드 캡처 붙여넣기 — 이미지 항목만 받는다 (텍스트 붙여넣기는 무시).
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const item = Array.from(e.clipboardData?.items ?? []).find((i) =>
+        i.type.startsWith("image/"),
+      );
+      const blob = item?.getAsFile();
+      if (!blob) return;
+      e.preventDefault();
+      onFile(
+        new File([blob], clipboardFileName(item!.type), { type: item!.type }),
+      );
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [onFile]);
+
   return (
     <main
       style={{

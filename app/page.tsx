@@ -27,6 +27,12 @@ import type {
   MaskMapping,
   NumericDetection,
 } from "@/lib/masking/types";
+import {
+  fileToBase64,
+  IMAGE_ONLY_PLACEHOLDER,
+  imageMimeType,
+  isImageFile,
+} from "@/lib/parse/image";
 import type { PptxImage } from "@/lib/parse/pptx";
 import { parseViaServer } from "@/lib/parse/server";
 import { isBrowserParsable, parseTextFile } from "@/lib/parse/txt";
@@ -132,6 +138,45 @@ export default function Home() {
           e instanceof Error ? e.message : "분석 JSON을 읽지 못했습니다.",
         );
       }
+      return;
+    }
+
+    // ── 단일 이미지/클립보드 캡처 (Step 16): 텍스트 없음 → 플레이스홀더로 마스킹
+    // 게이트 통과, 이미지는 기존 opt-in 동의·재마스킹 경로(Step 9)를 그대로 탄다.
+    // 이미지 바이트는 브라우저 메모리에만 — 자사 서버에도 안 올라간다.
+    if (isImageFile(file.name)) {
+      try {
+        imagesRef.current = [
+          {
+            assetId: "img-1",
+            mimeType: imageMimeType(file.name),
+            base64: await fileToBase64(file),
+            // 단독 이미지는 내용을 모르니 항상 "민감 가능성 있음"으로 표시 (보수적 기본값)
+            sensitivityHint: "possible",
+          },
+        ];
+      } catch {
+        setUploadError("이미지를 읽지 못했습니다.");
+        return;
+      }
+      setImageInsights([]);
+      setImageError(undefined);
+      setDraft({
+        parsedText: IMAGE_ONLY_PLACEHOLDER,
+        detections: [],
+        numericDetections: [],
+      });
+      setFileDisplayName(maskFileName(file.name, listDictionary()).displayName);
+      setWorkflow({
+        currentStep: "masking",
+        completedSteps: ["upload"],
+        sourceType: "raw-document",
+      });
+      setMaskingStats(undefined);
+      secureMappingsRef.current = [];
+      lastMaskedExportIdRef.current = undefined;
+      importedExportIdRef.current = undefined;
+      setRecoveryNotice(undefined);
       return;
     }
 
@@ -437,6 +482,13 @@ export default function Home() {
       {workflow.currentStep === "masking" &&
         (draft ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {draft.parsedText === IMAGE_ONLY_PLACEHOLDER && (
+              <Alert tone="info">
+                <b>이미지 전용 입력</b> — 마스킹할 본문 텍스트가 없습니다. 아래
+                검수를 그대로 확정한 뒤, 이미지 전송 동의를 거쳐 분석을
+                진행하세요. (이미지는 동의 전까지 외부로 나가지 않습니다)
+              </Alert>
+            )}
             {workflow.documentPurpose === "company-profile" && (
               <Alert tone="warn">
                 이 문서는 <b>회사소개서</b>로 보입니다. 프로젝트 기획서와 함께
@@ -592,7 +644,7 @@ export default function Home() {
                 </p>
               )}
             <DirectiveEditor
-              directives={activeDirectives}
+              directives={workflow.projectDirective ?? []}
               onChange={(next) =>
                 setWorkflow((prev) => ({
                   ...prev,
@@ -600,15 +652,32 @@ export default function Home() {
                 }))
               }
             />
+            {workflow.maskedText === IMAGE_ONLY_PLACEHOLDER &&
+              imageInsights.length === 0 && (
+                <Alert tone="warn">
+                  이미지 전용 입력은 <b>이미지 분석 요약</b>이 있어야 분석할
+                  수 있습니다. ② 마스킹 검수 단계로 돌아가 이미지 전송 동의
+                  후 &ldquo;선택 이미지 분석&rdquo;을 먼저 실행하세요.
+                </Alert>
+              )}
             <button
               onClick={handleAnalyze}
-              disabled={analyzing}
+              disabled={
+                analyzing ||
+                (workflow.maskedText === IMAGE_ONLY_PLACEHOLDER &&
+                  imageInsights.length === 0)
+              }
               style={{
                 alignSelf: "flex-start",
                 padding: "12px 24px",
                 borderRadius: 10,
                 border: "none",
-                background: analyzing ? "var(--locked)" : "var(--primary)",
+                background:
+                  analyzing ||
+                  (workflow.maskedText === IMAGE_ONLY_PLACEHOLDER &&
+                    imageInsights.length === 0)
+                    ? "var(--locked)"
+                    : "var(--primary)",
                 color: "#fff",
                 fontWeight: 700,
                 fontSize: 15,

@@ -101,11 +101,11 @@ PEXELS_API_KEY=
 - **pdf/pptx**: 파싱 라이브러리가 무거워 **자사 서버에서 파싱**. 서버는 메모리 처리·무저장 원칙 준수.
 - 그래서 **마스킹 엔진은 서버/클라 양쪽에서 동작하는 isomorphic 순수 함수**로 작성한다(`lib/masking/`). 브라우저 파싱(txt/md)의 경우 마스킹도 클라이언트에서 수행.
 
-### 4.2.1 업로드 범위 (Phase 1 고정)
+### 4.2.1 업로드 범위
 - **Phase 1 File Upload Complete 범위 = txt/md/pdf/pptx 텍스트만.** 여기까지가 안전한 기본 경로.
   - **Phase 1 Safe MVP** = txt/md만 (`implementation-steps.md` Step 4, 첫 배포 가능 지점)
   - **Phase 1 File Upload Complete** = 위 Safe MVP + pdf/pptx (Step 5)
-- **링크(V0)·단일 이미지·클립보드 캡처는 Phase 1.5 확장**으로 분리. Phase 1 범위에 넣지 않는다(범위 비대·보안 경계 모호 방지).
+- **Phase 1.5 확장 입력:** 단일 이미지(png/jpg/jpeg/gif)·클립보드 캡처 붙여넣기는 **Step 16에서 구현됨** — 이미지 바이트는 브라우저 메모리에만 두고(자사 서버에도 미업로드), 외부 전송은 기존 Step 9 opt-in 동의·재마스킹 경로만 사용. 링크(V0) 입력은 Step 17.
 
 ### 4.2.2 이미지 분석 = opt-in (기본값 텍스트만)
 - **기본값은 "텍스트만 분석".** 이미지(이미지 포함 pdf/pptx, 이미지 업로드)는 **명시적 동의(opt-in)** 없이 외부로 보내지 않는다.

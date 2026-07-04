@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { isImageFile } from "@/lib/parse/image";
 import { isBrowserParsable, isServerParsable } from "@/lib/parse/txt";
 
 interface FileUploadProps {
@@ -14,8 +15,14 @@ export default function FileUpload({ onFile }: FileUploadProps) {
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
-    if (!isBrowserParsable(file.name) && !isServerParsable(file.name)) {
-      setError("지원하지 않는 형식입니다. TXT · MD · PDF · PPTX 파일을 올려주세요.");
+    if (
+      !isBrowserParsable(file.name) &&
+      !isServerParsable(file.name) &&
+      !isImageFile(file.name)
+    ) {
+      setError(
+        "지원하지 않는 형식입니다. TXT · MD · PDF · PPTX · PNG · JPG · GIF 파일을 올려주세요.",
+      );
       return;
     }
     setError(undefined);
@@ -74,12 +81,12 @@ export default function FileUpload({ onFile }: FileUploadProps) {
         </button>
         <div style={{ fontSize: 14, color: "var(--text-muted)" }}>
           <p style={{ marginBottom: 2 }}>지원 파일</p>
-          <p>TXT · MD · PDF · PPTX</p>
+          <p>TXT · MD · PDF · PPTX · PNG · JPG · GIF</p>
         </div>
         <input
           ref={inputRef}
           type="file"
-          accept=".txt,.md,.pdf,.pptx"
+          accept=".txt,.md,.pdf,.pptx,.png,.jpg,.jpeg,.gif"
           hidden
           onChange={(e) => {
             handleFile(e.target.files?.[0]);
