@@ -113,5 +113,15 @@ export function normalizeAnalysis(raw: any): ProjectAnalysis {
       extractedNote: str(c?.extractedNote),
       sourceUrls: strArray(c?.sourceUrls),
     })),
+    // 부모-자식 사이트 관계 (실사용#31) — AI 후보는 항상 confirmed: false로 시작.
+    // 사용자가 분석 결과 화면에서 확정해야만 레퍼런스 검색에 반영된다.
+    ...(str(raw?.parentSiteRelation?.relationNote)
+      ? {
+          parentSiteRelation: {
+            relationNote: str(raw.parentSiteRelation.relationNote),
+            confirmed: false,
+          },
+        }
+      : {}),
   };
 }

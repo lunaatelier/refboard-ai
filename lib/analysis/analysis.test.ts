@@ -70,6 +70,26 @@ describe("normalizeAnalysis — Gemini 응답 정규화", () => {
     assert.equal(a.existingContentVariants?.length, 2);
     assert.equal(a.detectedCaseStudies?.[0].name, "파타고니아");
   });
+
+  it("parentSiteRelation: AI 후보는 confirmed:false로 시작, 없으면 필드 없음 (실사용#31)", () => {
+    const withRelation = normalizeAnalysis({
+      pages: [{ pageTitle: "관리", pageRole: "content", sections: [] }],
+      parentSiteRelation: {
+        relationNote: "[회사A] 대민 홈페이지의 콘텐츠를 관리하는 백오피스로 추정",
+      },
+    });
+    assert.equal(
+      withRelation.parentSiteRelation?.relationNote,
+      "[회사A] 대민 홈페이지의 콘텐츠를 관리하는 백오피스로 추정",
+    );
+    assert.equal(withRelation.parentSiteRelation?.confirmed, false);
+
+    const without = normalizeAnalysis({
+      pages: [{ pageTitle: "메인", pageRole: "content", sections: [] }],
+      parentSiteRelation: null,
+    });
+    assert.equal(without.parentSiteRelation, undefined);
+  });
 });
 
 describe("classifyDocumentPurpose — 문서 성격 판정 (Step 8, 실사용#14)", () => {

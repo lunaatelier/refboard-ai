@@ -58,6 +58,8 @@ ${buildDirectiveBlock(directives)}${imageBlock}
 
 5. detectedCaseStudies: 문서 안에 이미 있는 사례분석/벤치마킹 섹션(브랜드·서비스 설명 + 출처)이 있으면 감지하라. 각 항목 { name, sourceSlides, extractedNote, sourceUrls }. 없으면 빈 배열.
 
+6. parentSiteRelation: 이 문서가 "다른 사이트(부모/대민 사이트)를 관리하는 관리자·백오피스 화면"으로 보이면 감지하라. 단서: 게시판·배너·회원·콘텐츠 관리 메뉴가 특정 공개 사이트를 대상으로 함, "OO홈페이지 관리자" 같은 명칭, 대민 사이트의 GNB/LNB·컴포넌트 정책을 그대로 물려받은 구성. 감지되면 { "relationNote": "어떤 부모 사이트의 무엇을 관리하는지 1문장 (마스킹 토큰 유지)" }, 아니면 null.
+
 ## 출력
 반드시 아래 형태의 JSON만 출력하라 (설명·마크다운 금지):
 {
@@ -68,7 +70,8 @@ ${buildDirectiveBlock(directives)}${imageBlock}
   "pages": [{ "pageTitle": string, "pageRole": string, "sourceSlides": number[], "sourceDocumentId": string|null,
     "sections": [{ "sectionTitle": string, "contentSummary": string, "contentType": string, "recommendedLayout": string, "sourceSlides": number[], "sourceDocumentId": string|null, "confidence": number, "unresolvedNotes": string[] }] }],
   "existingContentVariants": [{ "label": string, "sourceSlides": number[], "contentSummary": string }],
-  "detectedCaseStudies": [{ "name": string, "sourceSlides": number[], "extractedNote": string, "sourceUrls": string[] }]
+  "detectedCaseStudies": [{ "name": string, "sourceSlides": number[], "extractedNote": string, "sourceUrls": string[] }],
+  "parentSiteRelation": { "relationNote": string } | null
 }
 
 ## 기획서 텍스트

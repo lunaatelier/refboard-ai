@@ -73,6 +73,15 @@ export interface DetectedCaseStudy {
   sourceUrls?: string[];
 }
 
+// 부모-자식 사이트 관계 (실사용#31, flow-spec ④) — 분석 단계에서 AI가 후보를 제시하고
+// 사용자가 확정한다. 확정 시 레퍼런스 검색이 "일반 관리자 대시보드"가 아니라
+// "이 부모 사이트를 관리하는 CMS 백오피스"로 좁혀진다.
+export interface ParentSiteRelation {
+  relatedProjectId?: string; // 향후 프로젝트 저장소 도입 시 연결 (현재는 미사용)
+  relationNote: string; // 예: "[회사A] 대민 홈페이지의 콘텐츠를 관리하는 백오피스로 추정"
+  confirmed: boolean; // AI 후보(false) → 사용자 확정(true)일 때만 레퍼런스에 반영
+}
+
 // 전역 지시 (Step 8) — "ESG 강조"가 레퍼런스 검색어·컨셉 방향까지 관통한다.
 // 지금은 text만 사용, scope/priority는 열어두되 기본 전체 적용.
 export interface ProjectDirective {
@@ -93,4 +102,5 @@ export interface ProjectAnalysis {
   pages: Page[];
   existingContentVariants?: ExistingContentVariant[];
   detectedCaseStudies?: DetectedCaseStudy[];
+  parentSiteRelation?: ParentSiteRelation;
 }

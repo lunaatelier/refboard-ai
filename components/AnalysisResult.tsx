@@ -371,6 +371,90 @@ export default function AnalysisResult({
           </div>
         )}
 
+      {analysis.parentSiteRelation && (
+        <div style={{ ...card, borderColor: "#7c3aed", background: "#faf5ff" }}>
+          <h3 style={{ fontSize: 15 }}>
+            🔗 이 문서는 다른 사이트의 관리자 화면으로 보입니다
+          </h3>
+          <p>{analysis.parentSiteRelation.relationNote}</p>
+          {analysis.parentSiteRelation.confirmed ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontWeight: 700, color: "#7c3aed" }}>
+                ✓ 확정됨 — 레퍼런스가 &ldquo;부모 사이트를 관리하는 CMS
+                백오피스&rdquo;로 좁혀집니다
+              </span>
+              <button
+                onClick={() =>
+                  onChange({
+                    ...analysis,
+                    parentSiteRelation: {
+                      ...analysis.parentSiteRelation!,
+                      confirmed: false,
+                    },
+                  })
+                }
+                style={{
+                  border: "1px solid var(--border)",
+                  background: "transparent",
+                  borderRadius: 6,
+                  padding: "4px 12px",
+                  color: "var(--text-muted)",
+                  fontSize: 13,
+                }}
+              >
+                해제
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <button
+                onClick={() =>
+                  onChange({
+                    ...analysis,
+                    parentSiteRelation: {
+                      ...analysis.parentSiteRelation!,
+                      confirmed: true,
+                    },
+                  })
+                }
+                style={{
+                  border: "none",
+                  background: "#7c3aed",
+                  color: "#fff",
+                  borderRadius: 8,
+                  padding: "6px 16px",
+                  fontWeight: 600,
+                  fontSize: 14,
+                }}
+              >
+                맞습니다 — 레퍼런스에 반영
+              </button>
+              <button
+                onClick={() => {
+                  const { parentSiteRelation: _removed, ...rest } = analysis;
+                  onChange(rest);
+                }}
+                style={{
+                  border: "1px solid var(--border)",
+                  background: "transparent",
+                  borderRadius: 8,
+                  padding: "6px 16px",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  color: "var(--text-muted)",
+                }}
+              >
+                아닙니다 — 무시
+              </button>
+              <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                확정하면 레퍼런스 검색이 일반 관리자 대시보드 대신 CMS
+                백오피스 쪽으로 좁혀집니다
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {analysis.detectedCaseStudies &&
         analysis.detectedCaseStudies.length > 0 && (
           <div style={{ ...card, borderColor: "#0ea5e9", background: "#f0f9ff" }}>

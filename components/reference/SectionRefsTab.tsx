@@ -59,6 +59,10 @@ export default function SectionRefsTab({
         body: JSON.stringify({
           domain: analysis.domain,
           directives,
+          // 부모-자식 사이트 관계 (실사용#31) — 사용자가 확정한 경우에만 전달
+          parentSiteNote: analysis.parentSiteRelation?.confirmed
+            ? analysis.parentSiteRelation.relationNote
+            : undefined,
           sections: confirmedSections.map((s) => ({
             sectionId: s.sectionId,
             sectionTitle: s.sectionTitle,

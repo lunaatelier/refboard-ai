@@ -231,6 +231,15 @@ interface ProjectAnalysis {
   brandColors?: string[];     // 로고/브랜드컬러 있으면 자동, 수정 가능
   projectDirective?: ProjectDirective[];  // 전역 지시 (Step 8)
   pages: Page[];
+  parentSiteRelation?: ParentSiteRelation;  // (실사용#31, Step 10) 부모-자식 사이트 관계 후보
+}
+
+// 부모-자식 사이트 관계 (실사용#31, flow-spec ④). 분석 단계에서 AI가 후보 제시,
+// 사용자 확정 시에만 레퍼런스 검색이 "부모 사이트를 관리하는 CMS 백오피스"로 좁혀진다.
+interface ParentSiteRelation {
+  relatedProjectId?: string;  // 향후 프로젝트 저장소 도입 시 연결 (현재 미사용)
+  relationNote: string;       // 예: "[회사A] 대민 홈페이지의 콘텐츠를 관리하는 백오피스로 추정"
+  confirmed: boolean;         // AI 후보(false) → 사용자 확정(true)일 때만 반영
 }
 
 type DomainHint =

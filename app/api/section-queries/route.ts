@@ -19,6 +19,16 @@ export async function POST(req: Request) {
     );
   }
   const directives = Array.isArray(body?.directives) ? body.directives : [];
+  const parentSiteNote =
+    typeof body?.parentSiteNote === "string" ? body.parentSiteNote.trim() : "";
+
+  // 부모-자식 사이트 관계 확정 시 (실사용#31) — 일반 공개 사이트 스타일이 아니라
+  // "부모 사이트를 관리하는 CMS 백오피스" 쪽으로 검색어를 좁힌다.
+  const parentSiteBlock = parentSiteNote
+    ? `\n## 부모-자식 사이트 관계 (사용자 확정 — 반드시 반영)
+이 문서는 부모 사이트를 관리하는 백오피스다: ${parentSiteNote}
+모든 검색어를 공개 사이트/홈페이지 스타일이 아니라 CMS admin/backoffice/content management UI 쪽으로 좁혀라 (예: "cms admin dashboard", "backoffice table filter").\n`
+    : "";
 
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const sectionLines = (sections as any[])
@@ -30,7 +40,7 @@ export async function POST(req: Request) {
 
   const prompt = `당신은 디자인 레퍼런스 큐레이터다. 아래 섹션 각각에 대해 Dribbble/Behance 등 디자인 플랫폼 검색에 쓸 키워드를 만들어라.
 ([회사A] 같은 대괄호 토큰은 마스킹된 실명이다.)
-${buildDirectiveBlock(directives)}
+${buildDirectiveBlock(directives)}${parentSiteBlock}
 도메인: ${domain}
 섹션 목록:
 ${sectionLines}
