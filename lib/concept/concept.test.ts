@@ -73,6 +73,55 @@ describe("Step 12-a — normalizeConcept (SSoT 정규화)", () => {
     assert.equal(c.outputSelection.outputPreset, "proposal");
   });
 
+  it("platforms: 웹+모바일 세트가 정규화되고 위조 ID는 걸러진다 (실사용#25)", () => {
+    const pageSet = (masked: string) => [
+      {
+        pageId: "p2",
+        pageTitle: "메인",
+        sections: [
+          { sectionId: "p2-s1", sectionTitle: "히어로", contentType: "hero", layoutPattern: "hero", contentMapping: { maskedContent: masked, sourceSectionId: "p2-s1", targetArea: "hero-title" } },
+        ],
+      },
+    ];
+    const c = normalizeConcept(
+      {
+        options: [
+          {
+            optionId: "opt-1",
+            label: "A안",
+            pages: pageSet("웹 카피"),
+            platforms: {
+              web: pageSet("웹 카피"),
+              mobile: [
+                ...pageSet("모바일 축약 카피"),
+                { pageId: "fake-page", pageTitle: "위조", sections: [] },
+              ],
+            },
+          },
+        ],
+      },
+      analysis,
+      rep,
+    );
+    const opt = c.options[0];
+    assert.ok(opt.platforms);
+    assert.equal(opt.platforms!.web!.length, 1);
+    assert.equal(opt.platforms!.mobile!.length, 1); // 위조 페이지 제거
+    assert.equal(
+      opt.platforms!.mobile![0].sections[0].contentMapping.maskedContent,
+      "모바일 축약 카피",
+    );
+  });
+
+  it("platforms: 미지정(웹 단일)이면 필드 자체가 없다", () => {
+    const c = normalizeConcept(
+      { options: [{ optionId: "opt-1", label: "A안", pages: [] }] },
+      analysis,
+      rep,
+    );
+    assert.equal(c.options[0].platforms, undefined);
+  });
+
   it("mode/navPosition enum이 보정된다", () => {
     const c = normalizeConcept(
       {

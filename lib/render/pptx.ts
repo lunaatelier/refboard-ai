@@ -72,20 +72,30 @@ function addOptionSlides(
     { x: 0.5, y: 4.1, w: W - 1, h: 1.2, fontSize: 11, color: colors.muted, valign: "top" },
   );
 
-  // 표지(시각 대표) — 제안형 이상
-  const visualPage = o.pages.find((p) => p.pageId === cfg.visualPageId);
-  if (inc.subPages && visualPage) {
-    addPageSlide(pptx, visualPage, `${o.label} — 표지(시각 대표)`, t, inc.sectionMapping, colors);
-  }
-  // 내용 대표 — 항상
-  const contentPage = o.pages.find((p) => p.pageId === cfg.contentPageId);
-  if (contentPage) {
-    addPageSlide(pptx, contentPage, `${o.label} — 내용 대표`, t, true, colors);
-  }
-  // 서브 — 제안형 이상, 선택한 것만
-  if (inc.subPages) {
-    for (const p of o.pages.filter((p) => cfg.includedSubPageIds.includes(p.pageId))) {
-      addPageSlide(pptx, p, `${o.label} — 서브`, t, inc.sectionMapping, colors);
+  // 웹+모바일 별도 세트가 있으면 두 세트를 모두 출력, 없으면 pages 단일 세트
+  const pageSets: [string, ConceptPage[]][] = o.platforms
+    ? ([
+        ...(o.platforms.web ? [["웹 · ", o.platforms.web]] : []),
+        ...(o.platforms.mobile ? [["모바일 · ", o.platforms.mobile]] : []),
+      ] as [string, ConceptPage[]][])
+    : [["", o.pages]];
+
+  for (const [prefix, pages] of pageSets) {
+    // 표지(시각 대표) — 제안형 이상
+    const visualPage = pages.find((p) => p.pageId === cfg.visualPageId);
+    if (inc.subPages && visualPage) {
+      addPageSlide(pptx, visualPage, `${o.label} — ${prefix}표지(시각 대표)`, t, inc.sectionMapping, colors);
+    }
+    // 내용 대표 — 항상
+    const contentPage = pages.find((p) => p.pageId === cfg.contentPageId);
+    if (contentPage) {
+      addPageSlide(pptx, contentPage, `${o.label} — ${prefix}내용 대표`, t, true, colors);
+    }
+    // 서브 — 제안형 이상, 선택한 것만
+    if (inc.subPages) {
+      for (const p of pages.filter((p) => cfg.includedSubPageIds.includes(p.pageId))) {
+        addPageSlide(pptx, p, `${o.label} — ${prefix}서브`, t, inc.sectionMapping, colors);
+      }
     }
   }
 }

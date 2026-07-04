@@ -76,13 +76,15 @@ ${buildSourceMaterial(analysis)}
 - pages: 소스 자료의 페이지·섹션 구조를 그대로 쓰되(pageId/sectionId 동일하게 유지 — 절대 새 ID 만들지 마라), 각 섹션에 layoutPattern(사용자 확정값 우선)과 contentMapping을 채워라.
 - contentMapping.maskedContent: 그 화면 영역에 들어갈 실제 카피/본문 요약 (마스킹 토큰 유지). targetArea: hero-title/feature-card/timeline/table/stat-band 등.
 - 3안은 위 차별화 축에서 서로 뚜렷이 달라야 한다. label은 "A안 — 신뢰의 블루" 형식.
+- platforms (웹+모바일 동시 요구 시에만): 소스 자료가 웹과 모바일 산출물을 모두 명시적으로 요구하는 경우(예: "반응형 웹 + 모바일 앱", "PC/모바일 각각"), 각 안에 platforms.web과 platforms.mobile 페이지 세트를 별도로 채워라. 두 세트 모두 pages와 같은 구조이며 pageId/sectionId는 소스 자료 그대로 유지하되, layoutPattern·contentMapping은 플랫폼 특성(모바일 = 단일 컬럼, 하단 탭, 축약 카피)에 맞게 다르게 설계하라. 이때 pages에는 웹 세트를 그대로 복사해 넣어라. 웹 단일 요구라면 platforms를 넣지 마라.
 
 반드시 JSON만 출력:
 { "options": [{ "optionId": string, "label": string, "basedOnVariantLabel": string|null,
   "conceptKeywords": [{ "no": string, "title": string, "category": string, "description": string }],
   "uiStructure": { "mode": "dark"|"light", "navPosition": "top"|"left", "infoStructure": string, "layoutConcept": string },
   "keyVisual": { "imageTone": string, "illustrationStyle": string, "backgroundPattern": string, "decorativeElements": string },
-  "pages": [{ "pageId": string, "pageTitle": string, "sections": [{ "sectionId": string, "sectionTitle": string, "contentType": string, "layoutPattern": string, "contentMapping": { "maskedContent": string, "sourceSectionId": string, "targetArea": string } }] }] }] }`;
+  "pages": [{ "pageId": string, "pageTitle": string, "sections": [{ "sectionId": string, "sectionTitle": string, "contentType": string, "layoutPattern": string, "contentMapping": { "maskedContent": string, "sourceSectionId": string, "targetArea": string } }] }],
+  "platforms": { "web": [/* pages와 동일 구조 */], "mobile": [/* pages와 동일 구조 */] } | null }] }`;
 
   try {
     const raw = await generateJson(prompt);

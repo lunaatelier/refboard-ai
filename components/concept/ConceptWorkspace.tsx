@@ -56,6 +56,7 @@ export default function ConceptWorkspace({
   const [useVariants, setUseVariants] = useState(variants.length >= 2);
   const [selectedOptionId, setSelectedOptionId] = useState<string>();
   const [previewPageId, setPreviewPageId] = useState<string>();
+  const [previewPlatform, setPreviewPlatform] = useState<"web" | "mobile">("web");
 
   const representative =
     references.representative ?? recommendRepresentativePages(analysis);
@@ -114,12 +115,17 @@ export default function ConceptWorkspace({
   const selected =
     concept?.options.find((o) => o.optionId === selectedOptionId) ??
     concept?.options[0];
+  // 웹+모바일 세트가 있으면 토글로 전환, 없으면 pages 단일 세트
+  const previewPages =
+    (previewPlatform === "mobile"
+      ? selected?.platforms?.mobile
+      : selected?.platforms?.web) ?? selected?.pages;
   const previewPage =
-    selected?.pages.find((p) => p.pageId === previewPageId) ??
-    selected?.pages.find(
+    previewPages?.find((p) => p.pageId === previewPageId) ??
+    previewPages?.find(
       (p) => p.pageId === concept?.outputSelection.contentRepresentativePageId,
     ) ??
-    selected?.pages[0];
+    previewPages?.[0];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 960 }}>
@@ -193,6 +199,11 @@ export default function ConceptWorkspace({
                       문서 시안 {o.basedOnVariantLabel} 기반
                     </span>
                   )}
+                  {o.platforms && (
+                    <span style={{ fontSize: 13, color: "#0e7490" }}>
+                      📱 웹+모바일 별도 세트
+                    </span>
+                  )}
                   <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
                     {o.uiStructure.mode === "dark" ? "다크" : "라이트"} · GNB{" "}
                     {o.uiStructure.navPosition === "left" ? "좌측" : "상단"} ·{" "}
@@ -220,6 +231,35 @@ export default function ConceptWorkspace({
             <div style={card}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <h3 style={{ fontSize: 15 }}>미리보기 — {selected.label}</h3>
+                {selected.platforms && (
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {(["web", "mobile"] as const).map((pf) => (
+                      <button
+                        key={pf}
+                        onClick={() => setPreviewPlatform(pf)}
+                        disabled={!selected.platforms?.[pf]}
+                        style={{
+                          padding: "6px 14px",
+                          borderRadius: 8,
+                          border: `1px solid ${previewPlatform === pf ? "var(--primary)" : "var(--border)"}`,
+                          background:
+                            previewPlatform === pf
+                              ? "var(--primary-soft)"
+                              : "transparent",
+                          color: !selected.platforms?.[pf]
+                            ? "var(--locked)"
+                            : previewPlatform === pf
+                              ? "var(--primary)"
+                              : "var(--text)",
+                          fontWeight: 600,
+                          fontSize: 14,
+                        }}
+                      >
+                        {pf === "web" ? "웹" : "모바일"}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <select
                   value={previewPage.pageId}
                   onChange={(e) => setPreviewPageId(e.target.value)}
@@ -230,7 +270,7 @@ export default function ConceptWorkspace({
                     font: "inherit",
                   }}
                 >
-                  {selected.pages.map((p) => (
+                  {(previewPages ?? []).map((p) => (
                     <option key={p.pageId} value={p.pageId}>
                       {p.pageTitle}
                       {p.pageId ===

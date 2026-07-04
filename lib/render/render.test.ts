@@ -100,6 +100,49 @@ describe("Step 12-b — 마스킹본/실명본", () => {
   });
 });
 
+describe("Step 12 — platforms(웹+모바일) 렌더", () => {
+  const withPlatforms: ConceptJson = {
+    ...concept,
+    options: [
+      {
+        ...concept.options[0],
+        platforms: {
+          web: concept.options[0].pages,
+          mobile: [
+            {
+              pageId: "p2",
+              pageTitle: "메인",
+              sections: [
+                { sectionId: "p2-s1", sectionTitle: "히어로", contentType: "hero", layoutPattern: "single-column", contentMapping: { maskedContent: "모바일 축약 카피", sourceSectionId: "p2-s1", targetArea: "hero-title" } },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+  };
+
+  it("printHtml: 웹/모바일 세트가 각각 라벨과 함께 출력된다", () => {
+    const html = buildConceptPrintHtml(withPlatforms, cfg("proposal"), identityTransform);
+    assert.ok(html.includes("웹 — 내용 대표"));
+    assert.ok(html.includes("모바일 — 내용 대표"));
+    assert.ok(html.includes("모바일 축약 카피"));
+  });
+
+  it("printHtml: platforms 없으면 기존과 동일 (라벨 접두어 없음)", () => {
+    const html = buildConceptPrintHtml(concept, cfg("proposal"), identityTransform);
+    assert.ok(html.includes("<h3>내용 대표</h3>"));
+    assert.ok(!html.includes("웹 — "));
+  });
+
+  it("pptx: platforms 있는 컨셉도 유효한 버퍼가 생성된다", async () => {
+    const pptx = buildConceptPptx(withPlatforms, cfg("proposal"), identityTransform);
+    const buf = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
+    assert.equal(buf[0], 0x50);
+    assert.equal(buf[1], 0x4b);
+  });
+});
+
 describe("Step 12-b — PPT 스모크", () => {
   it("pptxgenjs로 유효한 파일 버퍼가 생성된다", async () => {
     const pptx = buildConceptPptx(concept, cfg("detailed"), identityTransform);

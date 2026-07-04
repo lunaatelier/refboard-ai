@@ -25,10 +25,10 @@ export function normalizeConcept(
   );
   const validPageIds = new Set(analysis.pages.map((p) => p.pageId));
 
-  const rawOptions: any[] = Array.isArray(raw?.options) ? raw.options : [];
-  const options: ConceptOption[] = rawOptions.slice(0, 3).map((o, oi) => {
-    const rawPages: any[] = Array.isArray(o?.pages) ? o.pages : [];
-    const pages: ConceptPage[] = rawPages
+  // 페이지 배열 정규화 — options.pages와 platforms.web/mobile이 같은 규칙을 공유한다
+  // (pageId/sectionId 계보 검증 포함).
+  const normalizePages = (rawPages: any[]): ConceptPage[] =>
+    rawPages
       .filter((p) => validPageIds.has(str(p?.pageId)))
       .map((p) => {
         const rawSections: any[] = Array.isArray(p?.sections) ? p.sections : [];
@@ -54,6 +54,25 @@ export function normalizeConcept(
           sections,
         };
       });
+
+  const rawOptions: any[] = Array.isArray(raw?.options) ? raw.options : [];
+  const options: ConceptOption[] = rawOptions.slice(0, 3).map((o, oi) => {
+    const pages = normalizePages(Array.isArray(o?.pages) ? o.pages : []);
+
+    // 웹+모바일 별도 세트 (실사용#25) — 유효한 세트가 하나라도 있을 때만 포함
+    const webPages = normalizePages(
+      Array.isArray(o?.platforms?.web) ? o.platforms.web : [],
+    );
+    const mobilePages = normalizePages(
+      Array.isArray(o?.platforms?.mobile) ? o.platforms.mobile : [],
+    );
+    const platforms =
+      webPages.length > 0 || mobilePages.length > 0
+        ? {
+            ...(webPages.length > 0 ? { web: webPages } : {}),
+            ...(mobilePages.length > 0 ? { mobile: mobilePages } : {}),
+          }
+        : undefined;
 
     const axes = (Array.isArray(o?.conceptKeywords) ? o.conceptKeywords : [])
       .slice(0, 3)
@@ -84,6 +103,7 @@ export function normalizeConcept(
         decorativeElements: str(o?.keyVisual?.decorativeElements),
       },
       pages,
+      ...(platforms ? { platforms } : {}),
     };
   });
 

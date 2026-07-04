@@ -33,19 +33,30 @@ function pageBlock(
   </div>`;
 }
 
+function pageSetFragment(
+  pages: ConceptPage[],
+  cfg: RenderConfig,
+  t: TextTransform,
+  labelPrefix: string,
+): string {
+  const inc = presetIncludes(cfg.preset);
+  const contentPage = pages.find((p) => p.pageId === cfg.contentPageId);
+  const visualPage = pages.find((p) => p.pageId === cfg.visualPageId);
+  const subPages = pages.filter((p) =>
+    cfg.includedSubPageIds.includes(p.pageId),
+  );
+  return `
+    ${inc.subPages && visualPage ? `<h3>${esc(labelPrefix)}표지 (시각 대표)</h3>${pageBlock(visualPage, t, inc.sectionMapping)}` : ""}
+    ${contentPage ? `<h3>${esc(labelPrefix)}내용 대표</h3>${pageBlock(contentPage, t, true)}` : ""}
+    ${inc.subPages && subPages.length > 0 ? `<h3>${esc(labelPrefix)}서브 페이지</h3>${subPages.map((p) => pageBlock(p, t, inc.sectionMapping)).join("")}` : ""}`;
+}
+
 function optionBlock(
   o: ConceptOption,
   concept: ConceptJson,
   cfg: RenderConfig,
   t: TextTransform,
 ): string {
-  const inc = presetIncludes(cfg.preset);
-  const contentPage = o.pages.find((p) => p.pageId === cfg.contentPageId);
-  const visualPage = o.pages.find((p) => p.pageId === cfg.visualPageId);
-  const subPages = o.pages.filter((p) =>
-    cfg.includedSubPageIds.includes(p.pageId),
-  );
-
   const axes = o.conceptKeywords
     .map(
       (a) => `<div class="axis">
@@ -55,6 +66,14 @@ function optionBlock(
     )
     .join("");
 
+  // 웹+모바일 별도 세트가 있으면 두 세트를 모두 출력, 없으면 pages 단일 세트
+  const pageSets: [string, ConceptPage[]][] = o.platforms
+    ? ([
+        ...(o.platforms.web ? [["웹 — ", o.platforms.web]] : []),
+        ...(o.platforms.mobile ? [["모바일 — ", o.platforms.mobile]] : []),
+      ] as [string, ConceptPage[]][])
+    : [["", o.pages]];
+
   return `<section class="option">
     <h2>${esc(o.label)}${o.basedOnVariantLabel ? ` <span class="meta">(문서 시안 ${esc(o.basedOnVariantLabel)} 기반)</span>` : ""}</h2>
     <div class="axes">${axes}</div>
@@ -63,9 +82,7 @@ function optionBlock(
       <tr><th>레이아웃</th><td>${esc(o.uiStructure.layoutConcept)}</td></tr>
       <tr><th>키비주얼</th><td>${esc(o.keyVisual.imageTone)} · ${esc(o.keyVisual.illustrationStyle)} · 배경 ${esc(o.keyVisual.backgroundPattern)} · 장식 ${esc(o.keyVisual.decorativeElements)}</td></tr>
     </table>
-    ${inc.subPages && visualPage ? `<h3>표지 (시각 대표)</h3>${pageBlock(visualPage, t, inc.sectionMapping)}` : ""}
-    ${contentPage ? `<h3>내용 대표</h3>${pageBlock(contentPage, t, true)}` : ""}
-    ${inc.subPages && subPages.length > 0 ? `<h3>서브 페이지</h3>${subPages.map((p) => pageBlock(p, t, inc.sectionMapping)).join("")}` : ""}
+    ${pageSets.map(([prefix, pages]) => pageSetFragment(pages, cfg, t, prefix)).join("")}
   </section>`;
 }
 
