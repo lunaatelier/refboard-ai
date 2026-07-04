@@ -1,10 +1,33 @@
 "use client";
 
 import { useState } from "react";
+import { listDictionary } from "@/lib/dictionary/store";
+import type { SensitiveKind } from "@/lib/masking/types";
+import {
+  scanImagesForSensitiveText,
+  type OcrScanResult,
+} from "@/lib/ocr/scan";
 import TokenText from "./TokenText";
 
 // 이미지 opt-in 동의 (Step 9, flow-spec ①)
 // 기본값 = 텍스트만. 체크(동의)한 이미지만 Gemini 멀티모달로 전송된다.
+// Step 18: 전송 전 로컬 OCR 검사 — 민감어 감지 이미지는 자동 체크 해제 + 경고 배지.
+
+const OCR_KIND_LABELS: Partial<Record<SensitiveKind, string>> = {
+  email: "이메일",
+  phone: "전화",
+  url: "URL",
+  ip: "IP",
+  apikey: "API키",
+  rrn: "주민번호",
+  businessRegNo: "사업자번호",
+  certificationNo: "인증번호",
+  address: "주소",
+  company: "회사명",
+  client: "고객사",
+  product: "제품",
+  personName: "인명",
+};
 
 export interface ConsentImage {
   assetId: string;
@@ -37,6 +60,14 @@ export default function ImageConsentPanel({
 }: ImageConsentPanelProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
+  // OCR 선마스킹 (Step 18) — 결과는 비민감 요약(findings)만 보관
+  const [ocrResults, setOcrResults] = useState<Map<string, OcrScanResult>>(
+    new Map(),
+  );
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState<[number, number]>();
+  const [ocrError, setOcrError] = useState<string>();
+
   const toggle = (id: string, on: boolean) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -47,6 +78,41 @@ export default function ImageConsentPanel({
 
   const insightFor = (id: string) =>
     insights.find((i) => i.assetId === id)?.maskedDescription;
+
+  const runOcrScan = async () => {
+    setOcrBusy(true);
+    setOcrError(undefined);
+    setOcrProgress([0, images.length]);
+    try {
+      const results = await scanImagesForSensitiveText(
+        images.map((i) => ({ assetId: i.assetId, dataUrl: i.dataUrl })),
+        listDictionary(),
+        (done, total) => setOcrProgress([done, total]),
+      );
+      setOcrResults(new Map(results.map((r) => [r.assetId, r])));
+      // 민감어가 감지된 이미지는 동의 체크를 자동 해제 (기본 제외)
+      const flagged = new Set(
+        results.filter((r) => r.findings.length > 0).map((r) => r.assetId),
+      );
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const id of flagged) next.delete(id);
+        return next;
+      });
+    } catch {
+      setOcrError(
+        "OCR 검사에 실패했습니다. (최초 실행은 엔진 다운로드로 오래 걸릴 수 있음)",
+      );
+    } finally {
+      setOcrBusy(false);
+      setOcrProgress(undefined);
+    }
+  };
+
+  const describeFindings = (r: OcrScanResult) =>
+    r.findings
+      .map((f) => `${OCR_KIND_LABELS[f.kind] ?? f.kind} ${f.count}`)
+      .join(" · ");
 
   return (
     <div
@@ -124,21 +190,59 @@ export default function ImageConsentPanel({
                   {img.sourceSlide != null && ` · 슬라이드 ${img.sourceSlide}`}
                 </span>
               </label>
-              {img.sensitivityHint === "possible" && !insight && (
-                <span
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: "#b45309",
-                    background: "#fef3c7",
-                    borderRadius: 6,
-                    padding: "1px 8px",
-                    alignSelf: "flex-start",
-                  }}
-                >
-                  민감 가능성 — 확인 필요
-                </span>
-              )}
+              {(() => {
+                const ocr = ocrResults.get(img.assetId);
+                if (ocr && ocr.findings.length > 0) {
+                  return (
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: "#991b1b",
+                        background: "#fee2e2",
+                        borderRadius: 6,
+                        padding: "1px 8px",
+                        alignSelf: "flex-start",
+                      }}
+                    >
+                      OCR 민감어: {describeFindings(ocr)} — 기본 제외
+                    </span>
+                  );
+                }
+                if (ocr) {
+                  return (
+                    <span
+                      style={{
+                        fontSize: 13,
+                        color: "#166534",
+                        background: "#dcfce7",
+                        borderRadius: 6,
+                        padding: "1px 8px",
+                        alignSelf: "flex-start",
+                      }}
+                    >
+                      {ocr.textLength === 0
+                        ? "OCR: 글자 없음"
+                        : "OCR: 민감어 미감지"}
+                    </span>
+                  );
+                }
+                return img.sensitivityHint === "possible" && !insight ? (
+                  <span
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: "#b45309",
+                      background: "#fef3c7",
+                      borderRadius: 6,
+                      padding: "1px 8px",
+                      alignSelf: "flex-start",
+                    }}
+                  >
+                    민감 가능성 — 확인 필요
+                  </span>
+                ) : null;
+              })()}
               {insight && (
                 <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
                   <TokenText text={insight} />
@@ -150,6 +254,21 @@ export default function ImageConsentPanel({
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <button
+          onClick={runOcrScan}
+          disabled={ocrBusy || busy || images.length === 0}
+          style={{
+            padding: "10px 20px",
+            borderRadius: 10,
+            border: "1px solid var(--border)",
+            background: "transparent",
+            fontWeight: 600,
+          }}
+        >
+          {ocrBusy
+            ? `OCR 검사 중… ${ocrProgress ? `(${ocrProgress[0]}/${ocrProgress[1]})` : ""}`
+            : "🔍 전송 전 로컬 OCR 검사 — 이미지 속 민감어 확인 (브라우저에서만 실행)"}
+        </button>
         <button
           onClick={() => onAnalyze([...selected])}
           disabled={busy || selected.size === 0 || !canAnalyze}
@@ -175,6 +294,11 @@ export default function ImageConsentPanel({
           </span>
         )}
       </div>
+      {ocrError && (
+        <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+          {ocrError}
+        </p>
+      )}
       {error && (
         <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
           {error}
