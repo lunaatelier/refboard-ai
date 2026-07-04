@@ -105,7 +105,7 @@ PEXELS_API_KEY=
 - **Phase 1 File Upload Complete 범위 = txt/md/pdf/pptx 텍스트만.** 여기까지가 안전한 기본 경로.
   - **Phase 1 Safe MVP** = txt/md만 (`implementation-steps.md` Step 4, 첫 배포 가능 지점)
   - **Phase 1 File Upload Complete** = 위 Safe MVP + pdf/pptx (Step 5)
-- **Phase 1.5 확장 입력:** 단일 이미지(png/jpg/jpeg/gif)·클립보드 캡처 붙여넣기는 **Step 16에서 구현됨** — 이미지 바이트는 브라우저 메모리에만 두고(자사 서버에도 미업로드), 외부 전송은 기존 Step 9 opt-in 동의·재마스킹 경로만 사용. 링크(V0) 입력은 Step 17.
+- **Phase 1.5 확장 입력:** 단일 이미지(png/jpg/jpeg/gif)·클립보드 캡처 붙여넣기는 **Step 16에서 구현됨** — 이미지 바이트는 브라우저 메모리에만 두고(자사 서버에도 미업로드), 외부 전송은 기존 Step 9 opt-in 동의·재마스킹 경로만 사용. 링크(V0) 입력은 **Step 17에서 구현됨** — 공개 http(s) 링크만, 서버는 URL·본문 무로그·무저장, 사설망 주소 차단(SSRF 방지), 추출 텍스트는 원문 취급으로 마스킹 게이트 필수 통과.
 
 ### 4.2.2 이미지 분석 = opt-in (기본값 텍스트만)
 - **기본값은 "텍스트만 분석".** 이미지(이미지 포함 pdf/pptx, 이미지 업로드)는 **명시적 동의(opt-in)** 없이 외부로 보내지 않는다.

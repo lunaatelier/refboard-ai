@@ -210,6 +210,16 @@ export default function Home() {
       setUploadError("추출된 텍스트가 없습니다. 텍스트가 포함된 문서인지 확인하세요.");
       return;
     }
+    // 원본 파일명도 마스킹 (실사용#32) — 화면에는 displayName만
+    beginMaskingDraft(
+      text,
+      maskFileName(file.name, listDictionary()).displayName,
+    );
+  };
+
+  // 텍스트 원문으로 마스킹 검수를 시작하는 공통 경로 (파일 업로드·링크 입력 공용).
+  // 재시작 = 새 워크플로 (이전 분석·레퍼런스·컨셉·복원키 전부 무효화)
+  const beginMaskingDraft = (text: string, displayName: string) => {
     const dictionary = listDictionary();
     const detections = detect(text, dictionary);
     setDraft({
@@ -217,11 +227,9 @@ export default function Home() {
       detections,
       numericDetections: detectNumeric(text, detections),
     });
-    // 원본 파일명도 마스킹 (실사용#32) — 화면에는 displayName만
-    setFileDisplayName(maskFileName(file.name, dictionary).displayName);
+    setFileDisplayName(displayName);
     // 문서 성격 판정 (Step 8, 실사용#14) — 마스킹 전 원문이므로 로컬 휴리스틱만 사용
     const { purpose } = classifyDocumentPurpose(text);
-    // 재업로드 = 새 워크플로 시작 (이전 분석·레퍼런스·컨셉 전부 무효화)
     setWorkflow({
       currentStep: "masking",
       completedSteps: ["upload"],
@@ -233,6 +241,40 @@ export default function Home() {
     lastMaskedExportIdRef.current = undefined;
     importedExportIdRef.current = undefined;
     setRecoveryNotice(undefined);
+  };
+
+  // 링크 입력 (Step 17) — 공개 링크의 정적 텍스트를 서버에서 추출해 온다.
+  // 추출 텍스트는 파일 업로드와 똑같이 원문 취급 → 마스킹 게이트 통과 필수.
+  const handleLink = async (url: string) => {
+    setUploadError(undefined);
+    setParsing(true);
+    try {
+      const res = await fetch("/api/fetch-link", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || typeof body?.text !== "string") {
+        throw new Error(body?.error ?? "링크에서 텍스트를 가져오지 못했습니다.");
+      }
+      if (!body.text.trim()) {
+        setUploadError(
+          "링크에서 추출된 텍스트가 없습니다. 스크립트로 그려지는 페이지(V0 미리보기 등)라면 화면을 캡처해 붙여넣어 주세요.",
+        );
+        return;
+      }
+      imagesRef.current = [];
+      setImageInsights([]);
+      setImageError(undefined);
+      beginMaskingDraft(body.text, `링크: ${new URL(url).hostname}`);
+    } catch (e) {
+      setUploadError(
+        e instanceof Error ? e.message : "링크 처리에 실패했습니다.",
+      );
+    } finally {
+      setParsing(false);
+    }
   };
 
   const handleNavigate = (target: Step) => {
@@ -459,6 +501,7 @@ export default function Home() {
     return (
       <LandingUpload
         onFile={handleFile}
+        onLink={handleLink}
         error={uploadError}
         parsing={parsing}
       />

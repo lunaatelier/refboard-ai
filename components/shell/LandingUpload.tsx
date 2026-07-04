@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { clipboardFileName } from "@/lib/parse/image";
 import AnalysisJsonUpload from "../AnalysisJsonUpload";
 import FileUpload from "../FileUpload";
@@ -11,6 +11,7 @@ import FileUpload from "../FileUpload";
 
 interface LandingUploadProps {
   onFile: (file: File) => void;
+  onLink: (url: string) => void;
   error?: string;
   parsing?: boolean;
 }
@@ -32,6 +33,11 @@ const TIPS = [
     body: "PNG·JPG·GIF 업로드 또는 화면 캡처를 Ctrl+V로 바로 붙여넣으세요. 전송 전 동의 단계를 거칩니다.",
   },
   {
+    icon: "🔗",
+    title: "공개 링크 (V0 등)",
+    body: "정적 텍스트만 추출됩니다. 스크립트로 그려지는 화면은 캡처 붙여넣기를 사용하세요.",
+  },
+  {
     icon: "🔄",
     title: "분석 결과 JSON",
     body: "업로드하면 레퍼런스 단계부터 다시 시작합니다.",
@@ -40,9 +46,17 @@ const TIPS = [
 
 export default function LandingUpload({
   onFile,
+  onLink,
   error,
   parsing,
 }: LandingUploadProps) {
+  const [linkInput, setLinkInput] = useState("");
+
+  const submitLink = () => {
+    const url = linkInput.trim();
+    if (url) onLink(url);
+  };
+
   // 클립보드 캡처 붙여넣기 — 이미지 항목만 받는다 (텍스트 붙여넣기는 무시).
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
@@ -99,6 +113,39 @@ export default function LandingUpload({
             {error}
           </p>
         )}
+
+        {/* 링크 입력 (Step 17) — 공개 링크의 정적 텍스트만. 렌더링형 페이지는 캡처 붙여넣기로. */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            value={linkInput}
+            onChange={(e) => setLinkInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitLink();
+            }}
+            placeholder="또는 공개 링크 붙여넣기 (V0 공유 링크 등)"
+            style={{
+              flex: 1,
+              padding: "10px 14px",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              font: "inherit",
+            }}
+          />
+          <button
+            onClick={submitLink}
+            disabled={parsing || !linkInput.trim()}
+            style={{
+              padding: "10px 18px",
+              borderRadius: 10,
+              border: "1px solid var(--border)",
+              background: "var(--surface)",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            가져오기
+          </button>
+        </div>
 
         <AnalysisJsonUpload onFile={onFile} />
 
