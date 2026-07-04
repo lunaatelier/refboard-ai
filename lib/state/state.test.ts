@@ -3,6 +3,10 @@ import { describe, it } from "node:test";
 import { normalizeAnalysis } from "../analysis/normalize";
 import { canAccessStep } from "./guards";
 import { buildAnalysisExport, parseAnalysisImport } from "./recycle";
+import {
+  buildRecoveryKeyExport,
+  parseRecoveryKeyImport,
+} from "./recoveryKey";
 import type { WorkflowState } from "./workflow";
 
 const analysis = normalizeAnalysis({
@@ -105,5 +109,56 @@ describe("Step 13 — 분석 JSON 저장/불러오기", () => {
       JSON.stringify(legacyWithoutExportId),
     );
     assert.equal(importedLegacy.exportId, undefined);
+  });
+});
+
+describe("Step 14 — 복원키 파일 내보내기/가져오기", () => {
+  const mappings = [
+    { token: "[회사A]", raw: "삼성전자", kind: "company" as const },
+    { token: "[담당자A]", raw: "김철수", kind: "personName" as const },
+  ];
+
+  it("내보내기 → 가져오기 왕복: exportId와 매핑이 보존된다", () => {
+    const json = buildRecoveryKeyExport(mappings, "doc-1");
+    const imported = parseRecoveryKeyImport(json);
+    assert.equal(imported.exportId, "doc-1");
+    assert.deepEqual(imported.mappings, mappings);
+  });
+
+  it("빈 매핑은 내보내기 거부", () => {
+    assert.throws(() => buildRecoveryKeyExport([], "doc-1"), /복원키가 없습니다/);
+  });
+
+  it("분석 JSON을 복원키로 착각하면 거부, 반대 방향도 안내 에러", () => {
+    const analysisJson = buildAnalysisExport(
+      {
+        currentStep: "analysis",
+        completedSteps: ["upload", "masking", "analysis"],
+        analysis,
+      },
+      "doc-1",
+    );
+    assert.throws(
+      () => parseRecoveryKeyImport(analysisJson),
+      /복원키 파일이 아닙니다/,
+    );
+    // 복원키 파일을 메인 업로드(분석 JSON 자리)에 올린 경우 → 사용처 안내
+    const recoveryJson = buildRecoveryKeyExport(mappings, "doc-1");
+    assert.throws(() => parseAnalysisImport(recoveryJson), /복원키 파일입니다/);
+  });
+
+  it("미래 버전·손상 매핑은 거부", () => {
+    const json = buildRecoveryKeyExport(mappings, "doc-1").replace(
+      '"version": 1',
+      '"version": 99',
+    );
+    assert.throws(() => parseRecoveryKeyImport(json), /버전/);
+
+    const broken = JSON.parse(buildRecoveryKeyExport(mappings, "doc-1"));
+    broken.mappings = [{ token: "[회사A]" }];
+    assert.throws(
+      () => parseRecoveryKeyImport(JSON.stringify(broken)),
+      /유효한 매핑이 없습니다/,
+    );
   });
 });

@@ -62,10 +62,25 @@ function canAccessStep(target: Step, state: WorkflowState): boolean {
 }
 ```
 
-**재활용 모드 3구분 (Step 13):**
+**재활용 모드 4구분 (Step 13 + Step 14):**
 - 일반: `raw-document` 시작 → 실명본 다운로드 가능(mappings 있음).
 - 재활용: `analysis-json` 시작 → 마스킹본만(복원키 없음).
 - 같은 세션 재활용: `analysis-json`이라도 mappings가 아직 메모리에 있으면 실명본 가능.
+- 복원키 파일 재활용 (Step 14): `analysis-json` 시작 + 함께 저장했던 복원키 파일 가져오기 → `exportId` 일치 검증 후 mappings 메모리 복구 = 실명본 가능.
+
+**복원키 파일 (Step 14) — 클라이언트 전용 직렬화:**
+```typescript
+// lib/state/recoveryKey.ts — ⚠️ 실명 포함. 서버 미전송, 브라우저에서만 생성·해석.
+interface RecoveryKeyExport {
+  format: "drg-recovery-key";
+  version: number;
+  savedAt: string;
+  exportId: string;        // 분석 JSON(AnalysisExport)과 같은 값 = 같은 문서의 짝
+  mappings: MaskMapping[];
+}
+```
+- CLAUDE.md §4.4 "영속화 금지"의 유일한 예외 — 사용자 명시 액션(버튼)일 때만.
+- 분석 JSON과 복원키 파일은 세션 내 동일 `exportId`를 공유한다(짝 검증 기준).
 
 ---
 

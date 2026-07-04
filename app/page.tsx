@@ -36,6 +36,10 @@ import {
   parseAnalysisImport,
 } from "@/lib/state/recycle";
 import {
+  buildRecoveryKeyExport,
+  parseRecoveryKeyImport,
+} from "@/lib/state/recoveryKey";
+import {
   initialWorkflowState,
   STEP_LABELS,
   type Step,
@@ -62,6 +66,13 @@ export default function Home() {
   // secureMappingsRef가 어느 문서(exportId)의 복원키인지 추적 — 다른 프로젝트의 분석
   // JSON을 올렸을 때 이전 문서의 복원키가 잘못 재사용되는 것을 막기 위한 비민감 식별자.
   const lastMaskedExportIdRef = useRef<string | undefined>(undefined);
+  // 재활용 모드에서 현재 불러온 분석 JSON의 exportId — 복원키 파일 가져오기 시 짝 검증용.
+  const importedExportIdRef = useRef<string | undefined>(undefined);
+  // 복원키 가져오기 결과 안내 (비민감 텍스트만) — 상태 변경으로 재렌더도 유발.
+  const [recoveryNotice, setRecoveryNotice] = useState<{
+    tone: "info" | "warn";
+    text: string;
+  }>();
 
   // 문서 속 이미지 원본 (Step 9) — 원문급 민감. 메모리에만, opt-in 동의분만 외부 전송.
   const imagesRef = useRef<(PptxImage & { sensitivityHint: "none" | "possible" })[]>([]);
@@ -92,6 +103,9 @@ export default function Home() {
         if (!data.exportId || data.exportId !== lastMaskedExportIdRef.current) {
           secureMappingsRef.current = [];
         }
+        // 복원키 파일 가져오기(Step 14) 시 이 값과 exportId가 일치해야 복구 허용
+        importedExportIdRef.current = data.exportId;
+        setRecoveryNotice(undefined);
         imagesRef.current = [];
         setImageInsights([]);
         setDraft(null);
@@ -167,6 +181,8 @@ export default function Home() {
     setMaskingStats(undefined);
     secureMappingsRef.current = [];
     lastMaskedExportIdRef.current = undefined;
+    importedExportIdRef.current = undefined;
+    setRecoveryNotice(undefined);
   };
 
   const handleNavigate = (target: Step) => {
@@ -281,17 +297,53 @@ export default function Home() {
 
   const handleSaveAnalysisJson = () => {
     // 저장 내용 = 마스킹된 분석 + 공개 엔티티 + 지시. 복원키는 절대 포함 안 됨 (Step 13).
-    // exportId는 비민감 식별자 — 같은 세션에서 이 파일을 다시 올렸을 때만 복원키 재사용 허용.
-    const exportId = crypto.randomUUID();
+    // exportId는 비민감 식별자 — 같은 문서의 분석 JSON과 복원키 파일이 같은 exportId를
+    // 공유해야 나중에 짝 검증이 되므로, 세션 내에서는 한 번 만든 값을 재사용한다.
+    const exportId = lastMaskedExportIdRef.current ?? crypto.randomUUID();
     const json = buildAnalysisExport(workflow, exportId);
     lastMaskedExportIdRef.current = exportId;
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `drg-analysis-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadJson(json, `drg-analysis-${new Date().toISOString().slice(0, 10)}.json`);
+  };
+
+  const handleSaveRecoveryKey = () => {
+    // 복원키 파일 내보내기 (Step 14) — 실명이 포함되므로 생성부터 다운로드까지
+    // 전부 브라우저에서만. 서버로는 어떤 바이트도 나가지 않는다.
+    if (secureMappingsRef.current.length === 0) return;
+    const exportId = lastMaskedExportIdRef.current ?? crypto.randomUUID();
+    lastMaskedExportIdRef.current = exportId;
+    const json = buildRecoveryKeyExport(secureMappingsRef.current, exportId);
+    downloadJson(
+      json,
+      `drg-recovery-key-${new Date().toISOString().slice(0, 10)}.json`,
+    );
+  };
+
+  const handleImportRecoveryKey = async (file: File) => {
+    try {
+      const data = parseRecoveryKeyImport(await file.text());
+      const activeId = importedExportIdRef.current;
+      if (!activeId) {
+        throw new Error(
+          "현재 불러온 분석 JSON에 문서 식별자가 없어 복원키를 검증할 수 없습니다. (구버전 저장본)",
+        );
+      }
+      if (data.exportId !== activeId) {
+        throw new Error(
+          "이 복원키는 현재 불러온 분석 JSON과 짝이 맞지 않습니다. 같은 문서에서 함께 저장한 파일인지 확인하세요.",
+        );
+      }
+      secureMappingsRef.current = data.mappings;
+      lastMaskedExportIdRef.current = data.exportId;
+      setRecoveryNotice({
+        tone: "info",
+        text: "복원키를 불러왔습니다. 이제 실명본 미리보기·다운로드가 가능합니다. (복원키는 메모리에만 유지 — 새로고침 시 다시 가져와야 합니다)",
+      });
+    } catch (e) {
+      setRecoveryNotice({
+        tone: "warn",
+        text: e instanceof Error ? e.message : "복원키 파일을 읽지 못했습니다.",
+      });
+    }
   };
 
   const handleAnalyze = async () => {
@@ -431,6 +483,21 @@ export default function Home() {
               stats={maskingStats}
               onNext={() => handleNavigate("analysis")}
             />
+            {secureMappingsRef.current.length > 0 && (
+              <button
+                onClick={handleSaveRecoveryKey}
+                style={{
+                  alignSelf: "flex-start",
+                  padding: "10px 20px",
+                  borderRadius: 10,
+                  border: "1px solid var(--border)",
+                  background: "transparent",
+                  fontWeight: 600,
+                }}
+              >
+                🔑 복원키 파일 저장 — 실명 포함, 로컬 보관 전용 (서버 미전송)
+              </button>
+            )}
             {imagesRef.current.length > 0 && (
               <ImageConsentPanel
                 images={imagesRef.current.map(toConsentImage)}
@@ -471,20 +538,36 @@ export default function Home() {
               onConfirm={handleConfirmAnalysis}
             />
             {workflow.completedSteps.includes("analysis") && (
-              <button
-                onClick={handleSaveAnalysisJson}
-                style={{
-                  alignSelf: "flex-start",
-                  padding: "10px 20px",
-                  borderRadius: 10,
-                  border: "1px solid var(--border)",
-                  background: "transparent",
-                  fontWeight: 600,
-                }}
-              >
-                💾 분석 결과 JSON 저장 — 나중에 레퍼런스·무드부터 재시작
-                (마스킹본이라 안전)
-              </button>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  onClick={handleSaveAnalysisJson}
+                  style={{
+                    padding: "10px 20px",
+                    borderRadius: 10,
+                    border: "1px solid var(--border)",
+                    background: "transparent",
+                    fontWeight: 600,
+                  }}
+                >
+                  💾 분석 결과 JSON 저장 — 나중에 레퍼런스·무드부터 재시작
+                  (마스킹본이라 안전)
+                </button>
+                {secureMappingsRef.current.length > 0 && (
+                  <button
+                    onClick={handleSaveRecoveryKey}
+                    style={{
+                      padding: "10px 20px",
+                      borderRadius: 10,
+                      border: "1px solid var(--border)",
+                      background: "transparent",
+                      fontWeight: 600,
+                    }}
+                  >
+                    🔑 복원키 파일 저장 — 분석 JSON과 짝으로 보관하면 재활용
+                    때도 실명본 복구 가능 (실명 포함, 로컬 전용)
+                  </button>
+                )}
+              </div>
             )}
           </div>
         ) : (
@@ -555,15 +638,43 @@ export default function Home() {
             {workflow.sourceType === "analysis-json" &&
               (secureMappingsRef.current.length > 0 ? (
                 <Alert tone="info">
-                  같은 세션 재활용 모드 — 복원키가 아직 메모리에 있어{" "}
+                  재활용 모드 — 복원키가 메모리에 있어{" "}
                   <b>실명본 다운로드가 가능</b>합니다.
                 </Alert>
               ) : (
-                <Alert tone="warn">
-                  재활용 모드 (분석 JSON 시작) — 복원키가 없으므로 이 모드의
-                  산출물은 <b>마스킹본만</b> 출력됩니다.
-                </Alert>
+                <>
+                  <Alert tone="warn">
+                    재활용 모드 (분석 JSON 시작) — 복원키가 없으므로 이 모드의
+                    산출물은 <b>마스킹본만</b> 출력됩니다. 이 분석 JSON과 함께
+                    저장한 🔑 복원키 파일이 있으면 가져와 실명본을 복구할 수
+                    있습니다.
+                  </Alert>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      fontWeight: 600,
+                      maxWidth: 860,
+                    }}
+                  >
+                    🔑 복원키 파일 가져오기 (브라우저에서만 처리 — 서버
+                    미전송)
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void handleImportRecoveryKey(f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </>
               ))}
+            {recoveryNotice && (
+              <Alert tone={recoveryNotice.tone}>{recoveryNotice.text}</Alert>
+            )}
             <ReferenceWorkspace
             analysis={workflow.analysis}
             directives={workflow.projectDirective ?? []}
@@ -661,6 +772,16 @@ function slideHasSensitiveHint(text: string, slideNo?: number): boolean {
   const nextMarker = text.indexOf("--- 슬라이드", start + marker.length);
   const slideText = text.slice(start, nextMarker < 0 ? undefined : nextMarker);
   return SENSITIVE_SLIDE_KEYWORDS.some((k) => slideText.includes(k));
+}
+
+function downloadJson(json: string, fileName: string) {
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function toConsentImage(

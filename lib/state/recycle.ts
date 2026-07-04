@@ -54,6 +54,11 @@ export function parseAnalysisImport(text: string): AnalysisExport {
     throw new Error("JSON 파싱에 실패했습니다.");
   }
   const data = raw as Partial<AnalysisExport>;
+  if ((data as { format?: string })?.format === "drg-recovery-key") {
+    throw new Error(
+      "복원키 파일입니다. 분석 JSON을 먼저 불러온 뒤, 레퍼런스 단계에서 복원키를 가져오세요.",
+    );
+  }
   if (data?.format !== FORMAT) {
     throw new Error(
       "이 앱에서 저장한 분석 JSON이 아닙니다. (기획서 문서는 txt/md/pdf/pptx로 올려주세요)",
