@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { DocumentPurpose } from "@/lib/analysis/documentPurpose";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
 import {
@@ -9,8 +9,9 @@ import {
 } from "@/lib/reference/imageHints";
 import type { ImageHint, ReferenceResult } from "@/lib/reference/types";
 
-// [이미지 힌트] 탭 (Step 11) — scale(hero/section/icon) + 방향 + 프롬프트 표출.
-// 실제 생성은 후순위(NVIDIA) — 프롬프트를 복사해 다른 도구에 바로 쓸 수 있다.
+// [이미지 힌트] 탭 (Step 11 + Step 19) — scale + 방향 + 프롬프트 표출.
+// Step 19: NVIDIA_API_KEY가 설정되면 프롬프트로 실제 이미지 생성까지 지원.
+// 키가 없으면 기존처럼 프롬프트 복사만 (버튼 비활성 + 안내).
 
 interface ImageHintsTabProps {
   analysis: ProjectAnalysis;
@@ -48,6 +49,24 @@ export default function ImageHintsTab({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState<number>();
+
+  // 이미지 실제 생성 (Step 19) — 서버에 키가 있어야 활성화
+  const [genEnabled, setGenEnabled] = useState(false);
+  const [generating, setGenerating] = useState<number>();
+  const [genError, setGenError] = useState<string>();
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/generate-image")
+      .then((r) => r.json())
+      .then((b) => {
+        if (!cancelled) setGenEnabled(Boolean(b?.enabled));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 대표 페이지 — 추천값으로 초기화, 사용자 변경 가능
   const rep =
@@ -117,6 +136,32 @@ export default function ImageHintsTab({
     await navigator.clipboard.writeText(text);
     setCopied(index);
     setTimeout(() => setCopied(undefined), 1500);
+  };
+
+  const generateOne = async (index: number, hint: ImageHint) => {
+    setGenerating(index);
+    setGenError(undefined);
+    try {
+      const res = await fetch("/api/generate-image", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          prompt: hint.prompt,
+          aspectRatio: hint.aspectRatio,
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || typeof body?.dataUrl !== "string") {
+        throw new Error(body?.error ?? "이미지 생성에 실패했습니다.");
+      }
+      patchHint(index, { generatedImageUrl: body.dataUrl });
+    } catch (e) {
+      setGenError(
+        e instanceof Error ? e.message : "이미지 생성에 실패했습니다.",
+      );
+    } finally {
+      setGenerating(undefined);
+    }
   };
 
   return (
@@ -308,9 +353,53 @@ export default function ImageHintsTab({
             >
               {copied === i ? "✓ 복사됨" : "📋 복사"}
             </button>
+            <button
+              onClick={() => generateOne(i, h)}
+              disabled={!genEnabled || generating != null || !h.prompt}
+              title={
+                genEnabled
+                  ? "NVIDIA NIM으로 이 프롬프트의 이미지를 생성"
+                  : "NVIDIA_API_KEY 미설정 — .env.local에 추가하면 활성화됩니다"
+              }
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                padding: "6px 12px",
+                background: "transparent",
+                fontSize: 14,
+                fontWeight: 600,
+                color: genEnabled ? "var(--primary)" : "var(--text-muted)",
+                whiteSpace: "nowrap",
+                opacity: genEnabled ? 1 : 0.6,
+              }}
+            >
+              {generating === i
+                ? "생성 중…"
+                : h.generatedImageUrl
+                  ? "🎨 다시 생성"
+                  : "🎨 이미지 생성"}
+            </button>
           </div>
+          {h.generatedImageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={h.generatedImageUrl}
+              alt={`${h.area} 생성 이미지`}
+              style={{
+                maxWidth: 480,
+                width: "100%",
+                borderRadius: 8,
+                border: "1px solid var(--border)",
+              }}
+            />
+          )}
         </div>
       ))}
+      {genError && generating == null && (
+        <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+          {genError}
+        </p>
+      )}
     </div>
   );
 }

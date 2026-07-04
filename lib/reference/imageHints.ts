@@ -102,3 +102,21 @@ export function recommendRepresentativePages(
     contentPageId: content?.pageId,
   };
 }
+
+// 이미지 실제 생성용 크기 매핑 (Step 19) — "16:9" 같은 비율 문자열을
+// NVIDIA NIM flux 계열이 허용하는 크기(768~1344, 64배수)로 변환.
+// 실측: 그 밖의 값은 HTTP 422 (Input should be 768, 832, ..., 1344).
+export function aspectRatioToSize(aspectRatio?: string): {
+  width: number;
+  height: number;
+} {
+  const m = aspectRatio?.match(/^(\d+)\s*:\s*(\d+)$/);
+  if (!m) return { width: 1024, height: 1024 };
+  const [w, h] = [Number(m[1]), Number(m[2])];
+  if (w <= 0 || h <= 0 || w === h) return { width: 1024, height: 1024 };
+  const clamp64 = (n: number) =>
+    Math.min(1344, Math.max(768, Math.round(n / 64) * 64));
+  // 긴 변을 1344로 놓고 짧은 변을 비율대로 — 허용 범위로 클램프
+  if (w > h) return { width: 1344, height: clamp64((1344 * h) / w) };
+  return { width: clamp64((1344 * w) / h), height: 1344 };
+}

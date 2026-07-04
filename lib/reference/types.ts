@@ -110,7 +110,7 @@ export interface AnalysisTargetAnalysis {
   analyzedAt: string; // 캐시용 ("N일 전 분석" 표시)
 }
 
-// 이미지 힌트 (Step 11) — 실제 생성은 후순위(NVIDIA NIM). 프롬프트+타입 표출이 기본.
+// 이미지 힌트 (Step 11 + Step 19) — 프롬프트+타입 표출 기본, 키 설정 시 실제 생성까지.
 export interface ImageHint {
   area: string; // 적용 영역 (예: "표지 키비주얼", "연혁 섹션")
   scale: "hero" | "section" | "icon"; // 표지급 / 섹션 삽화 / 아이콘
@@ -119,7 +119,7 @@ export interface ImageHint {
   aspectRatio?: string;
   // 원본 이미지 참고 금지 플래그 (실사용#20 — 제안서 템플릿 케이스)
   sourceReferenceMode: "use-source-image" | "text-only-ignore-source";
-  generatedImageUrl?: string; // 후순위 — NVIDIA 도입 시
+  generatedImageUrl?: string; // Step 19 — NVIDIA NIM 생성 결과 (data URL)
 }
 
 // 대표 페이지 추천 (Step 11) — "표지 ≠ 대표" 2종 분리. Phase 4 ConceptOutputSelection의 씨앗.

@@ -123,3 +123,84 @@ export async function generateGroundedJson<T>(prompt: string): Promise<T> {
     throw new Error("AI 응답 JSON 파싱에 실패했습니다.");
   }
 }
+
+// ── NVIDIA NIM 이미지 생성 (Step 19) ──────────────────────────────────────
+// 프롬프트는 이미 마스킹 토큰이 제거된 영어 문구만 들어와야 한다 (image-hints 경로).
+// 모델별로 요청 본문이 다르다 — 기본값 flux.1-schnell 기준. 교체 시 여기만 수정.
+
+const NVIDIA_GENAI_BASE = "https://ai.api.nvidia.com/v1/genai";
+
+export function isImageGenerationEnabled(): boolean {
+  assertServer();
+  return Boolean(process.env.NVIDIA_API_KEY);
+}
+
+export interface GeneratedImage {
+  mimeType: string;
+  base64: string;
+}
+
+export async function generateImage(
+  prompt: string,
+  size: { width: number; height: number },
+): Promise<GeneratedImage> {
+  assertServer();
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) {
+    throw new Error("NVIDIA_API_KEY가 설정되지 않았습니다 (.env.local).");
+  }
+  // 기본 flux.1-dev — 실측: schnell 함수는 콜드스타트 504가 잦고, dev는 즉시 200.
+  const model =
+    process.env.NVIDIA_IMAGE_MODEL || "black-forest-labs/flux.1-dev";
+  // schnell은 4스텝 전용 증류 모델, dev는 스텝이 많을수록 품질↑ (10 = 속도 절충)
+  const steps = model.includes("schnell") ? 4 : 10;
+
+  let res = await fetch(`${NVIDIA_GENAI_BASE}/${model}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      accept: "application/json",
+      "content-type": "application/json",
+      // 서버가 준비될 때까지 최대 60초 롱폴 (콜드스타트 504 완화)
+      "nvcf-poll-seconds": "60",
+    },
+    body: JSON.stringify({
+      prompt,
+      width: size.width,
+      height: size.height,
+      steps,
+      seed: Math.floor(Math.random() * 4294967295),
+    }),
+  });
+
+  // NVCF 비동기 패턴: 202 + nvcf-reqid → 상태 엔드포인트 폴링
+  if (res.status === 202) {
+    const reqId = res.headers.get("nvcf-reqid");
+    if (!reqId) throw new Error("이미지 생성 실패 (202, 요청 ID 없음)");
+    for (let attempt = 0; attempt < 5 && res.status === 202; attempt++) {
+      res = await fetch(
+        `https://api.nvcf.nvidia.com/v2/nvcf/pexec/status/${reqId}`,
+        {
+          headers: {
+            authorization: `Bearer ${apiKey}`,
+            accept: "application/json",
+            "nvcf-poll-seconds": "60",
+          },
+        },
+      );
+    }
+  }
+  if (!res.ok) {
+    // 키·프롬프트를 에러에 싣지 않는다
+    throw new Error(`이미지 생성 실패 (HTTP ${res.status})`);
+  }
+
+  const data = await res.json();
+  // 모델·버전에 따라 응답 필드가 다르다 — 알려진 형태를 순서대로 시도
+  const base64: unknown =
+    data?.artifacts?.[0]?.base64 ?? data?.image ?? data?.data?.[0]?.b64_json;
+  if (typeof base64 !== "string" || !base64) {
+    throw new Error("이미지 생성 응답 형식을 해석하지 못했습니다.");
+  }
+  return { mimeType: "image/png", base64 };
+}
