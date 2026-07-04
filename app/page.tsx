@@ -20,6 +20,7 @@ import { detect } from "@/lib/masking/detect";
 import { maskFileName } from "@/lib/masking/filename";
 import { detectNumeric } from "@/lib/masking/numeric";
 import { remaskText } from "@/lib/masking/remask";
+import { restore } from "@/lib/masking/restore";
 import type {
   Detection,
   MaskMapping,
@@ -514,6 +515,21 @@ export default function Home() {
             concept={workflow.conceptJson}
             onChange={(next) =>
               setWorkflow((prev) => ({ ...prev, conceptJson: next }))
+            }
+            canRestore={secureMappingsRef.current.length > 0}
+            makeTransform={(restored) =>
+              restored
+                ? (text) => restore(text, secureMappingsRef.current)
+                : (text) => text
+            }
+            confirmed={workflow.completedSteps.includes("concept")}
+            onConfirm={() =>
+              setWorkflow((prev) => ({
+                ...prev,
+                completedSteps: prev.completedSteps.includes("concept")
+                  ? prev.completedSteps
+                  : [...prev.completedSteps, "concept"],
+              }))
             }
           />
         ) : (
