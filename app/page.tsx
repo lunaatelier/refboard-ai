@@ -59,6 +59,9 @@ export default function Home() {
   // SecureClientMemory — 복원키. 메모리에만 존재, 새로고침 시 소멸 (CLAUDE.md §4.4).
   // React 상태가 아닌 ref: 렌더 데이터로 흘러들어가는 것을 구조적으로 차단.
   const secureMappingsRef = useRef<MaskMapping[]>([]);
+  // secureMappingsRef가 어느 문서(exportId)의 복원키인지 추적 — 다른 프로젝트의 분석
+  // JSON을 올렸을 때 이전 문서의 복원키가 잘못 재사용되는 것을 막기 위한 비민감 식별자.
+  const lastMaskedExportIdRef = useRef<string | undefined>(undefined);
 
   // 문서 속 이미지 원본 (Step 9) — 원문급 민감. 메모리에만, opt-in 동의분만 외부 전송.
   const imagesRef = useRef<(PptxImage & { sensitivityHint: "none" | "possible" })[]>([]);
@@ -83,8 +86,12 @@ export default function Home() {
     if (isAnalysisJsonFile(file.name)) {
       try {
         const data = parseAnalysisImport(await file.text());
-        // 주의: secureMappingsRef는 초기화하지 않는다 — 같은 세션에서 방금 저장한
-        // JSON을 다시 올린 경우(같은세션 재활용) 복원키가 살아있으면 실명본 가능.
+        // secureMappingsRef는 "이 세션에서 방금 저장한 바로 그 JSON"으로 exportId가
+        // 정확히 일치할 때만 유지한다(같은세션 재활용 = 실명본 가능). 그 외에는
+        // 다른 문서의 복원키가 새 문서에 잘못 적용되는 것을 막기 위해 항상 초기화한다.
+        if (!data.exportId || data.exportId !== lastMaskedExportIdRef.current) {
+          secureMappingsRef.current = [];
+        }
         imagesRef.current = [];
         setImageInsights([]);
         setDraft(null);
@@ -159,6 +166,7 @@ export default function Home() {
     });
     setMaskingStats(undefined);
     secureMappingsRef.current = [];
+    lastMaskedExportIdRef.current = undefined;
   };
 
   const handleNavigate = (target: Step) => {
@@ -178,6 +186,8 @@ export default function Home() {
 
     // 복원키 → SecureClientMemory (WorkflowState 아님)
     secureMappingsRef.current = mappings;
+    // 새로 마스킹된 문서이므로 이전에 저장했던 exportId와의 연결은 무효화
+    lastMaskedExportIdRef.current = undefined;
 
     const numericMasked = draft.numericDetections.filter(
       (n) => n.mode !== "keep",
@@ -271,7 +281,10 @@ export default function Home() {
 
   const handleSaveAnalysisJson = () => {
     // 저장 내용 = 마스킹된 분석 + 공개 엔티티 + 지시. 복원키는 절대 포함 안 됨 (Step 13).
-    const json = buildAnalysisExport(workflow);
+    // exportId는 비민감 식별자 — 같은 세션에서 이 파일을 다시 올렸을 때만 복원키 재사용 허용.
+    const exportId = crypto.randomUUID();
+    const json = buildAnalysisExport(workflow, exportId);
+    lastMaskedExportIdRef.current = exportId;
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -353,7 +366,7 @@ export default function Home() {
   return (
     <Workspace state={workflow} onNavigate={handleNavigate}>
       {workflow.currentStep === "upload" && (
-        <Panel title="① 업로드 (완료)">
+        <Panel title="업로드 (완료)">
           <p style={{ color: "var(--text-muted)" }}>
             업로드된 파일: <b>{fileDisplayName ?? "(알 수 없음)"}</b>
           </p>
@@ -430,7 +443,7 @@ export default function Home() {
             )}
           </div>
         ) : (
-          <Panel title="② 마스킹 검수">
+          <Panel title="마스킹 검수">
             <p style={{ color: "var(--text-muted)" }}>
               검수할 문서가 없습니다. 문서를 먼저 업로드하세요.
             </p>
@@ -469,13 +482,13 @@ export default function Home() {
                   fontWeight: 600,
                 }}
               >
-                💾 분석 결과 JSON 저장 — 나중에 ④부터 재시작 (마스킹본이라
-                안전)
+                💾 분석 결과 JSON 저장 — 나중에 레퍼런스·무드부터 재시작
+                (마스킹본이라 안전)
               </button>
             )}
           </div>
         ) : (
-          <Panel title="③ 분석 결과">
+          <Panel title="분석 결과">
             <p style={{ color: "var(--text-muted)" }}>
               마스킹된 텍스트를 Gemini로 분석합니다. 외부로는 마스킹본과
               &ldquo;유지&rdquo;로 확정한 공개 엔티티 실명만 전송됩니다.
@@ -573,9 +586,9 @@ export default function Home() {
             />
           </div>
         ) : (
-          <Panel title="④ 레퍼런스·무드">
+          <Panel title="레퍼런스·무드">
             <p style={{ color: "var(--text-muted)" }}>
-              분석 결과가 없습니다. ③ 분석을 먼저 완료하세요.
+              분석 결과가 없습니다. 분석을 먼저 완료하세요.
             </p>
           </Panel>
         ))}
@@ -607,7 +620,7 @@ export default function Home() {
             }
           />
         ) : (
-          <Panel title="⑤ 컨셉 3안">
+          <Panel title="컨셉 3안">
             <p style={{ color: "var(--text-muted)" }}>
               분석·레퍼런스를 먼저 완료하세요.
             </p>

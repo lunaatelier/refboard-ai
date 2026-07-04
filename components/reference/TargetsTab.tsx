@@ -69,6 +69,7 @@ export default function TargetsTab({
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string>();
   const [openId, setOpenId] = useState<string>();
+  const [menuOpenId, setMenuOpenId] = useState<string>();
   const [manualName, setManualName] = useState("");
   const [manualUrl, setManualUrl] = useState("");
 
@@ -244,14 +245,41 @@ export default function TargetsTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div
+        style={{
+          ...card,
+          padding: "16px 20px",
+          background: "var(--primary-soft)",
+          border: "1px solid var(--primary)",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <span style={{ fontWeight: 700, color: "var(--primary)" }}>
+          👉 분석 대상 브랜드를 넓게 훑고, 깊게 볼 것만 선택해 분석하세요
+        </span>
+        <span
+          style={{
+            fontWeight: 700,
+            color: "var(--primary)",
+            background: "var(--surface)",
+            borderRadius: 999,
+            padding: "4px 14px",
+          }}
+        >
+          {list.length}개 목록
+        </span>
+      </div>
+
       <div style={card}>
-        <h3 style={{ fontSize: 15 }}>
-          분석 대상 브랜드{" "}
-          <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
-            {list.length}개 — 넓게 훑고, 고른 것만 깊게. 모든 결과는 추정
-            포함이며 확인이 필요합니다
-          </span>
-        </h3>
+        <h3 style={{ fontSize: 18, fontWeight: 800 }}>분석 대상 브랜드</h3>
+        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          넓게 훑고, 고른 것만 깊게. 모든 결과는 추정 포함이며 확인이
+          필요합니다
+        </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <button
             onClick={fetchMore}
@@ -309,7 +337,7 @@ export default function TargetsTab({
                 gridColumn: open ? "1 / -1" : undefined,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {host && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -320,7 +348,9 @@ export default function TargetsTab({
                     style={{ borderRadius: 4 }}
                   />
                 )}
-                <b>{item.name}</b>
+                <b style={{ fontSize: 16 }}>{item.name}</b>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                 <span style={pill(item.source === "spec" ? "#0e7490" : item.source === "manual" ? "#16a34a" : "#7c3aed")}>
                   {item.source === "spec" ? "설계서" : item.source === "manual" ? "직접" : "Gemini"}
                 </span>
@@ -328,10 +358,8 @@ export default function TargetsTab({
                   <span style={pill("#16a34a")}>분석됨</span>
                 )}
                 {a && (
-                  <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                    {daysAgo(a.analyzedAt) === 0
-                      ? "오늘 분석"
-                      : `${daysAgo(a.analyzedAt)}일 전 분석`}
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    · {daysAgo(a.analyzedAt) === 0 ? "오늘 분석" : `${daysAgo(a.analyzedAt)}일 전`}
                   </span>
                 )}
               </div>
@@ -346,7 +374,7 @@ export default function TargetsTab({
                   </>
                 )}
               </p>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {item.analysisStatus !== "analyzed" ? (
                   <button
                     onClick={() => analyze(item)}
@@ -365,6 +393,16 @@ export default function TargetsTab({
                   </button>
                 ) : (
                   <>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
+                      <input
+                        type="checkbox"
+                        checked={item.adopted}
+                        onChange={(e) =>
+                          patchItem(item.id, { adopted: e.target.checked })
+                        }
+                      />
+                      채택
+                    </label>
                     <button
                       onClick={() => setOpenId(open ? undefined : item.id)}
                       style={{
@@ -378,30 +416,61 @@ export default function TargetsTab({
                     >
                       {open ? "접기" : "결과 보기"}
                     </button>
-                    <button
-                      onClick={() => analyze(item, true)}
-                      disabled={busy}
-                      style={{
-                        padding: "6px 14px",
-                        borderRadius: 8,
-                        border: "1px solid var(--border)",
-                        background: "transparent",
-                        color: "var(--text-muted)",
-                        fontSize: 14,
-                      }}
-                    >
-                      새로 분석
-                    </button>
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
-                      <input
-                        type="checkbox"
-                        checked={item.adopted}
-                        onChange={(e) =>
-                          patchItem(item.id, { adopted: e.target.checked })
+                    <div style={{ position: "relative" }}>
+                      <button
+                        onClick={() =>
+                          setMenuOpenId(menuOpenId === item.id ? undefined : item.id)
                         }
-                      />
-                      채택 → 컨셉으로
-                    </label>
+                        aria-label="더보기"
+                        title="더보기"
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 8,
+                          border: "1px solid var(--border)",
+                          background: "transparent",
+                          color: "var(--text-muted)",
+                          fontSize: 14,
+                        }}
+                      >
+                        ⋯
+                      </button>
+                      {menuOpenId === item.id && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            right: 0,
+                            top: "calc(100% + 4px)",
+                            background: "var(--surface)",
+                            border: "1px solid var(--border)",
+                            borderRadius: 8,
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                            zIndex: 10,
+                            minWidth: 120,
+                          }}
+                        >
+                          <button
+                            onClick={() => {
+                              setMenuOpenId(undefined);
+                              analyze(item, true);
+                            }}
+                            disabled={busy}
+                            style={{
+                              display: "block",
+                              width: "100%",
+                              padding: "8px 14px",
+                              border: "none",
+                              background: "transparent",
+                              color: "var(--text)",
+                              fontSize: 14,
+                              textAlign: "left",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            새로 분석
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
               </div>
@@ -444,7 +513,7 @@ export default function TargetsTab({
 
 function pill(color: string): React.CSSProperties {
   return {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 600,
     color,
     background: "var(--bg)",

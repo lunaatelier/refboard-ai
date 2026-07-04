@@ -14,18 +14,26 @@ export interface AnalysisExport {
   format: typeof FORMAT;
   version: number;
   savedAt: string;
+  // 비민감 식별자 — 실명·복원키를 담지 않는다. "같은 세션에서 방금 저장한 이 JSON"인지
+  // 확인하는 용도로만 쓰인다(다른 프로젝트 JSON을 올렸을 때 이전 문서의 복원키가
+  // 잘못 적용되는 것을 막기 위함). 없으면(구버전 내보내기) 항상 불일치로 취급된다.
+  exportId?: string;
   analysis: ProjectAnalysis;
   extractedAnalysisTargets: ExtractedAnalysisTarget[];
   projectDirective: ProjectDirective[];
   documentPurpose?: DocumentPurpose;
 }
 
-export function buildAnalysisExport(state: WorkflowState): string {
+export function buildAnalysisExport(
+  state: WorkflowState,
+  exportId: string,
+): string {
   if (!state.analysis) throw new Error("저장할 분석 결과가 없습니다.");
   const data: AnalysisExport = {
     format: FORMAT,
     version: VERSION,
     savedAt: new Date().toISOString(),
+    exportId,
     analysis: state.analysis,
     extractedAnalysisTargets: state.extractedAnalysisTargets ?? [],
     projectDirective: state.projectDirective ?? [],
@@ -66,6 +74,7 @@ export function parseAnalysisImport(text: string): AnalysisExport {
     format: FORMAT,
     version: data.version,
     savedAt: typeof data.savedAt === "string" ? data.savedAt : "",
+    exportId: typeof data.exportId === "string" ? data.exportId : undefined,
     analysis,
     extractedAnalysisTargets: Array.isArray(data.extractedAnalysisTargets)
       ? data.extractedAnalysisTargets

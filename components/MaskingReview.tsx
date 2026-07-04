@@ -162,10 +162,40 @@ export default function MaskingReview({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 860 }}>
+      <div
+        style={{
+          ...card,
+          padding: "16px 20px",
+          background: "var(--primary-soft)",
+          border: "1px solid var(--primary)",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <span style={{ fontWeight: 700, color: "var(--primary)" }}>
+          👉 탐지된 항목을 확인하고 가릴지/유지할지 정한 뒤, 하단에서
+          마스킹을 확정하세요
+        </span>
+        <span
+          style={{
+            fontWeight: 700,
+            color: "var(--primary)",
+            background: "var(--surface)",
+            borderRadius: 999,
+            padding: "4px 14px",
+          }}
+        >
+          {enabledCount}건 적용 예정
+        </span>
+      </div>
+
       <div style={card}>
-        <h2>② 마스킹 검수</h2>
-        <p style={{ fontWeight: 600 }}>
-          민감정보 {detections.length}건 탐지 · {enabledCount}건 적용 예정
+        <h2 style={{ fontSize: 18, fontWeight: 800 }}>마스킹 검수</h2>
+        <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
+          민감정보 {detections.length}건 탐지됨
         </p>
         <p style={{ color: "var(--text-muted)" }}>
           외부 AI로는 마스킹된 텍스트만 전송됩니다. 회사명은 기본 가림이며,
@@ -189,23 +219,23 @@ export default function MaskingReview({
                 key={d.id}
                 style={{
                   display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  flexWrap: "wrap",
-                  padding: "8px 12px",
+                  flexDirection: "column",
+                  gap: 8,
+                  padding: "10px 12px",
                   border: "1px solid var(--border)",
                   borderRadius: 8,
                   opacity: d.enabled || d.keepPlaintext ? 1 : 0.55,
                 }}
               >
-                <label style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 200 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <input
                     type="checkbox"
                     checked={d.enabled}
                     onChange={(e) => patch(d.id, { enabled: e.target.checked })}
                   />
-                  <span style={{ wordBreak: "break-all" }}>{d.raw}</span>
+                  <span style={{ wordBreak: "break-all", fontWeight: 600 }}>{d.raw}</span>
                 </label>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 {d.dummyConfidence === "likely-dummy" && (
                   <span style={badge("#b45309", "#fef3c7")}>더미 추정</span>
                 )}
@@ -239,7 +269,7 @@ export default function MaskingReview({
                         });
                       }}
                       style={{
-                        padding: "4px 8px",
+                        padding: "8px 12px",
                         borderRadius: 6,
                         border: "1px solid var(--border)",
                         font: "inherit",
@@ -334,6 +364,7 @@ export default function MaskingReview({
                       항상 가리기
                     </button>
                   )}
+                </div>
               </li>
             ))}
           </ul>
@@ -382,7 +413,7 @@ export default function MaskingReview({
                     )
                   }
                   style={{
-                    padding: "4px 8px",
+                    padding: "8px 12px",
                     borderRadius: 6,
                     border: "1px solid var(--border)",
                     font: "inherit",
@@ -427,7 +458,7 @@ export default function MaskingReview({
             onChange={(e) =>
               setManualKind(e.target.value as DictionaryEntry["kind"])
             }
-            style={{ padding: "8px", borderRadius: 8, border: "1px solid var(--border)", font: "inherit" }}
+            style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", font: "inherit" }}
           >
             {MANUAL_KIND_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -506,7 +537,7 @@ export default function MaskingReview({
           fontSize: 15,
         }}
       >
-        마스킹 확정 — 원문 폐기하고 다음으로
+        다음
       </button>
     </div>
   );

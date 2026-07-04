@@ -124,9 +124,9 @@ export default function ConceptWorkspace({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 960 }}>
       <div style={card}>
-        <h2>⑤ 컨셉 3안</h2>
+        <h2>컨셉 3안</h2>
         <p style={{ color: "var(--text-muted)" }}>
-          ④에서 확정한 팔레트·무드·레이아웃·벤치마킹 시사점을 반영해 전체
+          레퍼런스·무드에서 확정한 팔레트·무드·레이아웃·벤치마킹 시사점을 반영해 전체
           방향 3안을 만듭니다. 3안 모두 컨셉서로 내보냅니다 (1안 확정이
           아님).
         </p>
@@ -224,7 +224,7 @@ export default function ConceptWorkspace({
                   value={previewPage.pageId}
                   onChange={(e) => setPreviewPageId(e.target.value)}
                   style={{
-                    padding: "6px 12px",
+                    padding: "8px 12px",
                     borderRadius: 8,
                     border: "1px solid var(--border)",
                     font: "inherit",
@@ -451,7 +451,7 @@ function OutputPanel({
           fontSize: 15,
         }}
       >
-        {confirmed ? "✓ 컨셉 확정됨" : "컨셉 확정 — 제품 A 1차 완결"}
+        {confirmed ? "✓ 컨셉 확정됨" : "다음"}
       </button>
     </div>
   );

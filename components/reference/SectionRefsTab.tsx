@@ -139,7 +139,7 @@ export default function SectionRefsTab({
     return (
       <div style={card}>
         <p style={{ color: "var(--text-muted)" }}>
-          확정된 섹션이 없습니다. ③ 분석에서 섹션을 확정하세요.
+          확정된 섹션이 없습니다. 분석 결과에서 섹션을 확정하세요.
         </p>
       </div>
     );
@@ -147,14 +147,29 @@ export default function SectionRefsTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div
+        style={{
+          ...card,
+          padding: "16px 20px",
+          background: "var(--primary-soft)",
+          border: "1px solid var(--primary)",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <span style={{ fontWeight: 700, color: "var(--primary)" }}>
+          👉 섹션을 펼쳐서 검색 키워드와 표현 방식을 확인·수정하세요
+        </span>
+      </div>
+
       <div style={card}>
-        <h3 style={{ fontSize: 15 }}>
-          섹션별 레퍼런스{" "}
-          <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
-            확정 섹션 {confirmedSections.length}개 — 자동 검색 이동 또는 키워드
-            복사
-          </span>
-        </h3>
+        <h3 style={{ fontSize: 18, fontWeight: 800 }}>섹션별 레퍼런스</h3>
+        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          확정 섹션 {confirmedSections.length}개 — 자동 검색 이동 또는 키워드
+          복사
+        </p>
         {Object.keys(bySectionId).length === 0 && (
           <button
             onClick={generate}
@@ -190,23 +205,35 @@ export default function SectionRefsTab({
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
+                width: "100%",
                 padding: "14px 24px",
                 border: "none",
                 background: "transparent",
                 textAlign: "left",
-                fontWeight: 700,
-                fontSize: 15,
               }}
             >
               <span style={{ color: "var(--text-muted)" }}>{open ? "▾" : "▸"}</span>
-              {s.sectionTitle}
-              <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 14 }}>
-                {s.pageTitle} · {s.contentType}
-                {ref && ` · ${ref.layoutPattern}`}
-              </span>
+              <span style={{ fontWeight: 700, fontSize: 16, flex: 1 }}>{s.sectionTitle}</span>
+              {ref && (
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "var(--primary)",
+                    background: "var(--primary-soft)",
+                    borderRadius: 999,
+                    padding: "2px 10px",
+                  }}
+                >
+                  {ref.layoutPattern}
+                </span>
+              )}
             </button>
             {open && ref && (
               <div style={{ padding: "0 24px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+                <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+                  {s.pageTitle} · {s.contentType}
+                </p>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>표현 방식</span>
                   {(layoutCandidates[s.sectionId] ?? [ref.layoutPattern]).map((l) => (
@@ -245,58 +272,73 @@ export default function SectionRefsTab({
                   {ref.platformQueries.map((pq) => (
                     <li
                       key={pq.platform}
-                      style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        flexWrap: "wrap",
+                      }}
                     >
-                      <span style={{ width: 140, fontWeight: 600, fontSize: 14 }}>
+                      <span style={{ fontWeight: 600, fontSize: 14 }}>
                         {pq.platform}
                       </span>
-                      <span style={{ color: "var(--text-muted)", fontSize: 14, flex: 1 }}>
-                        &ldquo;{pq.query}&rdquo;
+                      <span style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
+                          &ldquo;{pq.query}&rdquo;
+                        </span>
+                        {pq.mode === "auto-search" && pq.url ? (
+                          <a
+                            href={pq.url}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 600,
+                              color: "var(--primary)",
+                              textDecoration: "none",
+                              border: "1px solid var(--border)",
+                              borderRadius: 6,
+                              padding: "3px 10px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            🔗 바로 검색
+                          </a>
+                        ) : (
+                          <button
+                            onClick={() => copy(s.sectionId, pq.platform, pq.query)}
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 600,
+                              border: "1px solid var(--border)",
+                              borderRadius: 6,
+                              padding: "3px 10px",
+                              background: "transparent",
+                              color: "var(--text-muted)",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {copied === `${s.sectionId}:${pq.platform}`
+                              ? "✓ 복사됨"
+                              : "📋 키워드 복사"}
+                          </button>
+                        )}
                       </span>
-                      {pq.mode === "auto-search" && pq.url ? (
-                        <a
-                          href={pq.url}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 600,
-                            color: "var(--primary)",
-                            textDecoration: "none",
-                            border: "1px solid var(--border)",
-                            borderRadius: 6,
-                            padding: "3px 10px",
-                          }}
-                        >
-                          🔗 바로 검색
-                        </a>
-                      ) : (
-                        <button
-                          onClick={() => copy(s.sectionId, pq.platform, pq.query)}
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 600,
-                            border: "1px solid var(--border)",
-                            borderRadius: 6,
-                            padding: "3px 10px",
-                            background: "transparent",
-                            color: "var(--text-muted)",
-                          }}
-                        >
-                          {copied === `${s.sectionId}:${pq.platform}`
-                            ? "✓ 복사됨"
-                            : "📋 키워드 복사"}
-                        </button>
-                      )}
                     </li>
                   ))}
                 </ul>
               </div>
             )}
             {open && !ref && (
-              <p style={{ padding: "0 24px 20px", color: "var(--text-muted)" }}>
-                먼저 위에서 검색 키워드를 생성하세요.
-              </p>
+              <div style={{ padding: "0 24px 20px", display: "flex", flexDirection: "column", gap: 6 }}>
+                <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+                  {s.pageTitle} · {s.contentType}
+                </p>
+                <p style={{ color: "var(--text-muted)" }}>
+                  먼저 위에서 검색 키워드를 생성하세요.
+                </p>
+              </div>
             )}
           </div>
         );

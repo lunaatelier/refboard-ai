@@ -10,6 +10,31 @@ function assertServer(): void {
   }
 }
 
+// GEMINI_API_KEY 쿼터 소진(HTTP 429) 시 GEMINI_API_KEY_2(예비 키)로 한 번 재시도한다.
+// GEMINI_API_KEY_2가 설정되지 않았으면 원래 응답(429)을 그대로 반환한다.
+async function fetchGemini(url: string, body: unknown): Promise<Response> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY가 설정되지 않았습니다 (.env.local).");
+  }
+  const call = (key: string) =>
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-goog-api-key": key, // URL이 아닌 헤더로 — 키가 URL 로그에 남지 않게
+      },
+      body: JSON.stringify(body),
+    });
+
+  const res = await call(apiKey);
+  if (res.status === 429) {
+    const backupKey = process.env.GEMINI_API_KEY_2;
+    if (backupKey) return call(backupKey);
+  }
+  return res;
+}
+
 // 멀티모달 입력 (Step 9) — opt-in 동의를 거친 이미지만 이 경로로 들어와야 한다.
 export interface InlineImage {
   mimeType: string;
@@ -21,34 +46,23 @@ export async function generateJson<T>(
   images: InlineImage[] = [],
 ): Promise<T> {
   assertServer();
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY가 설정되지 않았습니다 (.env.local).");
-  }
   const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
 
-  const res = await fetch(`${API_BASE}/models/${model}:generateContent`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-goog-api-key": apiKey, // URL이 아닌 헤더로 — 키가 URL 로그에 남지 않게
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: prompt },
-            ...images.map((img) => ({
-              inlineData: { mimeType: img.mimeType, data: img.data },
-            })),
-          ],
-        },
-      ],
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.3,
+  const res = await fetchGemini(`${API_BASE}/models/${model}:generateContent`, {
+    contents: [
+      {
+        parts: [
+          { text: prompt },
+          ...images.map((img) => ({
+            inlineData: { mimeType: img.mimeType, data: img.data },
+          })),
+        ],
       },
-    }),
+    ],
+    generationConfig: {
+      responseMimeType: "application/json",
+      temperature: 0.3,
+    },
   });
 
   if (!res.ok) {
@@ -74,23 +88,12 @@ export async function generateJson<T>(
 // grounding 전용 모델(기본 gemini-2.5-flash)을 분리해서 쓴다.
 export async function generateGroundedJson<T>(prompt: string): Promise<T> {
   assertServer();
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY가 설정되지 않았습니다 (.env.local).");
-  }
   const model = process.env.GEMINI_GROUNDING_MODEL || "gemini-2.5-flash";
 
-  const res = await fetch(`${API_BASE}/models/${model}:generateContent`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      tools: [{ google_search: {} }],
-      generationConfig: { temperature: 0.3 },
-    }),
+  const res = await fetchGemini(`${API_BASE}/models/${model}:generateContent`, {
+    contents: [{ parts: [{ text: prompt }] }],
+    tools: [{ google_search: {} }],
+    generationConfig: { temperature: 0.3 },
   });
 
   if (!res.ok) {

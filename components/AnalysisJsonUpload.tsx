@@ -1,21 +1,21 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { isBrowserParsable, isServerParsable } from "@/lib/parse/txt";
+import { isAnalysisJsonFile } from "@/lib/state/recycle";
 
-interface FileUploadProps {
+interface AnalysisJsonUploadProps {
   onFile: (file: File) => void;
 }
 
-export default function FileUpload({ onFile }: FileUploadProps) {
+export default function AnalysisJsonUpload({ onFile }: AnalysisJsonUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string>();
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
-    if (!isBrowserParsable(file.name) && !isServerParsable(file.name)) {
-      setError("지원하지 않는 형식입니다. TXT · MD · PDF · PPTX 파일을 올려주세요.");
+    if (!isAnalysisJsonFile(file.name)) {
+      setError("분석 결과 JSON 파일(.json)만 올릴 수 있습니다.");
       return;
     }
     setError(undefined);
@@ -42,19 +42,23 @@ export default function FileUpload({ onFile }: FileUploadProps) {
           if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
         }}
         style={{
-          border: `2px dashed ${dragging ? "var(--primary)" : "var(--border)"}`,
-          background: dragging ? "var(--primary-soft)" : "var(--surface)",
-          borderRadius: 16,
-          padding: "48px 32px",
-          textAlign: "center",
-          cursor: "pointer",
+          border: `1px dashed var(--border)`,
+          background: dragging ? "var(--primary-soft)" : "transparent",
+          borderRadius: 12,
+          padding: "16px 20px",
           display: "flex",
-          flexDirection: "column",
-          gap: 12,
           alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          cursor: "pointer",
         }}
       >
-        <p style={{ fontWeight: 600 }}>파일을 드래그하거나 클릭하여 업로드</p>
+        <div>
+          <p style={{ fontWeight: 600, fontSize: 14 }}>분석 결과 JSON 업로드</p>
+          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+            이전에 저장한 분석 결과 JSON을 다시 불러옵니다
+          </p>
+        </div>
         <button
           type="button"
           onClick={(e) => {
@@ -62,24 +66,22 @@ export default function FileUpload({ onFile }: FileUploadProps) {
             inputRef.current?.click();
           }}
           style={{
-            padding: "8px 20px",
+            padding: "6px 16px",
             borderRadius: 8,
             border: "1px solid var(--border)",
             background: "var(--surface)",
             fontWeight: 600,
+            fontSize: 13,
             cursor: "pointer",
+            whiteSpace: "nowrap",
           }}
         >
           파일 선택
         </button>
-        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>
-          <p style={{ marginBottom: 2 }}>지원 파일</p>
-          <p>TXT · MD · PDF · PPTX</p>
-        </div>
         <input
           ref={inputRef}
           type="file"
-          accept=".txt,.md,.pdf,.pptx"
+          accept=".json"
           hidden
           onChange={(e) => {
             handleFile(e.target.files?.[0]);
@@ -88,7 +90,7 @@ export default function FileUpload({ onFile }: FileUploadProps) {
         />
       </div>
       {error && (
-        <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+        <p role="alert" style={{ color: "#dc2626", fontWeight: 600, fontSize: 13 }}>
           {error}
         </p>
       )}

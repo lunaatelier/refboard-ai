@@ -37,7 +37,7 @@ export default function MaskedPreview({
           gap: 12,
         }}
       >
-        <h2>② 마스킹 완료</h2>
+        <h2>마스킹 완료</h2>
         {stats && (
           <p style={{ fontWeight: 600 }}>
             탐지 {stats.detected}건 중 {stats.applied}건 마스킹 적용
@@ -104,7 +104,7 @@ export default function MaskedPreview({
           fontSize: 15,
         }}
       >
-        다음 단계 — ③ 분석 결과
+        다음
       </button>
     </div>
   );

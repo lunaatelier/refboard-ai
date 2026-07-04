@@ -134,6 +134,23 @@ export default function PaletteMoodTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div
+        style={{
+          ...card,
+          padding: "16px 20px",
+          background: "var(--primary-soft)",
+          border: "1px solid var(--primary)",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <span style={{ fontWeight: 700, color: "var(--primary)" }}>
+          👉 팔레트 1세트와 무드 1종을 선택한 뒤 하단에서 확정하세요
+        </span>
+      </div>
+
       {/* ── 팔레트 ── */}
       <div style={card}>
         <h3 style={{ fontSize: 15 }}>
@@ -192,26 +209,29 @@ export default function PaletteMoodTab({
 
         {edited && currentPalette && (
           <>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontWeight: 600 }}>모드</span>
-              {(["light", "dark"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => onChange({ ...references, paletteMode: m })}
-                  style={{
-                    padding: "4px 14px",
-                    borderRadius: 8,
-                    border: `1px solid ${mode === m ? "var(--primary)" : "var(--border)"}`,
-                    background: mode === m ? "var(--primary-soft)" : "transparent",
-                    color: mode === m ? "var(--primary)" : "var(--text)",
-                    fontWeight: 600,
-                  }}
-                >
-                  {m === "light" ? "라이트" : "다크"}
-                </button>
-              ))}
+            <div style={{ borderTop: "1px solid var(--border)", marginTop: 4 }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontWeight: 600 }}>모드</span>
+                {(["light", "dark"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => onChange({ ...references, paletteMode: m })}
+                    style={{
+                      padding: "4px 14px",
+                      borderRadius: 8,
+                      border: `1px solid ${mode === m ? "var(--primary)" : "var(--border)"}`,
+                      background: mode === m ? "var(--primary-soft)" : "transparent",
+                      color: mode === m ? "var(--primary)" : "var(--text)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {m === "light" ? "라이트" : "다크"}
+                  </button>
+                ))}
+              </div>
               {analysis.domain === "dashboard-ops" && (
-                <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
+                <span style={{ color: "var(--text-muted)", fontSize: 13 }}>
                   대시보드는 다크 기본 추천
                 </span>
               )}
@@ -239,7 +259,7 @@ export default function PaletteMoodTab({
                       value={currentPalette[role]}
                       onChange={(e) => setRole(role, e.target.value)}
                       style={{
-                        padding: "4px 8px",
+                        padding: "8px 12px",
                         borderRadius: 6,
                         border: "1px solid var(--border)",
                         font: "inherit",

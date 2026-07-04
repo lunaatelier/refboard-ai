@@ -65,7 +65,7 @@ describe("Step 13 — 분석 JSON 저장/불러오기", () => {
   };
 
   it("저장→불러오기 라운드트립이 성립하고 복원키는 포함되지 않는다", () => {
-    const json = buildAnalysisExport(state);
+    const json = buildAnalysisExport(state, "test-export-id");
     assert.ok(!json.includes("mappings")); // 복원키 절대 미포함
     assert.ok(!json.includes("maskedText")); // 본문 텍스트도 미포함 (분석만)
     const imported = parseAnalysisImport(json);
@@ -84,10 +84,26 @@ describe("Step 13 — 분석 JSON 저장/불러오기", () => {
   });
 
   it("미래 버전은 거부", () => {
-    const json = buildAnalysisExport(state).replace(
+    const json = buildAnalysisExport(state, "test-export-id").replace(
       '"version": 1',
       '"version": 99',
     );
     assert.throws(() => parseAnalysisImport(json), /버전/);
+  });
+
+  it("exportId가 그대로 왕복되고, 없는 구버전 JSON은 undefined로 처리된다", () => {
+    const json = buildAnalysisExport(state, "abc-123");
+    const imported = parseAnalysisImport(json);
+    assert.equal(imported.exportId, "abc-123");
+
+    const legacyJson = JSON.stringify(
+      JSON.parse(buildAnalysisExport(state, "unused")),
+    );
+    const legacyWithoutExportId = JSON.parse(legacyJson);
+    delete legacyWithoutExportId.exportId;
+    const importedLegacy = parseAnalysisImport(
+      JSON.stringify(legacyWithoutExportId),
+    );
+    assert.equal(importedLegacy.exportId, undefined);
   });
 });

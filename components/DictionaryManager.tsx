@@ -70,7 +70,7 @@ export default function DictionaryManager() {
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as DictionaryEntry["kind"])}
-            style={{ padding: 8, borderRadius: 8, border: "1px solid var(--border)", font: "inherit" }}
+            style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", font: "inherit" }}
           >
             {(Object.keys(KIND_LABELS) as DictionaryEntry["kind"][]).map((k) => (
               <option key={k} value={k}>

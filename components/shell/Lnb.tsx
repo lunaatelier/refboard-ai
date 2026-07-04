@@ -25,7 +25,7 @@ const STATUS_ICON: Record<StepStatus, string> = {
   done: "✓",
   current: "●",
   available: "○",
-  locked: "🔒",
+  locked: "●",
 };
 
 export default function Lnb({ state, onNavigate }: LnbProps) {
@@ -50,7 +50,7 @@ export default function Lnb({ state, onNavigate }: LnbProps) {
           fontSize: 15,
         }}
       >
-        Design Reference Generator
+        RefBoard AI
       </div>
       {STEP_ORDER.map((step, i) => {
         const status = stepStatus(step, state);

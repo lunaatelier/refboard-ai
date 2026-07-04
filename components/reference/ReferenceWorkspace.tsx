@@ -69,7 +69,7 @@ export default function ReferenceWorkspace({
           flexWrap: "wrap",
         }}
       >
-        <h2 style={{ marginRight: 8 }}>④ 레퍼런스·무드</h2>
+        <h2 style={{ marginRight: 8 }}>레퍼런스·무드</h2>
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -153,7 +153,7 @@ export default function ReferenceWorkspace({
       >
         {references.referenceConfirmed
           ? "✓ 레퍼런스·무드 확정됨"
-          : "레퍼런스·무드 확정 — ⑤ 컨셉으로"}
+          : "다음"}
       </button>
     </div>
   );

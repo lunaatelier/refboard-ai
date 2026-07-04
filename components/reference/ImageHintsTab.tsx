@@ -121,12 +121,30 @@ export default function ImageHintsTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div
+        style={{
+          ...card,
+          padding: "16px 20px",
+          background: "var(--primary-soft)",
+          border: "1px solid var(--primary)",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <span style={{ fontWeight: 700, color: "var(--primary)" }}>
+          👉 대표 페이지를 확인하고, 이미지 힌트를 생성해 다른 생성 도구에
+          쓸 프롬프트를 준비하세요
+        </span>
+      </div>
+
       {/* ── 대표 페이지 (표지 ≠ 대표) ── */}
       <div style={card}>
         <h3 style={{ fontSize: 15 }}>
           대표 페이지 추천{" "}
           <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
-            표지(첫인상)와 내용 대표(정보구조)를 분리합니다 — ⑤ 컨셉서 구성에
+            표지(첫인상)와 내용 대표(정보구조)를 분리합니다 — 컨셉서 구성에
             사용
           </span>
         </h3>
@@ -215,8 +233,8 @@ export default function ImageHintsTab({
 
       {(references.imageHints ?? []).map((h, i) => (
         <div key={i} style={{ ...card, padding: 16 }}>
+          <b style={{ fontSize: 16 }}>{h.area}</b>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <b>{h.area}</b>
             <span
               style={{
                 fontSize: 13,
@@ -239,7 +257,7 @@ export default function ImageHintsTab({
               value={h.direction}
               onChange={(e) => patchHint(i, { direction: e.target.value })}
               style={{
-                padding: "3px 8px",
+                padding: "8px 12px",
                 borderRadius: 6,
                 border: "1px solid var(--border)",
                 font: "inherit",
