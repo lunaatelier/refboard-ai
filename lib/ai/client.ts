@@ -202,5 +202,17 @@ export async function generateImage(
   if (typeof base64 !== "string" || !base64) {
     throw new Error("이미지 생성 응답 형식을 해석하지 못했습니다.");
   }
-  return { mimeType: "image/png", base64 };
+  return { mimeType: detectImageMimeType(base64), base64 };
+}
+
+// 실측: flux.1-dev는 실제로 JPEG 바이트를 반환하는데 별도 포맷 필드가 없다.
+// mimeType을 PNG로 고정하면 브라우저가 매직바이트로 눈치껏 보정해 우연히 렌더링될
+// 뿐, data URL 스펙상 틀린 라벨이 된다 — base64 앞부분(매직바이트)으로 직접 판별한다.
+export function detectImageMimeType(base64: string): string {
+  const head = base64.slice(0, 16);
+  if (head.startsWith("iVBORw0KGgo")) return "image/png";
+  if (head.startsWith("/9j/")) return "image/jpeg";
+  if (head.startsWith("R0lGOD")) return "image/gif";
+  if (head.startsWith("UklGR")) return "image/webp";
+  return "image/png"; // 알 수 없는 경우의 폴백
 }
