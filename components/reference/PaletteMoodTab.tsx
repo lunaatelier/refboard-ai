@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check, Info } from "lucide-react";
 import SkinPreview from "./SkinPreview";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
 import { colorPool } from "@/lib/reference/palette";
@@ -35,11 +36,11 @@ interface PaletteMoodTabProps {
 const card: React.CSSProperties = {
   background: "var(--surface)",
   border: "1px solid var(--border)",
-  borderRadius: 12,
-  padding: 24,
+  borderRadius: "var(--radius-lg)",
+  padding: "var(--space-lg)",
   display: "flex",
   flexDirection: "column",
-  gap: 12,
+  gap: "var(--space-md)",
 };
 
 export default function PaletteMoodTab({
@@ -133,7 +134,7 @@ export default function PaletteMoodTab({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)" }}>
       <div
         style={{
           ...card,
@@ -142,27 +143,28 @@ export default function PaletteMoodTab({
           border: "1px solid var(--primary)",
           flexDirection: "row",
           alignItems: "center",
-          gap: 12,
+          gap: "var(--space-md)",
           flexWrap: "wrap",
         }}
       >
-        <span style={{ fontWeight: 700, color: "var(--primary)" }}>
-          👉 팔레트 1세트와 무드 1종을 선택한 뒤 하단에서 확정하세요
+        <Info size={18} color="var(--primary)" />
+        <span style={{ fontWeight: 700, color: "var(--primary)", fontSize: 14 }}>
+          팔레트 1세트와 무드 1종을 선택한 뒤 하단에서 확정하세요
         </span>
       </div>
 
       {/* ── 팔레트 ── */}
       <div style={card}>
-        <h3 style={{ fontSize: 15 }}>
+        <h3 style={{ fontSize: 18, fontWeight: 600 }}>
           컬러 팔레트{" "}
-          <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
+          <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 14 }}>
             {analysis.brandColors?.length
               ? "브랜드 컬러 기반 3변주"
               : "무드 기반 3세트"}{" "}
             — 1세트 선택 후 역할 배치를 편집하세요
           </span>
         </h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "var(--space-md)" }}>
           {(references.paletteOptions ?? []).map((opt) => {
             const selected = edited?.optionId === opt.optionId;
             const p = opt[mode];
@@ -170,19 +172,20 @@ export default function PaletteMoodTab({
               <button
                 key={opt.optionId}
                 onClick={() => selectOption(opt)}
+                className="hoverable-card"
                 style={{
-                  border: `2px solid ${selected ? "var(--primary)" : "var(--border)"}`,
-                  borderRadius: 10,
-                  padding: 12,
+                  border: selected ? "2px solid var(--primary)" : undefined,
+                  borderRadius: "var(--radius-lg)",
+                  padding: "var(--space-md)",
                   background: "transparent",
                   display: "flex",
                   flexDirection: "column",
-                  gap: 8,
+                  gap: "var(--space-sm)",
                   textAlign: "left",
                 }}
               >
-                <span style={{ fontWeight: 700 }}>
-                  {selected ? "● " : "○ "}
+                <span style={{ fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
+                  {selected && <Check size={14} color="var(--primary)" strokeWidth={2.5} />}
                   {opt.label}
                 </span>
                 <span style={{ display: "flex", gap: 4 }}>
@@ -194,7 +197,7 @@ export default function PaletteMoodTab({
                         style={{
                           width: 28,
                           height: 28,
-                          borderRadius: 6,
+                          borderRadius: "var(--radius-sm)",
                           background: c,
                           border: "1px solid var(--border)",
                         }}
@@ -210,20 +213,21 @@ export default function PaletteMoodTab({
         {edited && currentPalette && (
           <>
             <div style={{ borderTop: "1px solid var(--border)", marginTop: 4 }} />
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{ fontWeight: 600 }}>모드</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+              <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
+                <span style={{ fontWeight: 600, fontSize: 14 }}>모드</span>
                 {(["light", "dark"] as const).map((m) => (
                   <button
                     key={m}
                     onClick={() => onChange({ ...references, paletteMode: m })}
                     style={{
                       padding: "4px 14px",
-                      borderRadius: 8,
+                      borderRadius: "var(--radius-md)",
                       border: `1px solid ${mode === m ? "var(--primary)" : "var(--border)"}`,
                       background: mode === m ? "var(--primary-soft)" : "transparent",
                       color: mode === m ? "var(--primary)" : "var(--text)",
                       fontWeight: 600,
+                      fontSize: 14,
                     }}
                   >
                     {m === "light" ? "라이트" : "다크"}
@@ -231,17 +235,17 @@ export default function PaletteMoodTab({
                 ))}
               </div>
               {analysis.domain === "dashboard-ops" && (
-                <span style={{ color: "var(--text-muted)", fontSize: 13 }}>
+                <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
                   대시보드는 다크 기본 추천
                 </span>
               )}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "var(--space-base)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
                 {(Object.keys(ROLE_LABELS) as PaletteRole[]).map((role) => (
                   <label
                     key={role}
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}
                   >
                     <span style={{ flex: 1, fontSize: 14 }}>
                       {ROLE_LABELS[role]}
@@ -250,7 +254,7 @@ export default function PaletteMoodTab({
                       style={{
                         width: 22,
                         height: 22,
-                        borderRadius: 5,
+                        borderRadius: "var(--radius-sm)",
                         background: currentPalette[role],
                         border: "1px solid var(--border)",
                       }}
@@ -260,7 +264,7 @@ export default function PaletteMoodTab({
                       onChange={(e) => setRole(role, e.target.value)}
                       style={{
                         padding: "8px 12px",
-                        borderRadius: 6,
+                        borderRadius: "var(--radius-md)",
                         border: "1px solid var(--border)",
                         font: "inherit",
                         fontSize: 14,
@@ -278,7 +282,7 @@ export default function PaletteMoodTab({
                   </label>
                 ))}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
                 <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
                   실시간 프리뷰
                 </span>
@@ -291,9 +295,9 @@ export default function PaletteMoodTab({
 
       {/* ── 무드 ── */}
       <div style={card}>
-        <h3 style={{ fontSize: 15 }}>
+        <h3 style={{ fontSize: 18, fontWeight: 600 }}>
           무드보드{" "}
-          <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
+          <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 14 }}>
             3종 제시 → 선택 (도메인: {analysis.domain})
           </span>
         </h3>
@@ -301,39 +305,42 @@ export default function PaletteMoodTab({
           <button
             onClick={generateMoods}
             disabled={moodBusy}
+            className="btn-weak-primary"
             style={{
               alignSelf: "flex-start",
-              padding: "10px 20px",
-              borderRadius: 10,
+              padding: "10px var(--space-base)",
+              borderRadius: "var(--radius-md)",
               border: "none",
-              background: moodBusy ? "var(--locked)" : "var(--primary)",
-              color: "#fff",
+              background: moodBusy ? "var(--locked)" : undefined,
+              color: moodBusy ? "var(--on-primary)" : undefined,
               fontWeight: 600,
+              fontSize: 14,
             }}
           >
             {moodBusy ? "무드 생성 중…" : "무드 3종 생성"}
           </button>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "var(--space-md)" }}>
             {references.moodOptions.map((m) => {
               const selected = references.selectedMoodId === m.id;
               return (
                 <button
                   key={m.id}
                   onClick={() => selectMood(m)}
+                  className="hoverable-card"
                   style={{
-                    border: `2px solid ${selected ? "var(--primary)" : "var(--border)"}`,
-                    borderRadius: 10,
-                    padding: 12,
+                    border: selected ? "2px solid var(--primary)" : undefined,
+                    borderRadius: "var(--radius-lg)",
+                    padding: "var(--space-md)",
                     background: "transparent",
                     display: "flex",
                     flexDirection: "column",
-                    gap: 8,
+                    gap: "var(--space-sm)",
                     textAlign: "left",
                   }}
                 >
-                  <span style={{ fontWeight: 700 }}>
-                    {selected ? "● " : "○ "}
+                  <span style={{ fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
+                    {selected && <Check size={14} color="var(--primary)" strokeWidth={2.5} />}
                     {m.label}
                   </span>
                   <span style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -342,9 +349,10 @@ export default function PaletteMoodTab({
                         key={k}
                         style={{
                           fontSize: 14,
-                          background: "var(--primary-soft)",
-                          color: "var(--primary)",
-                          borderRadius: 999,
+                          fontWeight: 600,
+                          background: "var(--primary-weak-bg)",
+                          color: "var(--primary-hover)",
+                          borderRadius: "var(--radius-full)",
                           padding: "1px 10px",
                         }}
                       >
@@ -367,7 +375,7 @@ export default function PaletteMoodTab({
         )}
 
         {references.globalMood && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
             {analysis.domain === "document" &&
               selectedMood?.styleAttributes.typographyNote && (
                 <p style={{ color: "var(--text-muted)" }}>
@@ -377,16 +385,16 @@ export default function PaletteMoodTab({
             {imagesBusy ? (
               <p style={{ color: "var(--text-muted)" }}>이미지 불러오는 중…</p>
             ) : references.globalMood.images.length > 0 ? (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "var(--space-sm)" }}>
                 {references.globalMood.images.map((img, i) => (
                   <figure key={i} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={img.url}
                       alt={img.attribution}
-                      style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 8 }}
+                      style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: "var(--radius-md)" }}
                     />
-                    <figcaption style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    <figcaption style={{ fontSize: 14, color: "var(--text-muted)" }}>
                       {img.attribution}
                     </figcaption>
                   </figure>
@@ -400,7 +408,7 @@ export default function PaletteMoodTab({
           </div>
         )}
         {error && (
-          <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+          <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600 }}>
             {error}
           </p>
         )}
@@ -410,22 +418,26 @@ export default function PaletteMoodTab({
       <button
         onClick={() => onChange({ ...references, paletteConfirmed: true })}
         disabled={!edited || !references.selectedMoodId || references.paletteConfirmed}
+        className="btn-primary"
         style={{
           alignSelf: "flex-start",
-          padding: "12px 24px",
-          borderRadius: 10,
+          padding: "10px var(--space-base)",
+          borderRadius: "var(--radius-md)",
           border: "none",
           background:
             !edited || !references.selectedMoodId || references.paletteConfirmed
               ? "var(--locked)"
-              : "var(--primary)",
-          color: "#fff",
-          fontWeight: 700,
-          fontSize: 15,
+              : undefined,
+          fontWeight: 600,
+          fontSize: 14,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
         }}
       >
+        {references.paletteConfirmed && <Check size={16} color="var(--on-primary)" strokeWidth={2.5} />}
         {references.paletteConfirmed
-          ? "✓ 팔레트·무드 확정됨"
+          ? "팔레트·무드 확정됨"
           : "팔레트·무드 확정"}
       </button>
     </div>

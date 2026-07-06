@@ -19,7 +19,7 @@ export default function SkinPreview({ palette, mood }: SkinPreviewProps) {
       style={{
         background: palette.background,
         border: "1px solid var(--border)",
-        borderRadius: 12,
+        borderRadius: "var(--radius-lg)",
         overflow: "hidden",
       }}
     >

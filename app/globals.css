@@ -1,13 +1,76 @@
+/* Font priority: Pretendard -> SUIT -> Noto Sans KR (see layout.tsx for the Noto Sans KR <link>) */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+
+@font-face {
+  font-family: "SUIT Variable";
+  src: url("https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.woff2")
+    format("woff2-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --bg: #f7f8fa;
-  --surface: #ffffff;
-  --border: #e3e6ea;
-  --text: #1c1f24;
-  --text-muted: #6b7280;
-  --primary: #2563eb;
-  --primary-soft: #eff4ff;
-  --success: #16a34a;
-  --locked: #b3b9c2;
+  /* Brand (Tailwind indigo scale) */
+  --primary: #6366f1; /* indigo-500 */
+  --primary-hover: #4f46e5; /* indigo-600 */
+  --primary-active: #4338ca; /* indigo-700 - button/toggle hover-darken, not decorative text */
+  --primary-soft: #eef2ff; /* indigo-50 */
+  --primary-weak-bg: rgba(99, 102, 241, 0.12);
+  --primary-weak-bg-hover: rgba(99, 102, 241, 0.2); /* ~indigo-100 tint */
+  --on-primary: #ffffff;
+
+  /* Surfaces */
+  --bg: #f8fafc; /* page canvas (slate50) */
+  --surface: #ffffff; /* card / panel surface */
+  --surface-alt: #f1f5f9; /* secondary surface (slate100) */
+
+  /* Text (Tailwind slate scale) */
+  --text: #0f172a; /* slate900 - foreground/heading */
+  --text-strong: #1e293b; /* slate800 - nav/input emphasis */
+  --text-tertiary-hover: #334155; /* slate700 - tertiary-button hover text only */
+  --text-body: #475569; /* slate600 - body copy */
+  --text-muted: #64748b; /* slate500 - secondary/meta */
+  --text-placeholder: #94a3b8; /* slate400 */
+
+  /* Borders */
+  --border: #e2e8f0; /* slate200 */
+  --border-strong: #cbd5e1; /* slate300 */
+
+  /* Semantic */
+  --success: #10b981;
+  --error: #ef4444;
+  --error-hover: #dc2626;
+  --error-weak-bg: rgba(239, 68, 68, 0.12);
+  --error-weak-text: #dc2626;
+  --warning: #f59e0b;
+  --warning-weak-bg: rgba(245, 158, 11, 0.15);
+  --warning-weak-text: #b45309;
+  --info: #0ea5e9;
+  --info-weak-bg: rgba(14, 165, 233, 0.12);
+  --locked: #94a3b8;
+
+  /* Spacing (8px base unit) */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-base: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-xxl: 48px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Shadow */
+  --shadow-subtle: 0px 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-standard: 0px 2px 8px rgba(15, 23, 42, 0.08);
+  --shadow-elevated: 0px 4px 16px rgba(15, 23, 42, 0.12);
+  --shadow-modal: 0px 8px 24px rgba(15, 23, 42, 0.16);
 }
 
 * {
@@ -23,12 +86,20 @@ body {
 
 body {
   font-family:
-    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", "Noto Sans KR", sans-serif;
+    "Pretendard Variable", Pretendard, "SUIT Variable", "Noto Sans KR",
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px; /* UI 원칙: 최소 14px */
-  color: var(--text);
+  color: var(--text-body);
   background: var(--bg);
   line-height: 1.6;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--text);
+  font-weight: 700;
 }
 
 button {
@@ -38,4 +109,150 @@ button {
 
 button:disabled {
   cursor: not-allowed;
+}
+
+/* ============================================================
+   Hover spec (final, color-only — no box-shadow/transform/scale).
+   All hover/active transitions use background-color/color/border-color
+   at 150ms. Button variants are named by ACTION MEANING, not visual
+   weight: pick the class by what the button DOES, not how bold it looks.
+   ============================================================ */
+
+/* 1. Primary — main CTA (e.g. "파일 선택" in the upload dropzone) */
+.btn-primary {
+  background: var(--primary);
+  color: var(--on-primary);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-active);
+}
+
+/* 2. WeakPrimary — execute/retry actions ("가져오기", "다시 생성") */
+.btn-weak-primary {
+  background: var(--primary-weak-bg);
+  color: var(--primary-hover);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.btn-weak-primary:hover:not(:disabled) {
+  background: var(--primary-weak-bg-hover);
+  color: var(--primary-active);
+}
+
+/* 3. Secondary — cancel/dismiss actions ("취소", "닫기") ONLY.
+   Never use for an executing action even if it looks "secondary". */
+.btn-secondary {
+  background: var(--surface-alt);
+  color: var(--text-body);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--border); /* slate-200 */
+  color: var(--text-strong); /* slate-800 */
+}
+
+/* 4. Tertiary — low-frequency utility (e.g. "분석 결과 JSON 업로드"의 "파일 선택") */
+.btn-tertiary {
+  background: transparent;
+  color: var(--text-muted); /* slate-500 */
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.btn-tertiary:hover:not(:disabled) {
+  background: var(--surface-alt); /* slate-100 */
+  color: var(--text-tertiary-hover); /* slate-700 */
+}
+
+/* 5. Danger — destructive confirmation (delete, discard original text) */
+.btn-danger {
+  background: var(--error);
+  color: var(--on-primary);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--error-hover);
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+/* 6. Upload dropzone — border/bg shift on hover only (not while dragging;
+   the dragging state is driven by inline style and takes priority since
+   it's applied directly on the element). */
+.dropzone {
+  border: 2px dashed var(--border);
+  background: var(--bg);
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.dropzone:hover {
+  border-color: var(--primary);
+  background: var(--surface);
+}
+
+/* 7. Clickable reference/concept cards — hover border only; a selected
+   card's inline 2px indigo border (higher specificity, same property)
+   is never overridden by this. */
+.hoverable-card {
+  border: 1px solid transparent;
+  transition: border-color 150ms ease;
+}
+.hoverable-card:hover {
+  border-color: var(--border); /* slate-200 */
+}
+
+/* 8. LNB steps — only the "done" status gets a hover background.
+   current/locked intentionally get no hover treatment. */
+[data-lnb-status="done"]:hover {
+  background: var(--surface-alt);
+}
+
+/* 9. Inputs — hover nudges the border faintly; focus is the confident,
+   unambiguous state. The two must read as visually distinct. */
+.input-box {
+  border: 1px solid var(--border);
+  transition: border-color 150ms ease;
+}
+.input-box:hover:not(:focus) {
+  border-color: var(--border-strong); /* slate-300 */
+}
+.input-box:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+/* 10. Toggle — on/off track hover */
+.toggle-track[data-on="true"] {
+  background: var(--primary);
+  transition: background-color 150ms ease;
+}
+.toggle-track[data-on="true"]:hover {
+  background: var(--primary-active);
+}
+.toggle-track[data-on="false"] {
+  background: var(--border-strong); /* slate-300 */
+  transition: background-color 150ms ease;
+}
+.toggle-track[data-on="false"]:hover {
+  background: var(--text-placeholder); /* slate-400 */
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check, Download, Printer, Smartphone } from "lucide-react";
 import ConceptPreview from "./ConceptPreview";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
 import type { ConceptJson, OutputPreset } from "@/lib/concept/types";
@@ -32,11 +33,11 @@ interface ConceptWorkspaceProps {
 const card: React.CSSProperties = {
   background: "var(--surface)",
   border: "1px solid var(--border)",
-  borderRadius: 12,
-  padding: 24,
+  borderRadius: "var(--radius-lg)",
+  padding: "var(--space-lg)",
   display: "flex",
   flexDirection: "column",
-  gap: 12,
+  gap: "var(--space-md)",
 };
 
 export default function ConceptWorkspace({
@@ -128,22 +129,22 @@ export default function ConceptWorkspace({
     previewPages?.[0];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 960 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)", maxWidth: 960 }}>
       <div style={card}>
-        <h2>컨셉 3안</h2>
-        <p style={{ color: "var(--text-muted)" }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700 }}>컨셉 3안</h2>
+        <p style={{ color: "var(--text-muted)", fontSize: 16 }}>
           레퍼런스·무드에서 확정한 팔레트·무드·레이아웃·벤치마킹 시사점을 반영해 전체
           방향 3안을 만듭니다. 3안 모두 컨셉서로 내보냅니다 (1안 확정이
           아님).
         </p>
         {variants.length >= 2 && (
-          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
             <input
               type="checkbox"
               checked={useVariants}
               onChange={(e) => setUseVariants(e.target.checked)}
             />
-            <span>
+            <span style={{ fontSize: 14 }}>
               문서에 이미 있는 시안 변형 {variants.length}개(
               {variants.map((v) => v.label).join("/")})를 3안의 기반으로 사용
             </span>
@@ -152,21 +153,22 @@ export default function ConceptWorkspace({
         <button
           onClick={generate}
           disabled={busy}
+          className="btn-weak-primary"
           style={{
             alignSelf: "flex-start",
-            padding: "12px 24px",
-            borderRadius: 10,
+            padding: "10px var(--space-base)",
+            borderRadius: "var(--radius-md)",
             border: "none",
-            background: busy ? "var(--locked)" : "var(--primary)",
-            color: "#fff",
-            fontWeight: 700,
-            fontSize: 15,
+            background: busy ? "var(--locked)" : undefined,
+            color: busy ? "var(--on-primary)" : undefined,
+            fontWeight: 600,
+            fontSize: 14,
           }}
         >
           {busy ? "컨셉 생성 중… (수십 초)" : concept ? "다시 생성" : "컨셉 3안 생성"}
         </button>
         {error && (
-          <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+          <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600 }}>
             {error}
           </p>
         )}
@@ -175,36 +177,39 @@ export default function ConceptWorkspace({
       {concept && (
         <>
           {/* ── 3안 비교 ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "var(--space-md)" }}>
             {concept.options.map((o) => {
               const isSel = selected?.optionId === o.optionId;
               return (
                 <button
                   key={o.optionId}
                   onClick={() => setSelectedOptionId(o.optionId)}
+                  className="hoverable-card"
                   style={{
                     ...card,
-                    padding: 16,
+                    borderRadius: "var(--radius-xl)",
+                    padding: "var(--space-lg)",
                     textAlign: "left",
                     cursor: "pointer",
-                    border: `2px solid ${isSel ? "var(--primary)" : "var(--border)"}`,
+                    border: isSel ? "2px solid var(--primary)" : undefined,
                   }}
                 >
-                  <b style={{ fontSize: 15 }}>
-                    {isSel ? "● " : "○ "}
+                  <b style={{ fontSize: 16, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                    {isSel && <Check size={16} color="var(--primary)" strokeWidth={2.5} />}
                     {o.label}
                   </b>
                   {o.basedOnVariantLabel && (
-                    <span style={{ fontSize: 13, color: "#b45309" }}>
+                    <span style={{ fontSize: 14, color: "var(--warning-weak-text)" }}>
                       문서 시안 {o.basedOnVariantLabel} 기반
                     </span>
                   )}
                   {o.platforms && (
-                    <span style={{ fontSize: 13, color: "#0e7490" }}>
-                      📱 웹+모바일 별도 세트
+                    <span style={{ fontSize: 14, color: "var(--info)", display: "flex", alignItems: "center", gap: 4 }}>
+                      <Smartphone size={14} color="var(--info)" />
+                      웹+모바일 별도 세트
                     </span>
                   )}
-                  <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                  <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
                     {o.uiStructure.mode === "dark" ? "다크" : "라이트"} · GNB{" "}
                     {o.uiStructure.navPosition === "left" ? "좌측" : "상단"} ·{" "}
                     {o.keyVisual.illustrationStyle}
@@ -212,10 +217,10 @@ export default function ConceptWorkspace({
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {o.conceptKeywords.map((a) => (
                       <div key={a.no}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: "var(--primary)" }}>
+                        <span style={{ fontWeight: 600, fontSize: 14, color: "var(--primary)" }}>
                           {a.no} {a.title}
                         </span>
-                        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                        <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
                           {a.description}
                         </p>
                       </div>
@@ -229,8 +234,8 @@ export default function ConceptWorkspace({
           {/* ── HTML 미리보기 ── */}
           {selected && previewPage && (
             <div style={card}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <h3 style={{ fontSize: 15 }}>미리보기 — {selected.label}</h3>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)", flexWrap: "wrap" }}>
+                <h3 style={{ fontSize: 18, fontWeight: 600 }}>미리보기 — {selected.label}</h3>
                 {selected.platforms && (
                   <div style={{ display: "flex", gap: 4 }}>
                     {(["web", "mobile"] as const).map((pf) => (
@@ -240,7 +245,7 @@ export default function ConceptWorkspace({
                         disabled={!selected.platforms?.[pf]}
                         style={{
                           padding: "6px 14px",
-                          borderRadius: 8,
+                          borderRadius: "var(--radius-md)",
                           border: `1px solid ${previewPlatform === pf ? "var(--primary)" : "var(--border)"}`,
                           background:
                             previewPlatform === pf
@@ -265,7 +270,7 @@ export default function ConceptWorkspace({
                   onChange={(e) => setPreviewPageId(e.target.value)}
                   style={{
                     padding: "8px 12px",
-                    borderRadius: 8,
+                    borderRadius: "var(--radius-md)",
                     border: "1px solid var(--border)",
                     font: "inherit",
                   }}
@@ -284,7 +289,7 @@ export default function ConceptWorkspace({
                     </option>
                   ))}
                 </select>
-                <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
                   {selected.uiStructure.infoStructure}
                 </span>
               </div>
@@ -385,36 +390,39 @@ function OutputPanel({
   };
 
   const btn = (disabled: boolean): React.CSSProperties => ({
-    padding: "8px 16px",
-    borderRadius: 8,
+    padding: "10px var(--space-base)",
+    borderRadius: "var(--radius-md)",
     border: "1px solid var(--border)",
-    background: "transparent",
     fontWeight: 600,
     fontSize: 14,
-    color: disabled ? "var(--locked)" : "var(--text)",
+    color: disabled ? "var(--locked)" : undefined,
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
   });
 
   return (
     <div style={card}>
-      <h3 style={{ fontSize: 15 }}>컨셉서 출력 — 3안 모두 내보내기</h3>
+      <h3 style={{ fontSize: 18, fontWeight: 600 }}>컨셉서 출력 — 3안 모두 내보내기</h3>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
         {(Object.keys(PRESET_LABELS) as OutputPreset[]).map((p) => (
           <button
             key={p}
             onClick={() => setSel({ outputPreset: p })}
+            className="hoverable-card"
             style={{
               flex: 1,
               minWidth: 180,
               textAlign: "left",
-              padding: 12,
-              borderRadius: 10,
-              border: `2px solid ${sel.outputPreset === p ? "var(--primary)" : "var(--border)"}`,
+              padding: "var(--space-md)",
+              borderRadius: "var(--radius-lg)",
+              border: sel.outputPreset === p ? "2px solid var(--primary)" : undefined,
               background: sel.outputPreset === p ? "var(--primary-soft)" : "transparent",
             }}
           >
-            <b>{PRESET_LABELS[p].label}</b>
-            <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+            <b style={{ fontSize: 16, fontWeight: 600 }}>{PRESET_LABELS[p].label}</b>
+            <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
               {PRESET_LABELS[p].desc}
             </p>
           </button>
@@ -422,7 +430,7 @@ function OutputPanel({
       </div>
 
       {sel.outputPreset !== "summary" && subCandidates.length > 0 && (
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "var(--space-md)", flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>서브 페이지</span>
           {subCandidates.map((p) => (
             <label key={p.pageId} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 14 }}>
@@ -443,36 +451,42 @@ function OutputPanel({
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <button onClick={() => downloadPptx(false)} style={btn(false)}>
-          ⬇ PPT (마스킹본)
+      <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap", alignItems: "center" }}>
+        <button onClick={() => downloadPptx(false)} className="btn-tertiary" style={btn(false)}>
+          <Download size={16} />
+          PPT (마스킹본)
         </button>
-        <button onClick={() => printPdf(false)} style={btn(false)}>
-          🖨 PDF 인쇄 (마스킹본)
+        <button onClick={() => printPdf(false)} className="btn-tertiary" style={btn(false)}>
+          <Printer size={16} />
+          PDF 인쇄 (마스킹본)
         </button>
         <button
           onClick={() => downloadPptx(true)}
           disabled={!canRestore}
+          className="btn-tertiary"
           style={btn(!canRestore)}
         >
-          ⬇ PPT (실명본)
+          <Download size={16} color={canRestore ? undefined : "var(--locked)"} />
+          PPT (실명본)
         </button>
         <button
           onClick={() => printPdf(true)}
           disabled={!canRestore}
+          className="btn-tertiary"
           style={btn(!canRestore)}
         >
-          🖨 PDF 인쇄 (실명본)
+          <Printer size={16} color={canRestore ? undefined : "var(--locked)"} />
+          PDF 인쇄 (실명본)
         </button>
       </div>
-      <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+      <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
         기본은 마스킹본입니다. 실명본은 이 세션의 메모리에서만 복원되며, 어떤
         데이터도 서버로 전송되지 않습니다.
         {!canRestore &&
           " (복원키가 없어 실명본 불가 — 새로고침했거나 재활용 모드입니다)"}
       </p>
       {downloadError && (
-        <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+        <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600 }}>
           {downloadError}
         </p>
       )}
@@ -480,18 +494,22 @@ function OutputPanel({
       <button
         onClick={onConfirm}
         disabled={confirmed}
+        className="btn-primary"
         style={{
           alignSelf: "flex-start",
-          padding: "12px 24px",
-          borderRadius: 10,
+          padding: "10px var(--space-base)",
+          borderRadius: "var(--radius-md)",
           border: "none",
-          background: confirmed ? "var(--locked)" : "var(--primary)",
-          color: "#fff",
-          fontWeight: 700,
-          fontSize: 15,
+          background: confirmed ? "var(--locked)" : undefined,
+          fontWeight: 600,
+          fontSize: 14,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
         }}
       >
-        {confirmed ? "✓ 컨셉 확정됨" : "다음"}
+        {confirmed && <Check size={16} color="var(--on-primary)" strokeWidth={2.5} />}
+        {confirmed ? "컨셉 확정됨" : "다음"}
       </button>
     </div>
   );

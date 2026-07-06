@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, ChevronDown, ChevronRight, Copy, Info, Link, X } from "lucide-react";
 import { useState } from "react";
 import type { ProjectAnalysis, ProjectDirective, Section } from "@/lib/analysis/types";
 import { buildPlatformQueries, platformNameFromUrl } from "@/lib/reference/platforms";
@@ -23,11 +24,11 @@ interface SectionRefsTabProps {
 const card: React.CSSProperties = {
   background: "var(--surface)",
   border: "1px solid var(--border)",
-  borderRadius: 12,
-  padding: 24,
+  borderRadius: "var(--radius-lg)",
+  padding: "var(--space-lg)",
   display: "flex",
   flexDirection: "column",
-  gap: 12,
+  gap: "var(--space-md)",
 };
 
 export default function SectionRefsTab({
@@ -186,27 +187,37 @@ export default function SectionRefsTab({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)" }}>
       <div
         style={{
           ...card,
-          padding: "16px 20px",
-          background: "var(--primary-soft)",
-          border: "1px solid var(--primary)",
+          padding: "var(--space-base) var(--space-md)",
+          background: "var(--info-weak-bg)",
+          border: "none",
           flexDirection: "row",
           alignItems: "center",
-          gap: 12,
+          gap: "var(--space-md)",
           flexWrap: "wrap",
         }}
       >
-        <span style={{ fontWeight: 700, color: "var(--primary)" }}>
-          👉 섹션을 펼쳐서 검색 키워드와 표현 방식을 확인·수정하세요
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-sm)",
+            fontWeight: 600,
+            fontSize: 14,
+            color: "var(--info)",
+          }}
+        >
+          <Info size={18} color="var(--info)" />
+          섹션을 펼쳐서 검색 키워드와 표현 방식을 확인·수정하세요
         </span>
       </div>
 
       <div style={card}>
-        <h3 style={{ fontSize: 18, fontWeight: 800 }}>섹션별 레퍼런스</h3>
-        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+        <h3 style={{ fontSize: 18, fontWeight: 600 }}>섹션별 레퍼런스</h3>
+        <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
           확정 섹션 {confirmedSections.length}개 — 자동 검색 이동 또는 키워드
           복사
         </p>
@@ -214,21 +225,22 @@ export default function SectionRefsTab({
           <button
             onClick={generate}
             disabled={busy}
+            className="btn-weak-primary"
             style={{
               alignSelf: "flex-start",
-              padding: "10px 20px",
-              borderRadius: 10,
+              padding: "10px var(--space-lg)",
+              borderRadius: "var(--radius-md)",
               border: "none",
-              background: busy ? "var(--locked)" : "var(--primary)",
-              color: "#fff",
+              background: busy ? "var(--locked)" : undefined,
               fontWeight: 600,
+              fontSize: 14,
             }}
           >
             {busy ? "검색 키워드 생성 중…" : "섹션별 검색 키워드 생성"}
           </button>
         )}
         {error && (
-          <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+          <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600, fontSize: 14 }}>
             {error}
           </p>
         )}
@@ -241,28 +253,30 @@ export default function SectionRefsTab({
           <div key={s.sectionId} style={{ ...card, padding: 0, overflow: "hidden" }}>
             <button
               onClick={() => setOpenId(open ? undefined : s.sectionId)}
+              className="btn-tertiary"
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
+                gap: "var(--space-sm)",
                 width: "100%",
-                padding: "14px 24px",
+                padding: "var(--space-md) var(--space-lg)",
                 border: "none",
-                background: "transparent",
                 textAlign: "left",
               }}
             >
-              <span style={{ color: "var(--text-muted)" }}>{open ? "▾" : "▸"}</span>
-              <span style={{ fontWeight: 700, fontSize: 16, flex: 1 }}>{s.sectionTitle}</span>
+              <span style={{ display: "flex", color: "var(--text-muted)" }}>
+                {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+              </span>
+              <span style={{ fontWeight: 600, fontSize: 16, flex: 1 }}>{s.sectionTitle}</span>
               {ref && (
                 <span
                   style={{
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: 600,
-                    color: "var(--primary)",
-                    background: "var(--primary-soft)",
-                    borderRadius: 999,
-                    padding: "2px 10px",
+                    color: "var(--primary-hover)",
+                    background: "var(--primary-weak-bg)",
+                    borderRadius: "var(--radius-full)",
+                    padding: "var(--space-xs) var(--space-md)",
                   }}
                 >
                   {ref.layoutPattern}
@@ -270,22 +284,22 @@ export default function SectionRefsTab({
               )}
             </button>
             {open && ref && (
-              <div style={{ padding: "0 24px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-                <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+              <div style={{ padding: "0 var(--space-lg) var(--space-lg)", display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+                <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
                   {s.pageTitle} · {s.contentType}
                 </p>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: "var(--space-xs)", flexWrap: "wrap", alignItems: "center" }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>표현 방식</span>
                   {(layoutCandidates[s.sectionId] ?? [ref.layoutPattern]).map((l) => (
                     <button
                       key={l}
                       onClick={() => setLayout(s.sectionId, l)}
                       style={{
-                        padding: "4px 12px",
-                        borderRadius: 999,
-                        border: `1px solid ${ref.layoutPattern === l ? "var(--primary)" : "var(--border)"}`,
-                        background: ref.layoutPattern === l ? "var(--primary-soft)" : "transparent",
-                        color: ref.layoutPattern === l ? "var(--primary)" : "var(--text)",
+                        padding: "var(--space-xs) var(--space-md)",
+                        borderRadius: "var(--radius-full)",
+                        border: "none",
+                        background: ref.layoutPattern === l ? "var(--primary-weak-bg)" : "var(--surface-alt)",
+                        color: ref.layoutPattern === l ? "var(--primary-hover)" : "var(--text-muted)",
                         fontSize: 14,
                         fontWeight: 600,
                       }}
@@ -294,21 +308,22 @@ export default function SectionRefsTab({
                     </button>
                   ))}
                 </div>
-                <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>검색어</span>
                   <input
                     value={ref.searchQuery}
                     onChange={(e) => updateQuery(s.sectionId, e.target.value)}
+                    className="input-box"
                     style={{
                       flex: 1,
-                      padding: "6px 12px",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
+                      padding: "8px var(--space-md)",
+                      borderRadius: "var(--radius-md)",
                       font: "inherit",
+                      fontSize: 14,
                     }}
                   />
                 </label>
-                <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+                <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
                   {ref.platformQueries.map((pq) => (
                     <li
                       key={pq.platform}
@@ -316,14 +331,14 @@ export default function SectionRefsTab({
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        gap: 10,
+                        gap: "var(--space-sm)",
                         flexWrap: "wrap",
                       }}
                     >
                       <span style={{ fontWeight: 600, fontSize: 14 }}>
                         {pq.platform}
                       </span>
-                      <span style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
                         <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
                           &ldquo;{pq.query}&rdquo;
                         </span>
@@ -333,35 +348,49 @@ export default function SectionRefsTab({
                             target="_blank"
                             rel="noreferrer noopener"
                             style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "var(--space-xs)",
                               fontSize: 14,
                               fontWeight: 600,
                               color: "var(--primary)",
                               textDecoration: "none",
                               border: "1px solid var(--border)",
-                              borderRadius: 6,
-                              padding: "3px 10px",
+                              borderRadius: "var(--radius-sm)",
+                              padding: "3px var(--space-sm)",
                               whiteSpace: "nowrap",
                             }}
                           >
-                            🔗 바로 검색
+                            <Link size={14} color="var(--primary)" />
+                            바로 검색
                           </a>
                         ) : (
                           <button
                             onClick={() => copy(s.sectionId, pq.platform, pq.query)}
+                            className="btn-tertiary"
                             style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "var(--space-xs)",
                               fontSize: 14,
                               fontWeight: 600,
                               border: "1px solid var(--border)",
-                              borderRadius: 6,
-                              padding: "3px 10px",
-                              background: "transparent",
-                              color: "var(--text-muted)",
+                              borderRadius: "var(--radius-sm)",
+                              padding: "3px var(--space-sm)",
                               whiteSpace: "nowrap",
                             }}
                           >
-                            {copied === `${s.sectionId}:${pq.platform}`
-                              ? "✓ 복사됨"
-                              : "📋 키워드 복사"}
+                            {copied === `${s.sectionId}:${pq.platform}` ? (
+                              <>
+                                <Check size={14} color="var(--text-muted)" />
+                                복사됨
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={14} color="var(--text-muted)" />
+                                키워드 복사
+                              </>
+                            )}
                           </button>
                         )}
                       </span>
@@ -379,11 +408,11 @@ export default function SectionRefsTab({
               </div>
             )}
             {open && !ref && (
-              <div style={{ padding: "0 24px 20px", display: "flex", flexDirection: "column", gap: 6 }}>
-                <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+              <div style={{ padding: "0 var(--space-lg) var(--space-lg)", display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
+                <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
                   {s.pageTitle} · {s.contentType}
                 </p>
-                <p style={{ color: "var(--text-muted)" }}>
+                <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
                   먼저 위에서 검색 키워드를 생성하세요.
                 </p>
               </div>
@@ -437,35 +466,35 @@ function CollectedReferences({
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: "var(--space-sm)",
         borderTop: "1px solid var(--border)",
-        paddingTop: 12,
+        paddingTop: "var(--space-md)",
       }}
     >
       <span style={{ fontSize: 14, fontWeight: 600 }}>
         수집한 레퍼런스{" "}
-        <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 13 }}>
+        <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 14 }}>
           — 검색에서 찾은 URL을 붙여 기록. 기본은 참고용이며, 라이선스를
           확인한 것만 &ldquo;삽입 가능&rdquo;으로 바꾸세요
         </span>
       </span>
 
       {items.length > 0 && (
-        <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+        <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
           {items.map((r, i) => (
             <li
               key={`${r.sourceUrl}-${i}`}
               style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: 6,
-                padding: "8px 12px",
+                gap: "var(--space-xs)",
+                padding: "var(--space-sm) var(--space-md)",
                 background: "var(--bg)",
-                borderRadius: 8,
+                borderRadius: "var(--radius-md)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 13, fontWeight: 700 }}>{r.platform}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+                <span style={{ fontSize: 14, fontWeight: 700 }}>{r.platform}</span>
                 <a
                   href={r.sourceUrl}
                   target="_blank"
@@ -473,7 +502,7 @@ function CollectedReferences({
                   style={{
                     flex: 1,
                     minWidth: 160,
-                    fontSize: 13,
+                    fontSize: 14,
                     color: "var(--primary)",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -490,12 +519,12 @@ function CollectedReferences({
                     })
                   }
                   style={{
-                    padding: "8px 12px",
-                    borderRadius: 6,
+                    padding: "var(--space-sm) var(--space-md)",
+                    borderRadius: "var(--radius-sm)",
                     border: "1px solid var(--border)",
                     font: "inherit",
-                    fontSize: 13,
-                    color: r.usage === "embeddable" ? "#16a34a" : "#b45309",
+                    fontSize: 14,
+                    color: r.usage === "embeddable" ? "var(--success)" : "var(--warning-weak-text)",
                     fontWeight: 600,
                   }}
                 >
@@ -506,15 +535,15 @@ function CollectedReferences({
                   onClick={() => onRemove(i)}
                   aria-label="레퍼런스 삭제"
                   title="삭제"
+                  className="btn-danger"
                   style={{
+                    display: "flex",
+                    alignItems: "center",
                     border: "none",
-                    background: "transparent",
-                    color: "var(--text-muted)",
-                    fontSize: 13,
-                    padding: "2px 6px",
+                    padding: "var(--space-xs) var(--space-sm)",
                   }}
                 >
-                  ✕
+                  <X size={14} color="var(--on-primary)" />
                 </button>
               </div>
               {r.usage === "embeddable" && (
@@ -522,12 +551,12 @@ function CollectedReferences({
                   value={r.licenseNote ?? ""}
                   onChange={(e) => onUpdate(i, { licenseNote: e.target.value })}
                   placeholder="라이선스 근거 메모 (예: CC BY 4.0, 구매 라이선스 보유)"
+                  className="input-box"
                   style={{
-                    padding: "6px 10px",
-                    border: "1px solid var(--border)",
-                    borderRadius: 6,
+                    padding: "var(--space-xs) var(--space-sm)",
+                    borderRadius: "var(--radius-sm)",
                     font: "inherit",
-                    fontSize: 13,
+                    fontSize: 14,
                   }}
                 />
               )}
@@ -536,20 +565,20 @@ function CollectedReferences({
         </ul>
       )}
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
         <input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           placeholder="레퍼런스 URL 붙여넣기"
+          className="input-box"
           style={{
             flex: 2,
             minWidth: 200,
-            padding: "8px 12px",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
+            padding: "var(--space-sm) var(--space-md)",
+            borderRadius: "var(--radius-md)",
             font: "inherit",
-            fontSize: 13,
+            fontSize: 14,
           }}
         />
         <input
@@ -557,32 +586,32 @@ function CollectedReferences({
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           placeholder="제목 (선택)"
+          className="input-box"
           style={{
             flex: 1,
             minWidth: 120,
-            padding: "8px 12px",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
+            padding: "var(--space-sm) var(--space-md)",
+            borderRadius: "var(--radius-md)",
             font: "inherit",
-            fontSize: 13,
+            fontSize: 14,
           }}
         />
         <button
           onClick={handleAdd}
+          className="btn-weak-primary"
           style={{
-            padding: "8px 16px",
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "transparent",
+            padding: "var(--space-sm) var(--space-base)",
+            borderRadius: "var(--radius-md)",
+            border: "none",
             fontWeight: 600,
-            fontSize: 13,
+            fontSize: 14,
           }}
         >
           추가
         </button>
       </div>
       {inputError && (
-        <p role="alert" style={{ color: "#dc2626", fontWeight: 600, fontSize: 13 }}>
+        <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600, fontSize: 14 }}>
           {inputError}
         </p>
       )}

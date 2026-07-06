@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import TokenText from "./TokenText";
 
 // 마스킹 완료 화면 (phase1-masking-spec §8.3 - 3)
@@ -25,21 +26,21 @@ export default function MaskedPreview({
   const skipped = stats ? stats.detected - stats.applied - stats.keptPlaintext : 0;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 860 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)", maxWidth: 860 }}>
       <div
         style={{
           background: "var(--surface)",
           border: "1px solid var(--border)",
-          borderRadius: 12,
-          padding: 24,
+          borderRadius: "var(--radius-lg)",
+          padding: "var(--space-lg)",
           display: "flex",
           flexDirection: "column",
-          gap: 12,
+          gap: "var(--space-md)",
         }}
       >
-        <h2>마스킹 완료</h2>
+        <h2 style={{ fontSize: 22 }}>마스킹 완료</h2>
         {stats && (
-          <p style={{ fontWeight: 600 }}>
+          <p style={{ fontSize: 14, fontWeight: 600 }}>
             탐지 {stats.detected}건 중 {stats.applied}건 마스킹 적용
             {stats.keptPlaintext > 0 && ` · ${stats.keptPlaintext}건 실명 유지(공개 엔티티)`}
           </p>
@@ -48,18 +49,23 @@ export default function MaskedPreview({
           <p
             role="alert"
             style={{
-              color: "#b45309",
-              background: "#fef3c7",
-              borderRadius: 8,
-              padding: "8px 12px",
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-xs)",
+              color: "var(--warning-weak-text)",
+              background: "var(--warning-weak-bg)",
+              borderRadius: "var(--radius-md)",
+              padding: "var(--space-sm) var(--space-md)",
+              fontSize: 14,
               fontWeight: 600,
             }}
           >
-            ⚠ 미적용 항목 {skipped}건이 있습니다 (해제했거나 더미로 남긴 항목).
+            <AlertTriangle size={16} color="var(--warning-weak-text)" style={{ flexShrink: 0 }} />
+            미적용 항목 {skipped}건이 있습니다 (해제했거나 더미로 남긴 항목).
             원문 그대로 외부에 전송됩니다.
           </p>
         )}
-        <p style={{ color: "var(--text-muted)" }}>
+        <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
           원문은 폐기되었습니다. 복원 매핑은 이 세션의 메모리에만 있으므로{" "}
           <b>새로고침하면 실명 복원이 불가능</b>합니다 — 산출물은 세션을 벗어나기
           전에 다운로드하세요.
@@ -70,19 +76,19 @@ export default function MaskedPreview({
         style={{
           background: "var(--surface)",
           border: "1px solid var(--border)",
-          borderRadius: 12,
-          padding: 24,
+          borderRadius: "var(--radius-lg)",
+          padding: "var(--space-lg)",
         }}
       >
-        <h3 style={{ fontSize: 15, marginBottom: 12 }}>마스킹된 텍스트 (외부로 나가는 유일한 텍스트)</h3>
+        <h3 style={{ fontSize: 16, marginBottom: "var(--space-md)" }}>마스킹된 텍스트 (외부로 나가는 유일한 텍스트)</h3>
         <pre
           style={{
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
             fontFamily: "inherit",
             background: "var(--bg)",
-            borderRadius: 8,
-            padding: 16,
+            borderRadius: "var(--radius-md)",
+            padding: "var(--space-base)",
             maxHeight: 400,
             overflowY: "auto",
           }}
@@ -93,15 +99,14 @@ export default function MaskedPreview({
 
       <button
         onClick={onNext}
+        className="btn-primary"
         style={{
           alignSelf: "flex-start",
-          padding: "12px 24px",
-          borderRadius: 10,
+          padding: "12px var(--space-lg)",
+          borderRadius: "var(--radius-md)",
           border: "none",
-          background: "var(--primary)",
-          color: "#fff",
-          fontWeight: 700,
-          fontSize: 15,
+          fontWeight: 600,
+          fontSize: 14,
         }}
       >
         다음

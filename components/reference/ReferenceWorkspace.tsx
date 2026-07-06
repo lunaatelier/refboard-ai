@@ -1,5 +1,6 @@
 "use client";
 
+import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import ImageHintsTab from "./ImageHintsTab";
 import PaletteMoodTab from "./PaletteMoodTab";
@@ -56,35 +57,46 @@ export default function ReferenceWorkspace({
   }, []);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 960 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--space-base)",
+        maxWidth: 960,
+      }}
+    >
       <div
         style={{
           background: "var(--surface)",
           border: "1px solid var(--border)",
-          borderRadius: 12,
-          padding: "16px 24px",
+          borderRadius: "var(--radius-lg)",
+          padding: "var(--space-base) var(--space-lg)",
           display: "flex",
-          gap: 8,
+          gap: "var(--space-sm)",
           alignItems: "center",
           flexWrap: "wrap",
         }}
       >
-        <h2 style={{ marginRight: 8 }}>레퍼런스·무드</h2>
+        <h2 style={{ marginRight: "var(--space-sm)", fontSize: 22, fontWeight: 700 }}>
+          레퍼런스·무드
+        </h2>
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => t.ready && setTab(t.id)}
             disabled={!t.ready}
             style={{
-              padding: "8px 16px",
-              borderRadius: 999,
-              border: `1px solid ${tab === t.id ? "var(--primary)" : "var(--border)"}`,
-              background: tab === t.id ? "var(--primary-soft)" : "transparent",
+              padding: "var(--space-sm) var(--space-base)",
+              borderRadius: "var(--radius-md)",
+              border: "none",
+              background: tab === t.id ? "var(--surface)" : "var(--surface-alt)",
               color: !t.ready
                 ? "var(--locked)"
                 : tab === t.id
-                  ? "var(--primary)"
-                  : "var(--text)",
+                  ? "var(--text)"
+                  : "var(--text-muted)",
+              boxShadow: tab === t.id ? "var(--shadow-subtle)" : "none",
+              fontSize: 14,
               fontWeight: 600,
             }}
           >
@@ -137,23 +149,25 @@ export default function ReferenceWorkspace({
             ? "컬러·무드 탭에서 팔레트·무드를 먼저 확정하세요"
             : undefined
         }
+        className="btn-primary"
         style={{
           alignSelf: "flex-start",
-          padding: "12px 24px",
-          borderRadius: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-xs)",
+          padding: "10px var(--space-base)",
+          borderRadius: "var(--radius-md)",
           border: "none",
           background:
             !references.paletteConfirmed || references.referenceConfirmed
               ? "var(--locked)"
-              : "var(--primary)",
-          color: "#fff",
-          fontWeight: 700,
-          fontSize: 15,
+              : undefined,
+          fontWeight: 600,
+          fontSize: 14,
         }}
       >
-        {references.referenceConfirmed
-          ? "✓ 레퍼런스·무드 확정됨"
-          : "다음"}
+        {references.referenceConfirmed && <Check size={16} color="var(--on-primary)" />}
+        {references.referenceConfirmed ? "레퍼런스·무드 확정됨" : "다음"}
       </button>
     </div>
   );

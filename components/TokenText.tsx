@@ -12,8 +12,8 @@ export default function TokenText({ text }: { text: string }) {
             style={{
               background: "var(--primary-soft)",
               color: "var(--primary)",
-              borderRadius: 4,
-              padding: "0 4px",
+              borderRadius: "var(--radius-sm)",
+              padding: "0 var(--space-xs)",
               fontWeight: 600,
             }}
           >

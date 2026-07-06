@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ArrowRight } from "lucide-react";
 import TokenText from "./TokenText";
 import { createDraft } from "@/lib/masking/apply";
 import {
@@ -153,38 +154,40 @@ export default function MaskingReview({
   const card: React.CSSProperties = {
     background: "var(--surface)",
     border: "1px solid var(--border)",
-    borderRadius: 12,
-    padding: 24,
+    borderRadius: "var(--radius-lg)",
+    padding: "var(--space-lg)",
     display: "flex",
     flexDirection: "column",
-    gap: 12,
+    gap: "var(--space-md)",
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 860 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)", maxWidth: 860 }}>
       <div
         style={{
           ...card,
-          padding: "16px 20px",
+          padding: "var(--space-base) var(--space-lg)",
           background: "var(--primary-soft)",
           border: "1px solid var(--primary)",
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 12,
+          gap: "var(--space-md)",
           flexWrap: "wrap",
         }}
       >
-        <span style={{ fontWeight: 700, color: "var(--primary)" }}>
-          👉 탐지된 항목을 확인하고 가릴지/유지할지 정한 뒤, 하단에서
+        <span style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)", fontSize: 14, fontWeight: 600, color: "var(--primary)" }}>
+          <ArrowRight size={16} color="var(--primary)" style={{ flexShrink: 0 }} />
+          탐지된 항목을 확인하고 가릴지/유지할지 정한 뒤, 하단에서
           마스킹을 확정하세요
         </span>
         <span
           style={{
-            fontWeight: 700,
+            fontSize: 14,
+            fontWeight: 600,
             color: "var(--primary)",
             background: "var(--surface)",
-            borderRadius: 999,
+            borderRadius: "var(--radius-full)",
             padding: "4px 14px",
           }}
         >
@@ -193,11 +196,11 @@ export default function MaskingReview({
       </div>
 
       <div style={card}>
-        <h2 style={{ fontSize: 18, fontWeight: 800 }}>마스킹 검수</h2>
+        <h2 style={{ fontSize: 18, fontWeight: 700 }}>마스킹 검수</h2>
         <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
           민감정보 {detections.length}건 탐지됨
         </p>
-        <p style={{ color: "var(--text-muted)" }}>
+        <p style={{ fontSize: 16, color: "var(--text-muted)" }}>
           외부 AI로는 마스킹된 텍스트만 전송됩니다. 회사명은 기본 가림이며,
           경쟁사·벤치마킹 브랜드처럼 분석에 필요한 공개 엔티티만
           &ldquo;유지&rdquo;로 바꾸세요. <b>더미 추정</b> 항목은 기본
@@ -207,27 +210,27 @@ export default function MaskingReview({
 
       {grouped.map(([kind, items]) => (
         <div key={kind} style={card}>
-          <h3 style={{ fontSize: 15 }}>
+          <h3 style={{ fontSize: 16 }}>
             {KIND_LABELS[kind] ?? kind}{" "}
             <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
               {items.length}건
             </span>
           </h3>
-          <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+          <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
             {items.map((d) => (
               <li
                 key={d.id}
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: 8,
-                  padding: "10px 12px",
+                  gap: "var(--space-sm)",
+                  padding: "10px var(--space-md)",
                   border: "1px solid var(--border)",
-                  borderRadius: 8,
+                  borderRadius: "var(--radius-md)",
                   opacity: d.enabled || d.keepPlaintext ? 1 : 0.55,
                 }}
               >
-                <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
                   <input
                     type="checkbox"
                     checked={d.enabled}
@@ -235,21 +238,21 @@ export default function MaskingReview({
                   />
                   <span style={{ wordBreak: "break-all", fontWeight: 600 }}>{d.raw}</span>
                 </label>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
                 {d.dummyConfidence === "likely-dummy" && (
-                  <span style={badge("#b45309", "#fef3c7")}>더미 추정</span>
+                  <span style={badge("var(--warning-weak-text)", "var(--warning-weak-bg)")}>더미 추정</span>
                 )}
                 {d.dummyConfidence === "uncertain" && (
-                  <span style={badge("#6b7280", "#f3f4f6")}>더미?</span>
+                  <span style={badge("var(--text-muted)", "var(--surface-alt)")}>더미?</span>
                 )}
                 {d.source === "dictionary" && (
-                  <span style={badge("#2563eb", "var(--primary-soft)")}>사전</span>
+                  <span style={badge("var(--primary-hover)", "var(--primary-weak-bg)")}>사전</span>
                 )}
                 {d.source === "manual" && (
-                  <span style={badge("#16a34a", "#dcfce7")}>직접 추가</span>
+                  <span style={badge("var(--on-primary)", "var(--success)")}>직접 추가</span>
                 )}
                 {d.isLegallyRequiredDisclosure && (
-                  <span style={badge("#7c3aed", "#f3e8ff")}>
+                  <span style={badge("var(--info)", "var(--info-weak-bg)")}>
                     법정 고지 — 최종본 직접 입력
                   </span>
                 )}
@@ -269,8 +272,8 @@ export default function MaskingReview({
                         });
                       }}
                       style={{
-                        padding: "8px 12px",
-                        borderRadius: 6,
+                        padding: "10px var(--space-md)",
+                        borderRadius: "var(--radius-md)",
                         border: "1px solid var(--border)",
                         font: "inherit",
                         fontSize: 14,
@@ -286,7 +289,7 @@ export default function MaskingReview({
                     </select>
                     {isPublicEntityKind(d.entityKind ?? "customer") && (
                       <label
-                        style={{ display: "flex", alignItems: "center", gap: 6 }}
+                        style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}
                       >
                         <input
                           type="checkbox"
@@ -307,7 +310,7 @@ export default function MaskingReview({
                     const rule = classifyUrl(d.raw, keptBrandNames);
                     if (rule.reason === "internal-tool") {
                       return (
-                        <span style={badge("#dc2626", "#fee2e2")}>
+                        <span style={badge("var(--error-weak-text)", "var(--error-weak-bg)")}>
                           사내 협업툴 — 가림 확정
                         </span>
                       );
@@ -315,7 +318,7 @@ export default function MaskingReview({
                     return (
                       <>
                         {rule.reason === "benchmark-source" && (
-                          <span style={badge("#16a34a", "#dcfce7")}>
+                          <span style={badge("var(--on-primary)", "var(--success)")}>
                             유지 후보 — 사례분석 출처
                           </span>
                         )}
@@ -324,7 +327,7 @@ export default function MaskingReview({
                             style={{
                               display: "flex",
                               alignItems: "center",
-                              gap: 6,
+                              gap: "var(--space-sm)",
                             }}
                           >
                             <input
@@ -353,12 +356,12 @@ export default function MaskingReview({
                             : (d.kind as DictionaryEntry["kind"]),
                         )
                       }
+                      className="btn-weak-primary"
                       style={{
                         border: "1px solid var(--border)",
-                        background: "transparent",
-                        borderRadius: 6,
-                        padding: "2px 8px",
-                        color: "var(--text-muted)",
+                        borderRadius: "var(--radius-md)",
+                        padding: "4px 10px",
+                        fontSize: 14,
                       }}
                     >
                       항상 가리기
@@ -373,32 +376,32 @@ export default function MaskingReview({
 
       {numericDetections.length > 0 && (
         <div style={card}>
-          <h3 style={{ fontSize: 15 }}>
+          <h3 style={{ fontSize: 16 }}>
             민감 수치{" "}
             <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
               {numericDetections.length}건 — 후보 탐지이며 최종 판단은
               검수로 확정합니다
             </span>
           </h3>
-          <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+          <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
             {numericDetections.map((n) => (
               <li
                 key={n.id}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 12,
+                  gap: "var(--space-md)",
                   flexWrap: "wrap",
-                  padding: "8px 12px",
+                  padding: "10px var(--space-md)",
                   border: "1px solid var(--border)",
-                  borderRadius: 8,
+                  borderRadius: "var(--radius-md)",
                 }}
               >
                 <span style={{ flex: 1, minWidth: 200 }}>
                   {n.label && <b>{n.label} </b>}
                   {n.raw}
                 </span>
-                <span style={badge("#0e7490", "#cffafe")}>
+                <span style={badge("var(--info)", "var(--info-weak-bg)")}>
                   {NUMERIC_KIND_LABELS[n.kind]}
                 </span>
                 <select
@@ -413,8 +416,8 @@ export default function MaskingReview({
                     )
                   }
                   style={{
-                    padding: "8px 12px",
-                    borderRadius: 6,
+                    padding: "10px var(--space-md)",
+                    borderRadius: "var(--radius-md)",
                     border: "1px solid var(--border)",
                     font: "inherit",
                     fontSize: 14,
@@ -429,7 +432,7 @@ export default function MaskingReview({
               </li>
             ))}
           </ul>
-          <p style={{ color: "var(--text-muted)" }}>
+          <p style={{ fontSize: 16, color: "var(--text-muted)" }}>
             범위 일반화는 &ldquo;수십억 원대&rdquo;처럼 규모감만 남깁니다 —
             기밀을 지키면서 AI가 맥락을 읽을 수 있습니다.
           </p>
@@ -437,19 +440,20 @@ export default function MaskingReview({
       )}
 
       <div style={card}>
-        <h3 style={{ fontSize: 15 }}>단어 직접 추가</h3>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <h3 style={{ fontSize: 16 }}>단어 직접 추가</h3>
+        <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap", alignItems: "center" }}>
           <input
             value={manualWord}
             onChange={(e) => setManualWord(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleManualAdd()}
             placeholder="가릴 단어 입력 (예: 회사명)"
+            className="input-box"
             style={{
               flex: 1,
               minWidth: 200,
-              padding: "8px 12px",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
+              padding: "10px var(--space-md)",
+              borderRadius: "var(--radius-md)",
+              fontSize: 14,
               font: "inherit",
             }}
           />
@@ -458,7 +462,7 @@ export default function MaskingReview({
             onChange={(e) =>
               setManualKind(e.target.value as DictionaryEntry["kind"])
             }
-            style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", font: "inherit" }}
+            style={{ padding: "10px var(--space-md)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", fontSize: 14, font: "inherit" }}
           >
             {MANUAL_KIND_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -466,7 +470,7 @@ export default function MaskingReview({
               </option>
             ))}
           </select>
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
             <input
               type="checkbox"
               checked={manualToDict}
@@ -476,12 +480,12 @@ export default function MaskingReview({
           </label>
           <button
             onClick={handleManualAdd}
+            className="btn-weak-primary"
             style={{
-              padding: "8px 16px",
-              borderRadius: 8,
+              padding: "10px var(--space-base)",
+              borderRadius: "var(--radius-md)",
               border: "none",
-              background: "var(--primary)",
-              color: "#fff",
+              fontSize: 14,
               fontWeight: 600,
             }}
           >
@@ -498,8 +502,8 @@ export default function MaskingReview({
 
       <div style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3 style={{ fontSize: 15 }}>미리보기</h3>
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <h3 style={{ fontSize: 16 }}>미리보기</h3>
+          <label style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
             <input
               type="checkbox"
               checked={showOriginal}
@@ -514,8 +518,8 @@ export default function MaskingReview({
             wordBreak: "break-word",
             fontFamily: "inherit",
             background: "var(--bg)",
-            borderRadius: 8,
-            padding: 16,
+            borderRadius: "var(--radius-md)",
+            padding: "var(--space-base)",
             maxHeight: 320,
             overflowY: "auto",
           }}
@@ -526,15 +530,14 @@ export default function MaskingReview({
 
       <button
         onClick={onConfirm}
+        className="btn-primary"
         style={{
           alignSelf: "flex-start",
-          padding: "12px 24px",
-          borderRadius: 10,
+          padding: "12px var(--space-lg)",
+          borderRadius: "var(--radius-md)",
           border: "none",
-          background: "var(--primary)",
-          color: "#fff",
-          fontWeight: 700,
-          fontSize: 15,
+          fontWeight: 600,
+          fontSize: 14,
         }}
       >
         다음
@@ -549,7 +552,7 @@ function badge(color: string, bg: string): React.CSSProperties {
     fontWeight: 600,
     color,
     background: bg,
-    borderRadius: 6,
-    padding: "1px 8px",
+    borderRadius: "var(--radius-full)",
+    padding: "4px 10px",
   };
 }

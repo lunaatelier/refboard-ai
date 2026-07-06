@@ -15,9 +15,19 @@ export default function Workspace({
   children,
 }: WorkspaceProps) {
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
       <Lnb state={state} onNavigate={onNavigate} />
-      <main style={{ flex: 1, padding: 32 }}>{children}</main>
+      <main
+        style={{
+          flex: 1,
+          padding: "var(--space-xl)",
+          maxWidth: 1200,
+          width: "100%",
+          margin: "0 auto",
+        }}
+      >
+        {children}
+      </main>
     </div>
   );
 }

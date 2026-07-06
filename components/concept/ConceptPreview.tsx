@@ -40,7 +40,7 @@ function SectionBlock({ s, p }: { s: ConceptSection; p: Palette }) {
     case /hero/.test(s.layoutPattern):
       return (
         <div style={{ ...base, padding: 32, alignItems: "center", textAlign: "center", background: `linear-gradient(135deg, ${p.primary}22, ${p.accent}22)` }}>
-          <span style={{ fontSize: 20, fontWeight: 800, color: p.text }}>{s.sectionTitle}</span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: p.text }}>{s.sectionTitle}</span>
           <span style={{ color: p.text, opacity: 0.75, maxWidth: 480 }}>{content}</span>
           <span style={{ background: p.accent, color: p.background, borderRadius: 8, padding: "8px 20px", fontWeight: 700, fontSize: 14 }}>CTA</span>
         </div>
@@ -66,7 +66,7 @@ function SectionBlock({ s, p }: { s: ConceptSection; p: Palette }) {
           <div style={{ display: "flex", gap: 10 }}>
             {[1, 2, 3].map((i) => (
               <div key={i} style={{ flex: 1, background: p.background, borderRadius: 8, padding: 12, textAlign: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: p.primary }}>—</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: p.primary }}>—</div>
                 <div style={{ fontSize: 12, color: p.secondary }}>지표 {i}</div>
               </div>
             ))}
@@ -120,7 +120,7 @@ export default function ConceptPreview({ option, page, palette }: ConceptPreview
   const sideNav = option.uiStructure.navPosition === "left";
 
   return (
-    <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: p.background }}>
+    <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden", background: p.background }}>
       <div style={{ display: "flex", flexDirection: sideNav ? "row" : "column" }}>
         <div
           style={{
@@ -152,7 +152,7 @@ export default function ConceptPreview({ option, page, palette }: ConceptPreview
           )}
         </div>
       </div>
-      <div style={{ background: p.surface, padding: "8px 16px", fontSize: 12, color: p.secondary }}>
+      <div style={{ background: p.surface, padding: "var(--space-sm) var(--space-base)", fontSize: 14, color: p.secondary }}>
         {option.keyVisual.imageTone} · {option.keyVisual.illustrationStyle} · 배경: {option.keyVisual.backgroundPattern}
       </div>
     </div>

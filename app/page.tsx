@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Key, Save } from "lucide-react";
 import AnalysisResult from "@/components/AnalysisResult";
 import DictionaryManager from "@/components/DictionaryManager";
 import DirectiveEditor, { describeScope } from "@/components/DirectiveEditor";
@@ -586,16 +587,21 @@ export default function Home() {
             {secureMappingsRef.current.length > 0 && (
               <button
                 onClick={handleSaveRecoveryKey}
+                className="btn-tertiary"
                 style={{
                   alignSelf: "flex-start",
-                  padding: "10px 20px",
-                  borderRadius: 10,
-                  border: "1px solid var(--border)",
-                  background: "transparent",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--space-sm)",
+                  padding: "10px var(--space-base)",
+                  borderRadius: "var(--radius-md)",
+                  border: "none",
                   fontWeight: 600,
+                  fontSize: 14,
                 }}
               >
-                🔑 복원키 파일 저장 — 실명 포함, 로컬 보관 전용 (서버 미전송)
+                <Key size={18} />
+                복원키 파일 저장 — 실명 포함, 로컬 보관 전용 (서버 미전송)
               </button>
             )}
             {imagesRef.current.length > 0 && (
@@ -639,32 +645,42 @@ export default function Home() {
               onConfirm={handleConfirmAnalysis}
             />
             {workflow.completedSteps.includes("analysis") && (
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: "var(--space-md)", flexWrap: "wrap" }}>
                 <button
                   onClick={handleSaveAnalysisJson}
+                  className="btn-tertiary"
                   style={{
-                    padding: "10px 20px",
-                    borderRadius: 10,
-                    border: "1px solid var(--border)",
-                    background: "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-sm)",
+                    padding: "10px var(--space-base)",
+                    borderRadius: "var(--radius-md)",
+                    border: "none",
                     fontWeight: 600,
+                    fontSize: 14,
                   }}
                 >
-                  💾 분석 결과 JSON 저장 — 나중에 레퍼런스·무드부터 재시작
+                  <Save size={18} />
+                  분석 결과 JSON 저장 — 나중에 레퍼런스·무드부터 재시작
                   (마스킹본이라 안전)
                 </button>
                 {secureMappingsRef.current.length > 0 && (
                   <button
                     onClick={handleSaveRecoveryKey}
+                    className="btn-tertiary"
                     style={{
-                      padding: "10px 20px",
-                      borderRadius: 10,
-                      border: "1px solid var(--border)",
-                      background: "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "var(--space-sm)",
+                      padding: "10px var(--space-base)",
+                      borderRadius: "var(--radius-md)",
+                      border: "none",
                       fontWeight: 600,
+                      fontSize: 14,
                     }}
                   >
-                    🔑 복원키 파일 저장 — 분석 JSON과 짝으로 보관하면 재활용
+                    <Key size={18} />
+                    복원키 파일 저장 — 분석 JSON과 짝으로 보관하면 재활용
                     때도 실명본 복구 가능 (실명 포함, 로컬 전용)
                   </button>
                 )}
@@ -710,26 +726,26 @@ export default function Home() {
                 (workflow.maskedText === IMAGE_ONLY_PLACEHOLDER &&
                   imageInsights.length === 0)
               }
+              className="btn-primary"
               style={{
                 alignSelf: "flex-start",
-                padding: "12px 24px",
-                borderRadius: 10,
+                padding: "12px var(--space-lg)",
+                borderRadius: "var(--radius-md)",
                 border: "none",
                 background:
                   analyzing ||
                   (workflow.maskedText === IMAGE_ONLY_PLACEHOLDER &&
                     imageInsights.length === 0)
                     ? "var(--locked)"
-                    : "var(--primary)",
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: 15,
+                    : undefined,
+                fontWeight: 600,
+                fontSize: 14,
               }}
             >
               {analyzing ? "분석 중… (수십 초 걸릴 수 있음)" : "분석 시작"}
             </button>
             {analysisError && (
-              <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+              <p role="alert" style={{ color: "var(--error)", fontWeight: 600, fontSize: 14 }}>
                 {analysisError}
               </p>
             )}
@@ -757,12 +773,14 @@ export default function Home() {
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: 12,
+                      gap: "var(--space-md)",
                       fontWeight: 600,
+                      fontSize: 14,
                       maxWidth: 860,
                     }}
                   >
-                    🔑 복원키 파일 가져오기 (브라우저에서만 처리 — 서버
+                    <Key size={18} />
+                    복원키 파일 가져오기 (브라우저에서만 처리 — 서버
                     미전송)
                     <input
                       type="file"
@@ -922,16 +940,25 @@ function Alert({
 }) {
   const colors =
     tone === "warn"
-      ? { border: "#f59e0b", background: "#fffbeb", color: "#92400e" }
-      : { border: "#0ea5e9", background: "#f0f9ff", color: "#075985" };
+      ? {
+          border: "var(--warning)",
+          background: "var(--warning-weak-bg)",
+          color: "var(--warning-weak-text)",
+        }
+      : {
+          border: "var(--info)",
+          background: "var(--info-weak-bg)",
+          color: "#075985",
+        };
   return (
     <p
       role="alert"
       style={{
         ...colors,
         border: `1px solid ${colors.border}`,
-        borderRadius: 10,
-        padding: "12px 16px",
+        borderRadius: "var(--radius-md)",
+        padding: "var(--space-md) var(--space-base)",
+        fontSize: 14,
         maxWidth: 860,
       }}
     >
@@ -952,15 +979,18 @@ function Panel({
       style={{
         background: "var(--surface)",
         border: "1px solid var(--border)",
-        borderRadius: 12,
-        padding: 32,
+        borderRadius: "var(--radius-lg)",
+        padding: "var(--space-xl)",
         display: "flex",
         flexDirection: "column",
-        gap: 16,
+        gap: "var(--space-base)",
         maxWidth: 860,
+        boxShadow: "var(--shadow-standard)",
       }}
     >
-      <h2>{title}</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 700, color: "var(--text)" }}>
+        {title}
+      </h2>
       {children}
     </div>
   );

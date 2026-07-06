@@ -30,7 +30,7 @@ export default function FileUpload({ onFile }: FileUploadProps) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)", width: "100%" }}>
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -48,39 +48,40 @@ export default function FileUpload({ onFile }: FileUploadProps) {
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
         }}
+        className="dropzone"
         style={{
-          border: `2px dashed ${dragging ? "var(--primary)" : "var(--border)"}`,
-          background: dragging ? "var(--primary-soft)" : "var(--surface)",
-          borderRadius: 16,
-          padding: "48px 32px",
+          border: dragging ? "2px dashed var(--primary)" : undefined,
+          background: dragging ? "var(--primary-soft)" : undefined,
+          borderRadius: "var(--radius-xl)",
+          padding: "var(--space-xxl) var(--space-xl)",
           textAlign: "center",
           cursor: "pointer",
           display: "flex",
           flexDirection: "column",
-          gap: 12,
+          gap: "var(--space-md)",
           alignItems: "center",
         }}
       >
-        <p style={{ fontWeight: 600 }}>파일을 드래그하거나 클릭하여 업로드</p>
+        <p style={{ fontSize: 16, fontWeight: 600 }}>파일을 드래그하거나 클릭하여 업로드</p>
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             inputRef.current?.click();
           }}
+          className="btn-primary"
           style={{
-            padding: "8px 20px",
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
+            padding: "10px var(--space-base)",
+            borderRadius: "var(--radius-md)",
+            border: "none",
+            fontSize: 14,
             fontWeight: 600,
-            cursor: "pointer",
           }}
         >
           파일 선택
         </button>
         <div style={{ fontSize: 14, color: "var(--text-muted)" }}>
-          <p style={{ marginBottom: 2 }}>지원 파일</p>
+          <p style={{ marginBottom: "var(--space-xs)" }}>지원 파일</p>
           <p>TXT · MD · PDF · PPTX · PNG · JPG · GIF</p>
         </div>
         <input
@@ -95,7 +96,7 @@ export default function FileUpload({ onFile }: FileUploadProps) {
         />
       </div>
       {error && (
-        <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+        <p role="alert" style={{ color: "var(--error-weak-text)", fontSize: 14, fontWeight: 600 }}>
           {error}
         </p>
       )}

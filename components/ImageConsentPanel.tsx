@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AlertTriangle, Search } from "lucide-react";
 import { listDictionary } from "@/lib/dictionary/store";
 import type { SensitiveKind } from "@/lib/masking/types";
 import {
@@ -49,6 +50,16 @@ interface ImageConsentPanelProps {
   error?: string;
   onAnalyze: (assetIds: string[]) => void;
 }
+
+const badge = (bg: string, color: string): React.CSSProperties => ({
+  fontSize: 14,
+  fontWeight: 600,
+  color,
+  background: bg,
+  borderRadius: "var(--radius-full)",
+  padding: "4px 10px",
+  alignSelf: "flex-start",
+});
 
 export default function ImageConsentPanel({
   images,
@@ -119,37 +130,49 @@ export default function ImageConsentPanel({
       style={{
         background: "var(--surface)",
         border: "1px solid var(--border)",
-        borderRadius: 12,
-        padding: 24,
+        borderRadius: "var(--radius-lg)",
+        padding: "var(--space-lg)",
         maxWidth: 860,
         display: "flex",
         flexDirection: "column",
-        gap: 12,
+        gap: "var(--space-md)",
       }}
     >
-      <h3 style={{ fontSize: 15 }}>
+      <h3 style={{ fontSize: 18, fontWeight: 600, color: "var(--text)" }}>
         문서 속 이미지 {images.length}장 — 분석은 선택 사항입니다
       </h3>
       <p
         style={{
-          color: "#92400e",
-          background: "#fffbeb",
-          border: "1px solid #f59e0b",
-          borderRadius: 8,
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "var(--space-sm)",
+          color: "var(--warning-weak-text)",
+          background: "var(--warning-weak-bg)",
+          border: "1px solid var(--warning)",
+          borderRadius: "var(--radius-md)",
           padding: "10px 14px",
+          fontSize: 14,
         }}
       >
-        이미지 분석을 선택하면 해당 이미지가 Gemini로 전송됩니다. 무료 Gemini는
-        데이터를 학습에 쓸 수 있으니, <b>민감한 이미지는 체크하지 마세요.</b>{" "}
-        기본값은 &ldquo;텍스트만 분석&rdquo;이며 체크한 이미지만 전송됩니다.
-        분석 결과는 저장 전에 마스킹 엔진을 한 번 더 통과합니다.
+        <AlertTriangle
+          size={18}
+          color="var(--warning-weak-text)"
+          style={{ flexShrink: 0, marginTop: 2 }}
+        />
+        <span>
+          이미지 분석을 선택하면 해당 이미지가 Gemini로 전송됩니다. 무료
+          Gemini는 데이터를 학습에 쓸 수 있으니,{" "}
+          <b>민감한 이미지는 체크하지 마세요.</b> 기본값은 &ldquo;텍스트만
+          분석&rdquo;이며 체크한 이미지만 전송됩니다. 분석 결과는 저장 전에
+          마스킹 엔진을 한 번 더 통과합니다.
+        </span>
       </p>
 
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-          gap: 12,
+          gap: "var(--space-md)",
         }}
       >
         {images.map((img) => {
@@ -159,11 +182,11 @@ export default function ImageConsentPanel({
               key={img.assetId}
               style={{
                 border: `1px solid ${selected.has(img.assetId) ? "var(--primary)" : "var(--border)"}`,
-                borderRadius: 10,
-                padding: 10,
+                borderRadius: "var(--radius-lg)",
+                padding: "var(--space-sm)",
                 display: "flex",
                 flexDirection: "column",
-                gap: 8,
+                gap: "var(--space-sm)",
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -175,10 +198,10 @@ export default function ImageConsentPanel({
                   height: 110,
                   objectFit: "contain",
                   background: "var(--bg)",
-                  borderRadius: 6,
+                  borderRadius: "var(--radius-md)",
                 }}
               />
-              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
                 <input
                   type="checkbox"
                   checked={selected.has(img.assetId)}
@@ -194,33 +217,14 @@ export default function ImageConsentPanel({
                 const ocr = ocrResults.get(img.assetId);
                 if (ocr && ocr.findings.length > 0) {
                   return (
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: "#991b1b",
-                        background: "#fee2e2",
-                        borderRadius: 6,
-                        padding: "1px 8px",
-                        alignSelf: "flex-start",
-                      }}
-                    >
+                    <span style={badge("var(--error-weak-bg)", "var(--error-weak-text)")}>
                       OCR 민감어: {describeFindings(ocr)} — 기본 제외
                     </span>
                   );
                 }
                 if (ocr) {
                   return (
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: "#166534",
-                        background: "#dcfce7",
-                        borderRadius: 6,
-                        padding: "1px 8px",
-                        alignSelf: "flex-start",
-                      }}
-                    >
+                    <span style={badge("rgba(16, 185, 129, 0.12)", "var(--success)")}>
                       {ocr.textLength === 0
                         ? "OCR: 글자 없음"
                         : "OCR: 민감어 미감지"}
@@ -228,17 +232,7 @@ export default function ImageConsentPanel({
                   );
                 }
                 return img.sensitivityHint === "possible" && !insight ? (
-                  <span
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "#b45309",
-                      background: "#fef3c7",
-                      borderRadius: 6,
-                      padding: "1px 8px",
-                      alignSelf: "flex-start",
-                    }}
-                  >
+                  <span style={badge("var(--warning-weak-bg)", "var(--warning-weak-text)")}>
                     민감 가능성 — 확인 필요
                   </span>
                 ) : null;
@@ -253,35 +247,56 @@ export default function ImageConsentPanel({
         })}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-md)",
+          flexWrap: "wrap",
+        }}
+      >
         <button
           onClick={runOcrScan}
           disabled={ocrBusy || busy || images.length === 0}
+          className="btn-weak-primary"
           style={{
-            padding: "10px 20px",
-            borderRadius: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-xs)",
+            padding: "10px var(--space-base)",
+            borderRadius: "var(--radius-md)",
             border: "1px solid var(--border)",
-            background: "transparent",
             fontWeight: 600,
+            fontSize: 14,
           }}
         >
+          <Search size={18} color="var(--text-body)" />
           {ocrBusy
             ? `OCR 검사 중… ${ocrProgress ? `(${ocrProgress[0]}/${ocrProgress[1]})` : ""}`
-            : "🔍 전송 전 로컬 OCR 검사 — 이미지 속 민감어 확인 (브라우저에서만 실행)"}
+            : "전송 전 로컬 OCR 검사 — 이미지 속 민감어 확인 (브라우저에서만 실행)"}
         </button>
         <button
           onClick={() => onAnalyze([...selected])}
           disabled={busy || selected.size === 0 || !canAnalyze}
+          className={
+            busy || selected.size === 0 || !canAnalyze
+              ? undefined
+              : "btn-weak-primary"
+          }
           style={{
-            padding: "10px 20px",
-            borderRadius: 10,
+            padding: "10px var(--space-base)",
+            borderRadius: "var(--radius-md)",
             border: "none",
             background:
               busy || selected.size === 0 || !canAnalyze
                 ? "var(--locked)"
-                : "var(--primary)",
-            color: "#fff",
+                : undefined,
+            color:
+              busy || selected.size === 0 || !canAnalyze
+                ? "var(--on-primary)"
+                : undefined,
             fontWeight: 600,
+            fontSize: 14,
           }}
         >
           {busy
@@ -289,18 +304,18 @@ export default function ImageConsentPanel({
             : `동의한 ${selected.size}장 분석 (나머지는 전송 안 함)`}
         </button>
         {!canAnalyze && (
-          <span style={{ color: "var(--text-muted)" }}>
+          <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
             마스킹 확정 후 분석할 수 있습니다.
           </span>
         )}
       </div>
       {ocrError && (
-        <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+        <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600, fontSize: 14 }}>
           {ocrError}
         </p>
       )}
       {error && (
-        <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+        <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600, fontSize: 14 }}>
           {error}
         </p>
       )}

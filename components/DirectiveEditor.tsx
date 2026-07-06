@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus, X } from "lucide-react";
 import type { DirectiveScope, ProjectDirective } from "@/lib/analysis/types";
 
 // 지시별 세밀 scope UI (Step 15) — 지시 여러 개 + 각 지시의 적용 단계·중요도 편집.
@@ -43,30 +44,31 @@ export default function DirectiveEditor({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <span style={{ fontWeight: 600 }}>추가 요청사항 (선택)</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+      <span style={{ fontWeight: 600, fontSize: 16 }}>추가 요청사항 (선택)</span>
       {directives.map((d, i) => (
         <div
           key={i}
           style={{
             border: "1px solid var(--border)",
-            borderRadius: 10,
-            padding: 12,
+            borderRadius: "var(--radius-lg)",
+            padding: "var(--space-md)",
             display: "flex",
             flexDirection: "column",
-            gap: 8,
+            gap: "var(--space-sm)",
           }}
         >
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
             <input
               value={d.text}
               onChange={(e) => update(i, { text: e.target.value })}
               placeholder='예: "ESG 강조" — 실명·기밀 정보는 넣지 마세요.'
+              className="input-box"
               style={{
                 flex: 1,
-                padding: "8px 12px",
-                border: "1px solid var(--border)",
-                borderRadius: 8,
+                padding: "10px var(--space-md)",
+                borderRadius: "var(--radius-md)",
+                fontSize: 14,
                 font: "inherit",
               }}
             />
@@ -74,8 +76,8 @@ export default function DirectiveEditor({
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 4,
-                fontSize: 13,
+                gap: "var(--space-xs)",
+                fontSize: 14,
                 whiteSpace: "nowrap",
               }}
             >
@@ -93,23 +95,26 @@ export default function DirectiveEditor({
             <button
               onClick={() => onChange(directives.filter((_, j) => j !== i))}
               aria-label="지시 삭제"
+              className="btn-danger"
               style={{
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                background: "transparent",
-                padding: "6px 10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "none",
+                borderRadius: "var(--radius-md)",
+                padding: "6px var(--space-sm)",
               }}
             >
-              ✕
+              <X size={16} color="var(--text-body)" />
             </button>
           </div>
           <div
             style={{
               display: "flex",
-              gap: 6,
+              gap: "var(--space-xs)",
               alignItems: "center",
               flexWrap: "wrap",
-              fontSize: 13,
+              fontSize: 14,
             }}
           >
             <span style={{ color: "var(--text-muted)" }}>적용 단계:</span>
@@ -122,13 +127,12 @@ export default function DirectiveEditor({
                   aria-pressed={active}
                   style={{
                     padding: "4px 10px",
-                    borderRadius: 999,
-                    border: active
-                      ? "1px solid var(--primary)"
-                      : "1px solid var(--border)",
-                    background: active ? "var(--primary)" : "transparent",
-                    color: active ? "#fff" : "inherit",
-                    fontSize: 13,
+                    borderRadius: "var(--radius-full)",
+                    border: "none",
+                    background: active ? "var(--primary)" : "var(--surface-alt)",
+                    color: active ? "var(--on-primary)" : "var(--text-muted)",
+                    fontSize: 14,
+                    fontWeight: 600,
                   }}
                 >
                   {SCOPE_LABELS[s]}
@@ -145,16 +149,21 @@ export default function DirectiveEditor({
       ))}
       <button
         onClick={() => onChange([...directives, { text: "" }])}
+        className="btn-weak-primary"
         style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-xs)",
           alignSelf: "flex-start",
-          padding: "8px 16px",
-          borderRadius: 8,
+          padding: "10px var(--space-base)",
+          borderRadius: "var(--radius-md)",
           border: "1px dashed var(--border)",
-          background: "transparent",
           fontWeight: 600,
+          fontSize: 14,
         }}
       >
-        ＋ 지시 추가
+        <Plus size={16} color="var(--text-body)" />
+        지시 추가
       </button>
     </div>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, Info, MoreHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import type {
   DetectedCaseStudy,
@@ -33,11 +34,11 @@ interface TargetsTabProps {
 const card: React.CSSProperties = {
   background: "var(--surface)",
   border: "1px solid var(--border)",
-  borderRadius: 12,
-  padding: 24,
+  borderRadius: "var(--radius-lg)",
+  padding: "var(--space-lg)",
   display: "flex",
   flexDirection: "column",
-  gap: 12,
+  gap: "var(--space-md)",
 };
 
 const AXIS_LABELS: [keyof AnalysisTargetAnalysis, string][] = [
@@ -248,26 +249,37 @@ export default function TargetsTab({
       <div
         style={{
           ...card,
-          padding: "16px 20px",
-          background: "var(--primary-soft)",
-          border: "1px solid var(--primary)",
+          padding: "var(--space-base) var(--space-md)",
+          background: "var(--info-weak-bg)",
+          border: "none",
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 12,
+          gap: "var(--space-md)",
           flexWrap: "wrap",
         }}
       >
-        <span style={{ fontWeight: 700, color: "var(--primary)" }}>
-          👉 분석 대상 브랜드를 넓게 훑고, 깊게 볼 것만 선택해 분석하세요
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-sm)",
+            fontWeight: 600,
+            fontSize: 14,
+            color: "var(--info)",
+          }}
+        >
+          <Info size={18} color="var(--info)" />
+          분석 대상 브랜드를 넓게 훑고, 깊게 볼 것만 선택해 분석하세요
         </span>
         <span
           style={{
-            fontWeight: 700,
-            color: "var(--primary)",
+            fontWeight: 600,
+            fontSize: 14,
+            color: "var(--info)",
             background: "var(--surface)",
-            borderRadius: 999,
-            padding: "4px 14px",
+            borderRadius: "var(--radius-full)",
+            padding: "var(--space-xs) var(--space-md)",
           }}
         >
           {list.length}개 목록
@@ -275,22 +287,23 @@ export default function TargetsTab({
       </div>
 
       <div style={card}>
-        <h3 style={{ fontSize: 18, fontWeight: 800 }}>분석 대상 브랜드</h3>
-        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+        <h3 style={{ fontSize: 18, fontWeight: 600 }}>분석 대상 브랜드</h3>
+        <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
           넓게 훑고, 고른 것만 깊게. 모든 결과는 추정 포함이며 확인이
           필요합니다
         </p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap", alignItems: "center" }}>
           <button
             onClick={fetchMore}
             disabled={listBusy}
+            className="btn-weak-primary"
             style={{
-              padding: "8px 16px",
-              borderRadius: 8,
+              padding: "10px var(--space-base)",
+              borderRadius: "var(--radius-md)",
               border: "none",
-              background: listBusy ? "var(--locked)" : "var(--primary)",
-              color: "#fff",
+              background: listBusy ? "var(--locked)" : undefined,
               fontWeight: 600,
+              fontSize: 14,
             }}
           >
             {listBusy ? "검색 중…" : list.length === 0 ? "Gemini로 목록 찾기" : "+ 더 찾기"}
@@ -299,30 +312,51 @@ export default function TargetsTab({
             value={manualName}
             onChange={(e) => setManualName(e.target.value)}
             placeholder="직접 추가: 이름"
-            style={{ padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 8, font: "inherit", width: 140 }}
+            className="input-box"
+            style={{
+              padding: "var(--space-sm) var(--space-md)",
+              borderRadius: "var(--radius-md)",
+              font: "inherit",
+              fontSize: 14,
+              width: 140,
+            }}
           />
           <input
             value={manualUrl}
             onChange={(e) => setManualUrl(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addManual()}
             placeholder="URL (선택)"
-            style={{ padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 8, font: "inherit", width: 200 }}
+            className="input-box"
+            style={{
+              padding: "var(--space-sm) var(--space-md)",
+              borderRadius: "var(--radius-md)",
+              font: "inherit",
+              fontSize: 14,
+              width: 200,
+            }}
           />
           <button
             onClick={addManual}
-            style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", fontWeight: 600 }}
+            className="btn-weak-primary"
+            style={{
+              padding: "10px var(--space-base)",
+              borderRadius: "var(--radius-md)",
+              border: "none",
+              fontWeight: 600,
+              fontSize: 14,
+            }}
           >
             추가
           </button>
         </div>
         {error && (
-          <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+          <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600, fontSize: 14 }}>
             {error}
           </p>
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "var(--space-md)" }}>
         {list.map((item) => {
           const a = analyses[item.id];
           const host = hostnameOf(item.url);
@@ -333,11 +367,11 @@ export default function TargetsTab({
               key={item.id}
               style={{
                 ...card,
-                padding: 16,
+                padding: "var(--space-base)",
                 gridColumn: open ? "1 / -1" : undefined,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
                 {host && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -345,20 +379,34 @@ export default function TargetsTab({
                     alt=""
                     width={18}
                     height={18}
-                    style={{ borderRadius: 4 }}
+                    loading="lazy"
+                    style={{ borderRadius: "var(--radius-sm)" }}
                   />
                 )}
                 <b style={{ fontSize: 16 }}>{item.name}</b>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                <span style={pill(item.source === "spec" ? "#0e7490" : item.source === "manual" ? "#16a34a" : "#7c3aed")}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)", flexWrap: "wrap" }}>
+                <span
+                  style={pill(
+                    item.source === "spec"
+                      ? "var(--surface-alt)"
+                      : item.source === "manual"
+                        ? "var(--info-weak-bg)"
+                        : "var(--primary-weak-bg)",
+                    item.source === "spec"
+                      ? "var(--text-muted)"
+                      : item.source === "manual"
+                        ? "var(--info)"
+                        : "var(--primary-hover)",
+                  )}
+                >
                   {item.source === "spec" ? "설계서" : item.source === "manual" ? "직접" : "Gemini"}
                 </span>
                 {item.analysisStatus === "analyzed" && (
-                  <span style={pill("#16a34a")}>분석됨</span>
+                  <span style={pill("var(--success)", "var(--on-primary)")}>분석됨</span>
                 )}
                 {a && (
-                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                  <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
                     · {daysAgo(a.analyzedAt) === 0 ? "오늘 분석" : `${daysAgo(a.analyzedAt)}일 전`}
                   </span>
                 )}
@@ -374,17 +422,17 @@ export default function TargetsTab({
                   </>
                 )}
               </p>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {item.analysisStatus !== "analyzed" ? (
                   <button
                     onClick={() => analyze(item)}
                     disabled={busy}
+                    className="btn-weak-primary"
                     style={{
-                      padding: "6px 14px",
-                      borderRadius: 8,
+                      padding: "8px var(--space-base)",
+                      borderRadius: "var(--radius-md)",
                       border: "none",
-                      background: busy ? "var(--locked)" : "var(--primary)",
-                      color: "#fff",
+                      background: busy ? "var(--locked)" : undefined,
                       fontWeight: 600,
                       fontSize: 14,
                     }}
@@ -393,7 +441,7 @@ export default function TargetsTab({
                   </button>
                 ) : (
                   <>
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)", fontSize: 14 }}>
                       <input
                         type="checkbox"
                         checked={item.adopted}
@@ -405,11 +453,11 @@ export default function TargetsTab({
                     </label>
                     <button
                       onClick={() => setOpenId(open ? undefined : item.id)}
+                      className="btn-tertiary"
                       style={{
-                        padding: "6px 14px",
-                        borderRadius: 8,
-                        border: "1px solid var(--border)",
-                        background: "transparent",
+                        padding: "8px var(--space-base)",
+                        borderRadius: "var(--radius-md)",
+                        border: "none",
                         fontWeight: 600,
                         fontSize: 14,
                       }}
@@ -423,16 +471,16 @@ export default function TargetsTab({
                         }
                         aria-label="더보기"
                         title="더보기"
+                        className="btn-tertiary"
                         style={{
-                          padding: "6px 10px",
-                          borderRadius: 8,
-                          border: "1px solid var(--border)",
-                          background: "transparent",
-                          color: "var(--text-muted)",
-                          fontSize: 14,
+                          display: "flex",
+                          alignItems: "center",
+                          padding: "8px var(--space-sm)",
+                          borderRadius: "var(--radius-md)",
+                          border: "none",
                         }}
                       >
-                        ⋯
+                        <MoreHorizontal size={16} color="var(--text-muted)" />
                       </button>
                       {menuOpenId === item.id && (
                         <div
@@ -442,8 +490,8 @@ export default function TargetsTab({
                             top: "calc(100% + 4px)",
                             background: "var(--surface)",
                             border: "1px solid var(--border)",
-                            borderRadius: 8,
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                            borderRadius: "var(--radius-md)",
+                            boxShadow: "var(--shadow-elevated)",
                             zIndex: 10,
                             minWidth: 120,
                           }}
@@ -454,13 +502,12 @@ export default function TargetsTab({
                               analyze(item, true);
                             }}
                             disabled={busy}
+                            className="btn-weak-primary"
                             style={{
                               display: "block",
                               width: "100%",
-                              padding: "8px 14px",
+                              padding: "var(--space-sm) var(--space-md)",
                               border: "none",
-                              background: "transparent",
-                              color: "var(--text)",
                               fontSize: 14,
                               textAlign: "left",
                               whiteSpace: "nowrap",
@@ -475,9 +522,18 @@ export default function TargetsTab({
                 )}
               </div>
               {open && a && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
-                  <p style={{ fontSize: 13, color: "#b45309" }}>
-                    ⚠ 추정 포함, 확인 필요 · 출처:{" "}
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)", borderTop: "1px solid var(--border)", paddingTop: "var(--space-md)" }}>
+                  <p
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "var(--space-xs)",
+                      fontSize: 14,
+                      color: "var(--warning-weak-text)",
+                    }}
+                  >
+                    <AlertTriangle size={16} color="var(--warning-weak-text)" />
+                    추정 포함, 확인 필요 · 출처:{" "}
                     <a href={a.sourceUrl} target="_blank" rel="noreferrer noopener" style={{ color: "var(--primary)" }}>
                       {a.sourceUrl}
                     </a>
@@ -511,14 +567,13 @@ export default function TargetsTab({
   );
 }
 
-function pill(color: string): React.CSSProperties {
+function pill(background: string, color: string): React.CSSProperties {
   return {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 600,
     color,
-    background: "var(--bg)",
-    border: "1px solid var(--border)",
-    borderRadius: 999,
-    padding: "1px 10px",
+    background,
+    borderRadius: "var(--radius-full)",
+    padding: "var(--space-xs) var(--space-md)",
   };
 }

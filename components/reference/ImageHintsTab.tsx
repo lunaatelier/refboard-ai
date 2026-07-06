@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Check, Copy, Info, Sparkles } from "lucide-react";
 import type { DocumentPurpose } from "@/lib/analysis/documentPurpose";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
 import {
@@ -24,17 +25,23 @@ interface ImageHintsTabProps {
 const card: React.CSSProperties = {
   background: "var(--surface)",
   border: "1px solid var(--border)",
-  borderRadius: 12,
-  padding: 24,
+  borderRadius: "var(--radius-lg)",
+  padding: "var(--space-lg)",
   display: "flex",
   flexDirection: "column",
-  gap: 12,
+  gap: "var(--space-md)",
 };
 
 const SCALE_LABELS: Record<ImageHint["scale"], string> = {
   hero: "HERO (표지급)",
   section: "SECTION (섹션 삽화)",
   icon: "ICON (아이콘)",
+};
+
+const SCALE_COLORS: Record<ImageHint["scale"], string> = {
+  hero: "var(--primary)",
+  section: "var(--info)",
+  icon: "var(--success)",
 };
 
 const DIRECTIONS = ["사진형", "미니멀 3D", "3D 렌더", "일러스트 2D", "라인 일러스트"];
@@ -165,7 +172,7 @@ export default function ImageHintsTab({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)" }}>
       <div
         style={{
           ...card,
@@ -174,26 +181,27 @@ export default function ImageHintsTab({
           border: "1px solid var(--primary)",
           flexDirection: "row",
           alignItems: "center",
-          gap: 12,
+          gap: "var(--space-md)",
           flexWrap: "wrap",
         }}
       >
-        <span style={{ fontWeight: 700, color: "var(--primary)" }}>
-          👉 대표 페이지를 확인하고, 이미지 힌트를 생성해 다른 생성 도구에
+        <Info size={18} color="var(--primary)" />
+        <span style={{ fontWeight: 700, color: "var(--primary)", fontSize: 14 }}>
+          대표 페이지를 확인하고, 이미지 힌트를 생성해 다른 생성 도구에
           쓸 프롬프트를 준비하세요
         </span>
       </div>
 
       {/* ── 대표 페이지 (표지 ≠ 대표) ── */}
       <div style={card}>
-        <h3 style={{ fontSize: 15 }}>
+        <h3 style={{ fontSize: 18, fontWeight: 600 }}>
           대표 페이지 추천{" "}
-          <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
+          <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 14 }}>
             표지(첫인상)와 내용 대표(정보구조)를 분리합니다 — 컨셉서 구성에
             사용
           </span>
         </h3>
-        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "var(--space-lg)", flexWrap: "wrap" }}>
           {(
             [
               ["visualPageId", "시각 대표 (키비주얼·표지)"],
@@ -207,7 +215,7 @@ export default function ImageHintsTab({
                 onChange={(e) => setRep({ [key]: e.target.value })}
                 style={{
                   padding: "8px 12px",
-                  borderRadius: 8,
+                  borderRadius: "var(--radius-md)",
                   border: "1px solid var(--border)",
                   font: "inherit",
                 }}
@@ -225,14 +233,14 @@ export default function ImageHintsTab({
 
       {/* ── 이미지 힌트 ── */}
       <div style={card}>
-        <h3 style={{ fontSize: 15 }}>
+        <h3 style={{ fontSize: 18, fontWeight: 600 }}>
           이미지 힌트{" "}
-          <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
+          <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 14 }}>
             도메인+무드로 타입·스케일 자동 판정 — 프롬프트는 다른 생성 도구에
             바로 사용 가능
           </span>
         </h3>
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
           <input
             type="checkbox"
             checked={sourceMode === "text-only-ignore-source"}
@@ -253,14 +261,16 @@ export default function ImageHintsTab({
         <button
           onClick={generate}
           disabled={busy}
+          className={references.imageHints ? "btn-weak-primary" : "btn-primary"}
           style={{
             alignSelf: "flex-start",
-            padding: "10px 20px",
-            borderRadius: 10,
+            padding: "10px var(--space-base)",
+            borderRadius: "var(--radius-md)",
             border: "none",
-            background: busy ? "var(--locked)" : "var(--primary)",
-            color: "#fff",
+            background: busy ? "var(--locked)" : undefined,
+            color: busy ? "var(--on-primary)" : undefined,
             fontWeight: 600,
+            fontSize: 14,
           }}
         >
           {busy
@@ -270,29 +280,24 @@ export default function ImageHintsTab({
               : "이미지 힌트 생성"}
         </button>
         {error && (
-          <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+          <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600 }}>
             {error}
           </p>
         )}
       </div>
 
       {(references.imageHints ?? []).map((h, i) => (
-        <div key={i} style={{ ...card, padding: 16 }}>
+        <div key={i} style={{ ...card, padding: "var(--space-base)" }}>
           <b style={{ fontSize: 16 }}>{h.area}</b>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
             <span
               style={{
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 700,
-                color:
-                  h.scale === "hero"
-                    ? "#7c3aed"
-                    : h.scale === "section"
-                      ? "#0e7490"
-                      : "#16a34a",
+                color: SCALE_COLORS[h.scale],
                 background: "var(--bg)",
                 border: "1px solid var(--border)",
-                borderRadius: 999,
+                borderRadius: "var(--radius-full)",
                 padding: "1px 10px",
               }}
             >
@@ -303,7 +308,7 @@ export default function ImageHintsTab({
               onChange={(e) => patchHint(i, { direction: e.target.value })}
               style={{
                 padding: "8px 12px",
-                borderRadius: 6,
+                borderRadius: "var(--radius-md)",
                 border: "1px solid var(--border)",
                 font: "inherit",
                 fontSize: 14,
@@ -315,16 +320,16 @@ export default function ImageHintsTab({
                 </option>
               ))}
             </select>
-            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+            <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
               {h.aspectRatio}
             </span>
             {h.sourceReferenceMode === "text-only-ignore-source" && (
-              <span style={{ fontSize: 13, color: "#b45309" }}>
+              <span style={{ fontSize: 14, color: "var(--warning-weak-text)" }}>
                 원본 이미지 무시
               </span>
             )}
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "flex-start" }}>
             <p
               style={{
                 flex: 1,
@@ -332,7 +337,7 @@ export default function ImageHintsTab({
                 color: "var(--text-muted)",
                 fontFamily: "monospace",
                 background: "var(--bg)",
-                borderRadius: 8,
+                borderRadius: "var(--radius-md)",
                 padding: "8px 12px",
               }}
             >
@@ -340,18 +345,25 @@ export default function ImageHintsTab({
             </p>
             <button
               onClick={() => copy(i, h.prompt)}
+              className="btn-tertiary"
               style={{
                 border: "1px solid var(--border)",
-                borderRadius: 6,
+                borderRadius: "var(--radius-md)",
                 padding: "6px 12px",
-                background: "transparent",
                 fontSize: 14,
                 fontWeight: 600,
-                color: "var(--text-muted)",
                 whiteSpace: "nowrap",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
-              {copied === i ? "✓ 복사됨" : "📋 복사"}
+              {copied === i ? (
+                <Check size={16} color="var(--success)" />
+              ) : (
+                <Copy size={16} color="var(--text-muted)" />
+              )}
+              {copied === i ? "복사됨" : "복사"}
             </button>
             <button
               onClick={() => generateOne(i, h)}
@@ -361,23 +373,26 @@ export default function ImageHintsTab({
                   ? "NVIDIA NIM으로 이 프롬프트의 이미지를 생성"
                   : "NVIDIA_API_KEY 미설정 — .env.local에 추가하면 활성화됩니다"
               }
+              className="btn-weak-primary"
               style={{
-                border: "1px solid var(--border)",
-                borderRadius: 6,
+                border: "none",
+                borderRadius: "var(--radius-md)",
                 padding: "6px 12px",
-                background: "transparent",
                 fontSize: 14,
                 fontWeight: 600,
-                color: genEnabled ? "var(--primary)" : "var(--text-muted)",
                 whiteSpace: "nowrap",
                 opacity: genEnabled ? 1 : 0.6,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
+              <Sparkles size={16} color={genEnabled ? "var(--primary-hover)" : "var(--text-muted)"} />
               {generating === i
                 ? "생성 중…"
                 : h.generatedImageUrl
-                  ? "🎨 다시 생성"
-                  : "🎨 이미지 생성"}
+                  ? "다시 생성"
+                  : "이미지 생성"}
             </button>
           </div>
           {h.generatedImageUrl && (
@@ -388,7 +403,7 @@ export default function ImageHintsTab({
               style={{
                 maxWidth: 480,
                 width: "100%",
-                borderRadius: 8,
+                borderRadius: "var(--radius-md)",
                 border: "1px solid var(--border)",
               }}
             />
@@ -396,7 +411,7 @@ export default function ImageHintsTab({
         </div>
       ))}
       {genError && generating == null && (
-        <p role="alert" style={{ color: "#dc2626", fontWeight: 600 }}>
+        <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600 }}>
           {genError}
         </p>
       )}

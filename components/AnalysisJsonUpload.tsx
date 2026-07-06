@@ -23,7 +23,7 @@ export default function AnalysisJsonUpload({ onFile }: AnalysisJsonUploadProps) 
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)", width: "100%" }}>
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -44,18 +44,18 @@ export default function AnalysisJsonUpload({ onFile }: AnalysisJsonUploadProps) 
         style={{
           border: `1px dashed var(--border)`,
           background: dragging ? "var(--primary-soft)" : "transparent",
-          borderRadius: 12,
-          padding: "16px 20px",
+          borderRadius: "var(--radius-lg)",
+          padding: "var(--space-base) var(--space-lg)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 12,
+          gap: "var(--space-md)",
           cursor: "pointer",
         }}
       >
         <div>
           <p style={{ fontWeight: 600, fontSize: 14 }}>분석 결과 JSON 업로드</p>
-          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
             이전에 저장한 분석 결과 JSON을 다시 불러옵니다
           </p>
         </div>
@@ -65,14 +65,13 @@ export default function AnalysisJsonUpload({ onFile }: AnalysisJsonUploadProps) 
             e.stopPropagation();
             inputRef.current?.click();
           }}
+          className="btn-tertiary"
           style={{
-            padding: "6px 16px",
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
+            padding: "6px var(--space-base)",
+            borderRadius: "var(--radius-md)",
+            border: "none",
             fontWeight: 600,
-            fontSize: 13,
-            cursor: "pointer",
+            fontSize: 14,
             whiteSpace: "nowrap",
           }}
         >
@@ -90,7 +89,7 @@ export default function AnalysisJsonUpload({ onFile }: AnalysisJsonUploadProps) 
         />
       </div>
       {error && (
-        <p role="alert" style={{ color: "#dc2626", fontWeight: 600, fontSize: 13 }}>
+        <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600, fontSize: 14 }}>
           {error}
         </p>
       )}

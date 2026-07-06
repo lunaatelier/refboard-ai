@@ -12,6 +12,13 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
+      <head>
+        {/* Noto Sans KR: 최종 폴백 (Pretendard/SUIT CDN 로드 실패 시) — Google Fonts는 자체 서브셋팅으로 한글 글리프 누락 위험이 없다 */}
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap"
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

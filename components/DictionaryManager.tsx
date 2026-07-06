@@ -39,38 +39,52 @@ export default function DictionaryManager() {
       style={{
         background: "var(--surface)",
         border: "1px solid var(--border)",
-        borderRadius: 12,
-        padding: "16px 24px",
+        borderRadius: "var(--radius-lg)",
+        padding: "var(--space-base) var(--space-lg)",
         maxWidth: 860,
       }}
     >
-      <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+      <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: 16 }}>
         내 사전 관리 ({entries.length}개 단어)
       </summary>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingTop: 16 }}>
-        <p style={{ color: "var(--text-muted)" }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--space-md)",
+          paddingTop: "var(--space-base)",
+        }}
+      >
+        <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
           등록한 단어는 업로드할 때마다 자동으로 탐지 후보에 올라갑니다.
           인명은 전역 — 모든 프로젝트에서 유지됩니다.
         </p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
             placeholder="항상 가릴 단어"
+            className="input-box"
             style={{
               flex: 1,
               minWidth: 180,
-              padding: "8px 12px",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
+              padding: "10px var(--space-md)",
+              borderRadius: "var(--radius-md)",
+              fontSize: 14,
               font: "inherit",
             }}
           />
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as DictionaryEntry["kind"])}
-            style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", font: "inherit" }}
+            style={{
+              padding: "10px var(--space-md)",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border)",
+              fontSize: 14,
+              font: "inherit",
+            }}
           >
             {(Object.keys(KIND_LABELS) as DictionaryEntry["kind"][]).map((k) => (
               <option key={k} value={k}>
@@ -80,34 +94,41 @@ export default function DictionaryManager() {
           </select>
           <button
             onClick={handleAdd}
+            className="btn-weak-primary"
             style={{
-              padding: "8px 16px",
-              borderRadius: 8,
+              padding: "10px var(--space-base)",
+              borderRadius: "var(--radius-md)",
               border: "none",
-              background: "var(--primary)",
-              color: "#fff",
               fontWeight: 600,
+              fontSize: 14,
             }}
           >
             등록
           </button>
         </div>
         {entries.length > 0 && (
-          <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+          <ul
+            style={{
+              listStyle: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--space-sm)",
+            }}
+          >
             {entries.map((e) => (
               <li
                 key={e.id}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 10,
-                  padding: "6px 12px",
+                  gap: "var(--space-sm)",
+                  padding: "6px var(--space-md)",
                   border: "1px solid var(--border)",
-                  borderRadius: 8,
+                  borderRadius: "var(--radius-md)",
                 }}
               >
-                <span style={{ flex: 1 }}>{e.value}</span>
-                <span style={{ color: "var(--text-muted)" }}>
+                <span style={{ flex: 1, fontSize: 14 }}>{e.value}</span>
+                <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
                   {KIND_LABELS[e.kind]}
                 </span>
                 <button
@@ -115,12 +136,13 @@ export default function DictionaryManager() {
                     removeDictionaryEntry(e.id);
                     refresh();
                   }}
+                  className="btn-danger"
                   style={{
-                    border: "1px solid var(--border)",
-                    background: "transparent",
-                    borderRadius: 6,
-                    padding: "2px 10px",
-                    color: "var(--text-muted)",
+                    border: "none",
+                    borderRadius: "var(--radius-md)",
+                    padding: "4px var(--space-md)",
+                    fontSize: 14,
+                    fontWeight: 600,
                   }}
                 >
                   삭제

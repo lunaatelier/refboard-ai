@@ -1,6 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import {
+  AlertTriangle,
+  BarChart3,
+  Check,
+  FileText,
+  Image as ImageIcon,
+  Info,
+  Link as LinkIcon,
+  Mail,
+  Paperclip,
+  Search,
+  TrendingUp,
+  Users,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { MAX_SELECTED_PAGES } from "@/lib/analysis/normalize";
 import type {
   DomainHint,
@@ -30,15 +46,15 @@ const ROLE_LABELS: Record<string, string> = {
   contact: "연락처",
 };
 
-const ROLE_ICONS: Record<string, string> = {
-  cover: "🖼️",
-  "section-divider": "📑",
-  content: "📄",
-  "case-study": "📊",
-  metrics: "📈",
-  team: "👥",
-  appendix: "📎",
-  contact: "✉️",
+const ROLE_ICONS: Record<string, LucideIcon> = {
+  cover: ImageIcon,
+  "section-divider": FileText,
+  content: FileText,
+  "case-study": BarChart3,
+  metrics: TrendingUp,
+  team: Users,
+  appendix: Paperclip,
+  contact: Mail,
 };
 
 const EXCLUSION_LABELS: Record<ExclusionReason, string> = {
@@ -62,19 +78,27 @@ interface AnalysisResultProps {
 const card: React.CSSProperties = {
   background: "var(--surface)",
   border: "1px solid var(--border)",
-  borderRadius: 12,
-  padding: 24,
+  borderRadius: "var(--radius-lg)",
+  padding: "var(--space-lg)",
   display: "flex",
   flexDirection: "column",
-  gap: 12,
+  gap: "var(--space-md)",
 };
 
 const groupLabel: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: 14,
   fontWeight: 700,
   color: "var(--text-muted)",
   textTransform: "uppercase",
   letterSpacing: "0.04em",
+};
+
+const noticeHeading: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--space-sm)",
+  fontSize: 18,
+  fontWeight: 600,
 };
 
 function isLikelyPlaceholderBlack(colors: string[]): boolean {
@@ -148,30 +172,41 @@ export default function AnalysisResult({
   const hiddenTagCount = analysis.tags.length - visibleTags.length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 860 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)", maxWidth: 860 }}>
       {/* 지금 할 일 안내 */}
       <div
         style={{
           ...card,
-          padding: "16px 20px",
+          padding: "var(--space-base) var(--space-md)",
           background: "var(--primary-soft)",
           border: "1px solid var(--primary)",
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 12,
+          gap: "var(--space-md)",
           flexWrap: "wrap",
         }}
       >
-        <span style={{ fontWeight: 700, color: "var(--primary)" }}>
-          👉 구성 페이지를 확인하고 선택한 뒤, 하단에서 분석을 확정하세요
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-sm)",
+            fontWeight: 700,
+            fontSize: 14,
+            color: "var(--primary)",
+          }}
+        >
+          <Info size={18} color="var(--primary)" />
+          구성 페이지를 확인하고 선택한 뒤, 하단에서 분석을 확정하세요
         </span>
         <span
           style={{
             fontWeight: 700,
+            fontSize: 14,
             color: "var(--primary)",
             background: "var(--surface)",
-            borderRadius: 999,
+            borderRadius: "var(--radius-full)",
             padding: "4px 14px",
           }}
         >
@@ -182,11 +217,11 @@ export default function AnalysisResult({
       {/* 프로젝트 정보 */}
       <div style={card}>
         <span style={groupLabel}>프로젝트 정보</span>
-        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
           <input
             value={analysis.title}
             onChange={(e) => onChange({ ...analysis, title: e.target.value })}
-            style={{ ...inputStyle, fontSize: 22, fontWeight: 800, border: "none", padding: "4px 0" }}
+            style={{ ...inputStyle, fontSize: 22, fontWeight: 700, border: "none", padding: "4px 0" }}
           />
         </label>
         <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
@@ -196,31 +231,40 @@ export default function AnalysisResult({
           타겟: {analysis.targetUser || "—"}
         </p>
         {analysis.brandColors && analysis.brandColors.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>브랜드 컬러</span>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+            <span style={{ fontWeight: 600, fontSize: 16 }}>브랜드 컬러</span>
+            <div style={{ display: "flex", gap: "var(--space-md)", flexWrap: "wrap" }}>
               {analysis.brandColors.map((c) => (
                 <div
                   key={c}
-                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-xs)" }}
                 >
                   <span
                     title={c}
                     style={{
                       width: 28,
                       height: 28,
-                      borderRadius: 8,
+                      borderRadius: "var(--radius-md)",
                       background: c,
                       border: "1px solid var(--border)",
                     }}
                   />
-                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{c}</span>
+                  <span style={{ fontSize: 14, color: "var(--text-muted)" }}>{c}</span>
                 </div>
               ))}
             </div>
             {isLikelyPlaceholderBlack(analysis.brandColors) && (
-              <p style={{ fontSize: 13, color: "#b45309" }}>
-                ⚠ 색상이 전부 동일한 검은색입니다 — AI가 실제 브랜드 컬러를
+              <p
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--space-xs)",
+                  fontSize: 14,
+                  color: "var(--warning-weak-text)",
+                }}
+              >
+                <AlertTriangle size={16} color="var(--warning-weak-text)" />
+                색상이 전부 동일한 검은색입니다 — AI가 실제 브랜드 컬러를
                 찾지 못했을 수 있어요. 원문에 컬러 언급이 있는지 확인해
                 주세요.
               </p>
@@ -232,9 +276,9 @@ export default function AnalysisResult({
       {/* 분석 정보 */}
       <div style={card}>
         <span style={groupLabel}>분석 정보</span>
-        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start" }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontWeight: 600, fontSize: 13, color: "var(--text-muted)" }}>
+        <div style={{ display: "flex", gap: "var(--space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-muted)" }}>
               도메인
             </span>
             <select
@@ -251,8 +295,8 @@ export default function AnalysisResult({
               ))}
             </select>
           </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontWeight: 600, fontSize: 13, color: "var(--text-muted)" }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-muted)" }}>
               종류
             </span>
             <input
@@ -260,19 +304,20 @@ export default function AnalysisResult({
               onChange={(e) =>
                 onChange({ ...analysis, projectType: e.target.value })
               }
-              style={{ ...inputStyle, width: 160 }}
+              className="input-box"
+              style={{ ...inputStyle, width: 160, border: undefined }}
             />
           </label>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 140 }}>
-            <span style={{ fontWeight: 600, fontSize: 13, color: "var(--text-muted)" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)", minWidth: 140 }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-muted)" }}>
               신뢰도
             </span>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
               <div
                 style={{
                   width: 80,
                   height: 6,
-                  borderRadius: 999,
+                  borderRadius: "var(--radius-full)",
                   background: "var(--border)",
                   overflow: "hidden",
                 }}
@@ -281,35 +326,35 @@ export default function AnalysisResult({
                   style={{
                     width: `${confidencePct}%`,
                     height: "100%",
-                    background: confidenceLow ? "#b45309" : "var(--success)",
+                    background: confidenceLow ? "var(--warning)" : "var(--success)",
                   }}
                 />
               </div>
               <span
                 style={{
                   fontWeight: 700,
-                  fontSize: 13,
-                  color: confidenceLow ? "#b45309" : "var(--success)",
+                  fontSize: 14,
+                  color: confidenceLow ? "var(--warning)" : "var(--success)",
                 }}
               >
                 {confidencePct}%
               </span>
             </div>
             {confidenceLow && (
-              <span style={{ fontSize: 12, color: "#b45309" }}>낮음 — 직접 확인 필요</span>
+              <span style={{ fontSize: 14, color: "var(--warning)" }}>낮음 — 직접 확인 필요</span>
             )}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap", alignItems: "center" }}>
           {visibleTags.map((t) => (
             <span
               key={t}
               style={{
                 background: "var(--primary-soft)",
                 color: "var(--primary)",
-                borderRadius: 999,
-                padding: "2px 12px",
-                fontSize: 13,
+                borderRadius: "var(--radius-full)",
+                padding: "4px 12px",
+                fontSize: 14,
                 fontWeight: 600,
               }}
             >
@@ -319,13 +364,11 @@ export default function AnalysisResult({
           {hiddenTagCount > 0 && (
             <button
               onClick={() => setTagsExpanded(true)}
+              className="btn-tertiary"
               style={{
                 border: "none",
-                background: "transparent",
-                color: "var(--text-muted)",
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 600,
-                cursor: "pointer",
               }}
             >
               +{hiddenTagCount}
@@ -334,13 +377,11 @@ export default function AnalysisResult({
           {tagsExpanded && analysis.tags.length > TAGS_PREVIEW_COUNT && (
             <button
               onClick={() => setTagsExpanded(false)}
+              className="btn-tertiary"
               style={{
                 border: "none",
-                background: "transparent",
-                color: "var(--text-muted)",
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 600,
-                cursor: "pointer",
               }}
             >
               접기
@@ -351,12 +392,13 @@ export default function AnalysisResult({
 
       {analysis.existingContentVariants &&
         analysis.existingContentVariants.length > 0 && (
-          <div style={{ ...card, borderColor: "#f59e0b", background: "#fffbeb" }}>
-            <h3 style={{ fontSize: 15 }}>
-              📑 이 문서에 이미 {analysis.existingContentVariants.length}개
+          <div style={{ ...card, borderColor: "var(--warning)", background: "var(--warning-weak-bg)" }}>
+            <h3 style={{ ...noticeHeading, color: "var(--warning-weak-text)" }}>
+              <FileText size={20} color="var(--warning-weak-text)" />
+              이 문서에 이미 {analysis.existingContentVariants.length}개
               시안 변형이 있습니다
             </h3>
-            <ul style={{ paddingLeft: 20 }}>
+            <ul style={{ paddingLeft: 20, fontSize: 14 }}>
               {analysis.existingContentVariants.map((v) => (
                 <li key={v.variantId}>
                   <b>{v.label}</b> — {v.contentSummary}
@@ -364,7 +406,7 @@ export default function AnalysisResult({
                 </li>
               ))}
             </ul>
-            <p style={{ color: "var(--text-muted)" }}>
+            <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
               컨셉 3안 생성 시 이 변형들을 기반으로 만들지 물어봅니다 — AI가
               처음부터 새로 만들지 않습니다.
             </p>
@@ -372,15 +414,26 @@ export default function AnalysisResult({
         )}
 
       {analysis.parentSiteRelation && (
-        <div style={{ ...card, borderColor: "#7c3aed", background: "#faf5ff" }}>
-          <h3 style={{ fontSize: 15 }}>
-            🔗 이 문서는 다른 사이트의 관리자 화면으로 보입니다
+        <div style={{ ...card, borderColor: "var(--info)", background: "var(--info-weak-bg)" }}>
+          <h3 style={{ ...noticeHeading, color: "var(--info)" }}>
+            <LinkIcon size={20} color="var(--info)" />
+            이 문서는 다른 사이트의 관리자 화면으로 보입니다
           </h3>
-          <p>{analysis.parentSiteRelation.relationNote}</p>
+          <p style={{ fontSize: 14 }}>{analysis.parentSiteRelation.relationNote}</p>
           {analysis.parentSiteRelation.confirmed ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ fontWeight: 700, color: "#7c3aed" }}>
-                ✓ 확정됨 — 레퍼런스가 &ldquo;부모 사이트를 관리하는 CMS
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--space-xs)",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: "var(--info)",
+                }}
+              >
+                <Check size={16} color="var(--info)" />
+                확정됨 — 레퍼런스가 &ldquo;부모 사이트를 관리하는 CMS
                 백오피스&rdquo;로 좁혀집니다
               </span>
               <button
@@ -393,20 +446,19 @@ export default function AnalysisResult({
                     },
                   })
                 }
+                className="btn-secondary"
                 style={{
-                  border: "1px solid var(--border)",
-                  background: "transparent",
-                  borderRadius: 6,
-                  padding: "4px 12px",
-                  color: "var(--text-muted)",
-                  fontSize: 13,
+                  border: "none",
+                  borderRadius: "var(--radius-md)",
+                  padding: "4px var(--space-md)",
+                  fontSize: 14,
                 }}
               >
                 해제
               </button>
             </div>
           ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
               <button
                 onClick={() =>
                   onChange({
@@ -417,12 +469,11 @@ export default function AnalysisResult({
                     },
                   })
                 }
+                className="btn-weak-primary"
                 style={{
                   border: "none",
-                  background: "#7c3aed",
-                  color: "#fff",
-                  borderRadius: 8,
-                  padding: "6px 16px",
+                  borderRadius: "var(--radius-md)",
+                  padding: "10px var(--space-base)",
                   fontWeight: 600,
                   fontSize: 14,
                 }}
@@ -434,19 +485,18 @@ export default function AnalysisResult({
                   const { parentSiteRelation: _removed, ...rest } = analysis;
                   onChange(rest);
                 }}
+                className="btn-secondary"
                 style={{
-                  border: "1px solid var(--border)",
-                  background: "transparent",
-                  borderRadius: 8,
-                  padding: "6px 16px",
+                  border: "none",
+                  borderRadius: "var(--radius-md)",
+                  padding: "10px var(--space-base)",
                   fontWeight: 600,
                   fontSize: 14,
-                  color: "var(--text-muted)",
                 }}
               >
                 아닙니다 — 무시
               </button>
-              <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+              <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
                 확정하면 레퍼런스 검색이 일반 관리자 대시보드 대신 CMS
                 백오피스 쪽으로 좁혀집니다
               </span>
@@ -457,18 +507,19 @@ export default function AnalysisResult({
 
       {analysis.detectedCaseStudies &&
         analysis.detectedCaseStudies.length > 0 && (
-          <div style={{ ...card, borderColor: "#0ea5e9", background: "#f0f9ff" }}>
-            <h3 style={{ fontSize: 15 }}>
-              🔎 문서 안에 기존 사례분석 {analysis.detectedCaseStudies.length}건
+          <div style={{ ...card, borderColor: "var(--info)", background: "var(--info-weak-bg)" }}>
+            <h3 style={{ ...noticeHeading, color: "var(--info)" }}>
+              <Search size={20} color="var(--info)" />
+              문서 안에 기존 사례분석 {analysis.detectedCaseStudies.length}건
             </h3>
-            <ul style={{ paddingLeft: 20 }}>
+            <ul style={{ paddingLeft: 20, fontSize: 14 }}>
               {analysis.detectedCaseStudies.map((c, i) => (
                 <li key={i}>
                   <b>{c.name}</b> — {c.extractedNote}
                 </li>
               ))}
             </ul>
-            <p style={{ color: "var(--text-muted)" }}>
+            <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
               분석 대상 브랜드 목록에 &ldquo;이미 분석됨&rdquo;으로
               선반영됩니다 (처음부터 재조사하지 않음).
             </p>
@@ -479,149 +530,157 @@ export default function AnalysisResult({
       <div style={card}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
           <span style={groupLabel}>구성 페이지</span>
-          <span style={{ color: "var(--text-muted)", fontSize: 13 }}>
+          <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
             제외한 페이지는 이후 AI 참조가 차단됩니다
           </span>
         </div>
-        {notice && <p style={{ color: "#b45309", fontWeight: 600 }}>{notice}</p>}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {analysis.pages.map((p) => (
-            <div
-              key={p.pageId}
-              style={{
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                padding: 16,
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
-                opacity: p.selected ? 1 : 0.6,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <input
-                  type="checkbox"
-                  checked={p.selected}
-                  onChange={(e) => togglePage(p.pageId, e.target.checked)}
-                />
-                <span aria-hidden style={{ fontSize: 18 }}>
-                  {ROLE_ICONS[p.pageRole] ?? "📄"}
-                </span>
-                <span style={{ fontWeight: 700, flex: 1 }}>{p.pageTitle}</span>
-                {!p.selected && (
-                  <select
-                    value={p.excludedReason ?? "user-choice"}
-                    onChange={(e) =>
-                      patchPage(p.pageId, {
-                        excludedReason: e.target.value as ExclusionReason,
-                      })
-                    }
-                    style={{ ...selectStyle, fontSize: 13 }}
-                  >
-                    {(Object.keys(EXCLUSION_LABELS) as ExclusionReason[]).map(
-                      (r) => (
-                        <option key={r} value={r}>
-                          제외: {EXCLUSION_LABELS[r]}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                )}
-              </div>
+        {notice && <p style={{ color: "var(--warning)", fontWeight: 600, fontSize: 14 }}>{notice}</p>}
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+          {analysis.pages.map((p) => {
+            const RoleIcon = ROLE_ICONS[p.pageRole] ?? FileText;
+            return (
               <div
+                key={p.pageId}
                 style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-lg)",
+                  padding: "var(--space-base)",
                   display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  fontSize: 13,
-                  color: "var(--text-muted)",
-                  paddingLeft: 28,
+                  flexDirection: "column",
+                  gap: "var(--space-sm)",
+                  opacity: p.selected ? 1 : 0.6,
                 }}
               >
-                <span style={{ ...pill, background: "#f3f4f6", color: "#374151" }}>
-                  {ROLE_LABELS[p.pageRole] ?? p.pageRole}
-                </span>
-                {p.sourceSlides && <span>슬라이드 {p.sourceSlides.join(", ")}</span>}
-                {p.sourceDocumentId && <span>ID: {p.sourceDocumentId}</span>}
-              </div>
-              {p.selected && (
-                <>
-                  <div style={{ borderTop: "1px solid var(--border)" }} />
-                  <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
-                    {p.sections.map((s) => (
-                      <li
-                        key={s.sectionId}
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 6,
-                          padding: "10px 12px",
-                          background: "var(--bg)",
-                          borderRadius: 8,
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <input
-                            value={s.sectionTitle}
-                            onChange={(e) =>
-                              renameSection(p.pageId, s.sectionId, e.target.value)
-                            }
-                            style={{
-                              ...inputStyle,
-                              fontWeight: 600,
-                              width: 180,
-                              padding: "4px 8px",
-                            }}
-                          />
-                          <span style={pill}>{s.contentType}</span>
-                          <span style={{ ...pill, background: "#f3f4f6", color: "#374151" }}>
-                            {s.recommendedLayout}
-                          </span>
-                          {s.unresolvedNotes && s.unresolvedNotes.length > 0 && (
-                            <span style={{ ...pill, background: "#fef3c7", color: "#b45309" }}>
-                              미결 {s.unresolvedNotes.length}
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+                  <input
+                    type="checkbox"
+                    checked={p.selected}
+                    onChange={(e) => togglePage(p.pageId, e.target.checked)}
+                  />
+                  <span
+                    aria-hidden
+                    style={{ display: "flex", alignItems: "center" }}
+                  >
+                    <RoleIcon size={18} color="var(--text-muted)" />
+                  </span>
+                  <span style={{ fontWeight: 700, flex: 1, fontSize: 14 }}>{p.pageTitle}</span>
+                  {!p.selected && (
+                    <select
+                      value={p.excludedReason ?? "user-choice"}
+                      onChange={(e) =>
+                        patchPage(p.pageId, {
+                          excludedReason: e.target.value as ExclusionReason,
+                        })
+                      }
+                      style={{ ...selectStyle, fontSize: 14 }}
+                    >
+                      {(Object.keys(EXCLUSION_LABELS) as ExclusionReason[]).map(
+                        (r) => (
+                          <option key={r} value={r}>
+                            제외: {EXCLUSION_LABELS[r]}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  )}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "var(--space-sm)",
+                    flexWrap: "wrap",
+                    fontSize: 14,
+                    color: "var(--text-muted)",
+                    paddingLeft: 28,
+                  }}
+                >
+                  <span style={{ ...neutralPill }}>
+                    {ROLE_LABELS[p.pageRole] ?? p.pageRole}
+                  </span>
+                  {p.sourceSlides && <span>슬라이드 {p.sourceSlides.join(", ")}</span>}
+                  {p.sourceDocumentId && <span>ID: {p.sourceDocumentId}</span>}
+                </div>
+                {p.selected && (
+                  <>
+                    <div style={{ borderTop: "1px solid var(--border)" }} />
+                    <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
+                      {p.sections.map((s) => (
+                        <li
+                          key={s.sectionId}
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "var(--space-xs)",
+                            padding: "10px var(--space-md)",
+                            background: "var(--bg)",
+                            borderRadius: "var(--radius-md)",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+                            <input
+                              value={s.sectionTitle}
+                              onChange={(e) =>
+                                renameSection(p.pageId, s.sectionId, e.target.value)
+                              }
+                              className="input-box"
+                              style={{
+                                ...inputStyle,
+                                border: undefined,
+                                fontWeight: 600,
+                                width: 180,
+                                padding: "4px var(--space-sm)",
+                              }}
+                            />
+                            <span style={pill}>{s.contentType}</span>
+                            <span style={neutralPill}>
+                              {s.recommendedLayout}
                             </span>
-                          )}
-                          <button
-                            onClick={() => deleteSection(p.pageId, s.sectionId)}
-                            aria-label="섹션 삭제"
-                            title="섹션 삭제"
-                            style={{
-                              marginLeft: "auto",
-                              border: "none",
-                              background: "transparent",
-                              borderRadius: 6,
-                              padding: "2px 6px",
-                              color: "var(--text-muted)",
-                              fontSize: 13,
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                        <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
-                          {s.contentSummary}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
-          ))}
+                            {s.unresolvedNotes && s.unresolvedNotes.length > 0 && (
+                              <span style={{ ...pill, background: "var(--warning-weak-bg)", color: "var(--warning-weak-text)" }}>
+                                미결 {s.unresolvedNotes.length}
+                              </span>
+                            )}
+                            <button
+                              onClick={() => deleteSection(p.pageId, s.sectionId)}
+                              aria-label="섹션 삭제"
+                              title="섹션 삭제"
+                              className="btn-danger"
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                marginLeft: "auto",
+                                border: "none",
+                                borderRadius: "var(--radius-md)",
+                                padding: "2px 6px",
+                              }}
+                            >
+                              <X size={14} color="var(--on-primary)" />
+                            </button>
+                          </div>
+                          <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
+                            {s.contentSummary}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
       <button
         onClick={onConfirm}
         disabled={selectedCount === 0}
+        className="btn-primary"
         style={{
           alignSelf: "flex-start",
-          padding: "14px 28px",
-          borderRadius: 10,
+          padding: "14px var(--space-xl)",
+          borderRadius: "var(--radius-md)",
           border: "none",
-          background: selectedCount === 0 ? "var(--locked)" : "var(--primary)",
-          color: "#fff",
+          background: selectedCount === 0 ? "var(--locked)" : undefined,
           fontWeight: 700,
           fontSize: 16,
         }}
@@ -633,9 +692,10 @@ export default function AnalysisResult({
 }
 
 const inputStyle: React.CSSProperties = {
-  padding: "8px 12px",
+  padding: "10px var(--space-md)",
   border: "1px solid var(--border)",
-  borderRadius: 8,
+  borderRadius: "var(--radius-md)",
+  fontSize: 14,
   font: "inherit",
 };
 
@@ -649,6 +709,12 @@ const pill: React.CSSProperties = {
   fontWeight: 600,
   color: "var(--primary)",
   background: "var(--primary-soft)",
-  borderRadius: 6,
-  padding: "1px 8px",
+  borderRadius: "var(--radius-full)",
+  padding: "4px 10px",
+};
+
+const neutralPill: React.CSSProperties = {
+  ...pill,
+  color: "var(--text-muted)",
+  background: "var(--surface-alt)",
 };
