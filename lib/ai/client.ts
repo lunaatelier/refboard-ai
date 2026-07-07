@@ -16,15 +16,19 @@ function sleep(ms: number): Promise<void> {
 
 // GEMINI_API_KEY 쿼터 소진(HTTP 429) 시 GEMINI_API_KEY_2(예비 키)로 한 번 재시도한다.
 // GEMINI_API_KEY_2가 설정되지 않았으면 원래 응답(429)을 그대로 반환한다.
-// HTTP 503(모델 일시 과부하)은 실측상 짧게 재시도하면 대부분 성공하므로,
-// 백오프(1초→2초)를 두고 최대 2회 재시도한 뒤에도 안 되면 그대로 반환한다.
-async function fetchGemini(url: string, body: unknown): Promise<Response> {
+// HTTP 503(모델 일시 과부하)은 백오프(1초→2초) 재시도 후에도 실패하면,
+// 호출처가 넘긴 fallbackUrl이 있을 때 대체 모델로 한 번 더 시도한다.
+async function fetchGemini(
+  url: string,
+  body: unknown,
+  options: { fallbackUrl?: string } = {},
+): Promise<Response> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY가 설정되지 않았습니다 (.env.local).");
   }
-  const call = (key: string) =>
-    fetch(url, {
+  const call = (key: string, targetUrl = url) =>
+    fetch(targetUrl, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -33,15 +37,21 @@ async function fetchGemini(url: string, body: unknown): Promise<Response> {
       body: JSON.stringify(body),
     });
 
-  let res = await call(apiKey);
+  let activeUrl = url;
+  let res = await call(apiKey, activeUrl);
   for (let attempt = 0; res.status === 503 && attempt < 2; attempt++) {
     await sleep(1000 * (attempt + 1));
-    res = await call(apiKey);
+    res = await call(apiKey, activeUrl);
+  }
+
+  if (res.status === 503 && options.fallbackUrl) {
+    activeUrl = options.fallbackUrl;
+    res = await call(apiKey, activeUrl);
   }
 
   if (res.status === 429) {
     const backupKey = process.env.GEMINI_API_KEY_2;
-    if (backupKey) return call(backupKey);
+    if (backupKey) return call(backupKey, activeUrl);
   }
   return res;
 }
@@ -58,6 +68,11 @@ export async function generateJson<T>(
 ): Promise<T> {
   assertServer();
   const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+  const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || "gemini-2.5-flash";
+  const fallbackUrl =
+    fallbackModel && fallbackModel !== model
+      ? `${API_BASE}/models/${fallbackModel}:generateContent`
+      : undefined;
 
   const res = await fetchGemini(`${API_BASE}/models/${model}:generateContent`, {
     contents: [
@@ -74,7 +89,7 @@ export async function generateJson<T>(
       responseMimeType: "application/json",
       temperature: 0.3,
     },
-  });
+  }, { fallbackUrl });
 
   if (!res.ok) {
     // 응답 본문은 프롬프트/키 조각을 포함할 수 있으므로 상태 코드만 전달
