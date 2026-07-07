@@ -10,8 +10,14 @@ function assertServer(): void {
   }
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // GEMINI_API_KEY 쿼터 소진(HTTP 429) 시 GEMINI_API_KEY_2(예비 키)로 한 번 재시도한다.
 // GEMINI_API_KEY_2가 설정되지 않았으면 원래 응답(429)을 그대로 반환한다.
+// HTTP 503(모델 일시 과부하)은 실측상 짧게 재시도하면 대부분 성공하므로,
+// 백오프(1초→2초)를 두고 최대 2회 재시도한 뒤에도 안 되면 그대로 반환한다.
 async function fetchGemini(url: string, body: unknown): Promise<Response> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -27,7 +33,12 @@ async function fetchGemini(url: string, body: unknown): Promise<Response> {
       body: JSON.stringify(body),
     });
 
-  const res = await call(apiKey);
+  let res = await call(apiKey);
+  for (let attempt = 0; res.status === 503 && attempt < 2; attempt++) {
+    await sleep(1000 * (attempt + 1));
+    res = await call(apiKey);
+  }
+
   if (res.status === 429) {
     const backupKey = process.env.GEMINI_API_KEY_2;
     if (backupKey) return call(backupKey);
