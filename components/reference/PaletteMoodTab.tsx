@@ -4,7 +4,11 @@ import { useState } from "react";
 import { Check, Info } from "lucide-react";
 import SkinPreview from "./SkinPreview";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
-import { colorPool } from "@/lib/reference/palette";
+import {
+  generatePaletteOptions,
+  hexToHsl,
+  regenerateBrandOption,
+} from "@/lib/reference/palette";
 import type {
   MoodOption,
   Palette,
@@ -52,6 +56,9 @@ export default function PaletteMoodTab({
   const [moodBusy, setMoodBusy] = useState(false);
   const [imagesBusy, setImagesBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [customHex, setCustomHex] = useState("");
+  const [customHexError, setCustomHexError] = useState<string>();
+  const [roleHexDraft, setRoleHexDraft] = useState<Record<string, string>>({});
 
   const mode = references.paletteMode ?? "light";
   const edited = references.editedPaletteOption;
@@ -78,6 +85,46 @@ export default function PaletteMoodTab({
         ...edited,
         [mode]: { ...edited[mode], [role]: color },
       },
+    });
+  };
+
+  const commitRoleHex = (role: PaletteRole, raw: string) => {
+    const normalized = raw.trim();
+    if (!hexToHsl(normalized)) return; // 잘못된 값은 무시(다음 렌더에서 기존 값으로 되돌아감)
+    setRole(role, normalized.startsWith("#") ? normalized.toUpperCase() : `#${normalized.toUpperCase()}`);
+  };
+
+  // 원하는 키 컬러로 팔레트 3세트를 다시 생성 (기본 3세트가 전부 마음에 안 들 때 대안).
+  const regenerateWithCustomColor = () => {
+    if (!hexToHsl(customHex)) {
+      setCustomHexError("올바른 hex 색상 코드를 입력하세요 (예: #2563EB)");
+      return;
+    }
+    setCustomHexError(undefined);
+    const brand = customHex.trim();
+    onChange({
+      ...references,
+      paletteOptions: generatePaletteOptions([brand]),
+      paletteBrandHex: brand,
+      editedPaletteOption: undefined,
+      paletteMode: undefined,
+    });
+  };
+
+  // 3세트 중 이 카드 하나만 다른 변주로 다시 뽑기 (나머지 2개는 유지).
+  const regenerateOption = (optionId: string) => {
+    const brand = references.paletteBrandHex;
+    if (!brand) return;
+    const fresh = regenerateBrandOption(brand, optionId);
+    if (!fresh) return;
+    const nextOptions = (references.paletteOptions ?? []).map((o) =>
+      o.optionId === optionId ? fresh : o,
+    );
+    const wasSelected = edited?.optionId === optionId;
+    onChange({
+      ...references,
+      paletteOptions: nextOptions,
+      editedPaletteOption: wasSelected ? structuredClone(fresh) : edited,
     });
   };
 
@@ -149,7 +196,7 @@ export default function PaletteMoodTab({
       >
         <Info size={18} color="var(--primary)" />
         <span style={{ fontWeight: 700, color: "var(--primary)", fontSize: 14 }}>
-          팔레트 1세트와 무드 1종을 선택한 뒤 하단에서 확정하세요
+          팔레트 1세트와 무드 1종을 선택하세요 — 완료되면 하단 &ldquo;다음&rdquo; 버튼이 활성화됩니다
         </span>
       </div>
 
@@ -164,48 +211,117 @@ export default function PaletteMoodTab({
             — 1세트 선택 후 역할 배치를 편집하세요
           </span>
         </h3>
+        <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
+            3세트가 다 마음에 안 들면 원하는 키 컬러로 다시 생성하세요
+          </span>
+          <input
+            value={customHex}
+            onChange={(e) => setCustomHex(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && regenerateWithCustomColor()}
+            placeholder="#2563EB"
+            style={{
+              width: 110,
+              padding: "6px 10px",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              font: "inherit",
+              fontFamily: "monospace",
+            }}
+          />
+          <button
+            onClick={regenerateWithCustomColor}
+            className="btn-weak-primary"
+            style={{
+              padding: "6px 14px",
+              borderRadius: "var(--radius-md)",
+              border: "none",
+              fontWeight: 600,
+              fontSize: 14,
+            }}
+          >
+            이 컬러로 3세트 재생성
+          </button>
+        </div>
+        {customHexError && (
+          <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600, fontSize: 13 }}>
+            {customHexError}
+          </p>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "var(--space-md)" }}>
           {(references.paletteOptions ?? []).map((opt) => {
             const selected = edited?.optionId === opt.optionId;
             const p = opt[mode];
+            const canRegenerate = Boolean(references.paletteBrandHex);
             return (
-              <button
+              <div
                 key={opt.optionId}
-                onClick={() => selectOption(opt)}
                 className="hoverable-card"
                 style={{
                   border: selected ? "2px solid var(--primary)" : undefined,
                   borderRadius: "var(--radius-lg)",
                   padding: "var(--space-md)",
-                  background: "transparent",
                   display: "flex",
                   flexDirection: "column",
                   gap: "var(--space-sm)",
-                  textAlign: "left",
                 }}
               >
-                <span style={{ fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
-                  {selected && <Check size={14} color="var(--primary)" strokeWidth={2.5} />}
-                  {opt.label}
-                </span>
-                <span style={{ display: "flex", gap: 4 }}>
-                  {[p.primary, p.secondary, p.accent, p.surface, p.text].map(
-                    (c, i) => (
-                      <span
-                        key={i}
-                        title={c}
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: "var(--radius-sm)",
-                          background: c,
-                          border: "1px solid var(--border)",
-                        }}
-                      />
-                    ),
-                  )}
-                </span>
-              </button>
+                <button
+                  onClick={() => selectOption(opt)}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    padding: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "var(--space-sm)",
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                >
+                  <span style={{ fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
+                    {selected && <Check size={14} color="var(--primary)" strokeWidth={2.5} />}
+                    {opt.label}
+                  </span>
+                  <span style={{ display: "flex", gap: 4 }}>
+                    {[p.primary, p.secondary, p.accent, p.surface, p.text].map(
+                      (c, i) => (
+                        <span
+                          key={i}
+                          title={c}
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: "var(--radius-sm)",
+                            background: c,
+                            border: "1px solid var(--border)",
+                          }}
+                        />
+                      ),
+                    )}
+                  </span>
+                </button>
+                {canRegenerate && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      regenerateOption(opt.optionId);
+                    }}
+                    style={{
+                      alignSelf: "flex-start",
+                      padding: "3px 10px",
+                      borderRadius: "var(--radius-full)",
+                      border: "1px solid var(--border)",
+                      background: "transparent",
+                      color: "var(--text-muted)",
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    🔄 이 세트만 다시
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
@@ -250,35 +366,48 @@ export default function PaletteMoodTab({
                     <span style={{ flex: 1, fontSize: 14 }}>
                       {ROLE_LABELS[role]}
                     </span>
-                    <span
+                    <input
+                      type="color"
+                      value={currentPalette[role]}
+                      onChange={(e) => setRole(role, e.target.value.toUpperCase())}
+                      title="컬러 피커로 선택"
                       style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: "var(--radius-sm)",
-                        background: currentPalette[role],
+                        width: 30,
+                        height: 30,
+                        padding: 0,
                         border: "1px solid var(--border)",
+                        borderRadius: "var(--radius-sm)",
+                        background: "none",
+                        cursor: "pointer",
                       }}
                     />
-                    <select
-                      value={currentPalette[role]}
-                      onChange={(e) => setRole(role, e.target.value)}
+                    <input
+                      type="text"
+                      value={roleHexDraft[role] ?? currentPalette[role]}
+                      onChange={(e) =>
+                        setRoleHexDraft({ ...roleHexDraft, [role]: e.target.value })
+                      }
+                      onBlur={(e) => {
+                        commitRoleHex(role, e.target.value);
+                        setRoleHexDraft((d) => {
+                          const next = { ...d };
+                          delete next[role];
+                          return next;
+                        });
+                      }}
+                      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                      placeholder="#RRGGBB"
+                      title="원하는 hex 값을 직접 입력"
                       style={{
-                        padding: "8px 12px",
+                        width: 100,
+                        padding: "8px 10px",
                         borderRadius: "var(--radius-md)",
                         border: "1px solid var(--border)",
                         font: "inherit",
                         fontSize: 14,
                         fontFamily: "monospace",
                       }}
-                    >
-                      {[...new Set([...colorPool(edited), currentPalette[role]])].map(
-                        (c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ),
-                      )}
-                    </select>
+                    />
                   </label>
                 ))}
               </div>
@@ -413,33 +542,6 @@ export default function PaletteMoodTab({
           </p>
         )}
       </div>
-
-      {/* ── 확정 ── */}
-      <button
-        onClick={() => onChange({ ...references, paletteConfirmed: true })}
-        disabled={!edited || !references.selectedMoodId || references.paletteConfirmed}
-        className="btn-primary"
-        style={{
-          alignSelf: "flex-start",
-          padding: "10px var(--space-base)",
-          borderRadius: "var(--radius-md)",
-          border: "none",
-          background:
-            !edited || !references.selectedMoodId || references.paletteConfirmed
-              ? "var(--locked)"
-              : undefined,
-          fontWeight: 600,
-          fontSize: 14,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
-        {references.paletteConfirmed && <Check size={16} color="var(--on-primary)" strokeWidth={2.5} />}
-        {references.paletteConfirmed
-          ? "팔레트·무드 확정됨"
-          : "팔레트·무드 확정"}
-      </button>
     </div>
   );
 }

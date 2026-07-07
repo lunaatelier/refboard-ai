@@ -93,6 +93,45 @@ function buildPair(
   return { optionId, label, light, dark };
 }
 
+const BRAND_OPTION_IDS = ["brand-faithful", "brand-contrast", "brand-minimal"] as const;
+type BrandOptionId = (typeof BRAND_OPTION_IDS)[number];
+
+// jitter=false면 항상 같은 값(초기 3세트 생성용, 재현 가능해야 함 — 테스트 기준).
+// jitter=true면 델타에 랜덤 편차를 더해 "이 변주만 다시" 눌렀을 때 매번 다르게 나온다.
+function buildBrandOption(
+  optionId: BrandOptionId,
+  brand: string,
+  jitter: boolean,
+): PaletteOption {
+  const j = (range: number) => (jitter ? (Math.random() * 2 - 1) * range : 0);
+  switch (optionId) {
+    case "brand-faithful":
+      return buildPair(
+        "brand-faithful",
+        "브랜드 충실형",
+        brand,
+        adjust(brand, { l: 0.18 + j(0.05), s: -0.1 + j(0.05) }),
+        adjust(brand, { h: 30 + j(20), s: 0.1 + j(0.05) }),
+      );
+    case "brand-contrast":
+      return buildPair(
+        "brand-contrast",
+        "브랜드 대비형",
+        brand,
+        adjust(brand, { h: -20 + j(20), l: 0.1 + j(0.05) }),
+        adjust(brand, { h: 180 + j(20), s: 0.05 + j(0.05) }), // 보색 포인트
+      );
+    case "brand-minimal":
+      return buildPair(
+        "brand-minimal",
+        "브랜드 미니멀형",
+        adjust(brand, { s: -0.35 + j(0.1) }),
+        "#6B7280",
+        brand,
+      );
+  }
+}
+
 export function generatePaletteOptions(
   brandColors: string[] = [],
 ): PaletteOption[] {
@@ -100,29 +139,7 @@ export function generatePaletteOptions(
 
   if (brand) {
     // 브랜드컬러 기반 3변주: 원색 충실 / 보색 포인트 / 저채도 미니멀
-    return [
-      buildPair(
-        "brand-faithful",
-        "브랜드 충실형",
-        brand,
-        adjust(brand, { l: 0.18, s: -0.1 }),
-        adjust(brand, { h: 30, s: 0.1 }),
-      ),
-      buildPair(
-        "brand-contrast",
-        "브랜드 대비형",
-        brand,
-        adjust(brand, { h: -20, l: 0.1 }),
-        adjust(brand, { h: 180, s: 0.05 }), // 보색 포인트
-      ),
-      buildPair(
-        "brand-minimal",
-        "브랜드 미니멀형",
-        adjust(brand, { s: -0.35 }),
-        "#6B7280",
-        brand,
-      ),
-    ];
+    return BRAND_OPTION_IDS.map((id) => buildBrandOption(id, brand, false));
   }
 
   return [
@@ -130,6 +147,17 @@ export function generatePaletteOptions(
     buildPair("innovation", "혁신형", "#7C3AED", "#14B8A6", "#F59E0B"),
     buildPair("minimal", "미니멀형", "#1C1F24", "#6B7280", "#2563EB"),
   ];
+}
+
+// 브랜드 기반 3세트 중 하나만 다른 변주로 재생성 (나머지 2개는 그대로 유지).
+// "3개 다 별로는 아닌데 이 하나만 별로일 때" 대안 (flow-spec ④ 보강).
+export function regenerateBrandOption(
+  brand: string,
+  optionId: string,
+): PaletteOption | null {
+  if (!hexToHsl(brand)) return null;
+  if (!(BRAND_OPTION_IDS as readonly string[]).includes(optionId)) return null;
+  return buildBrandOption(optionId as BrandOptionId, brand, true);
 }
 
 // 선택 옵션에서 역할에 배치할 수 있는 색 풀 (중복 제거)

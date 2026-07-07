@@ -76,6 +76,7 @@ export interface SectionReference {
   searchQuery: string; // 이 섹션의 대표 검색어 (Gemini 생성, 편집 가능)
   platformQueries: ReferenceQuery[];
   references?: ReferenceItem[]; // 수집한 레퍼런스 (usage/권리 포함)
+  images?: MoodImage[]; // 이 섹션 검색어로 가져온 레퍼런스 이미지 (전역 무드보드와 별개)
 }
 
 // 분석 대상 브랜드 (Step 10-c) — 경쟁사·롤모델·벤치마킹 브랜드·공개 투자사 포함.
@@ -132,13 +133,14 @@ export interface RepresentativePages {
 // 진행 중 단계별로 채워지므로 필드는 optional로 열어둔다.
 export interface ReferenceResult {
   paletteOptions?: PaletteOption[];
+  // "이 컬러로 3세트 재생성"에 쓴 키 컬러 — 카드별 개별 재생성 때 같은 브랜드 기준으로 재사용.
+  paletteBrandHex?: string;
   // 선택한 옵션의 편집본 (역할 재배치 반영). selectedPalette = editedOption[mode].
   editedPaletteOption?: PaletteOption;
   paletteMode?: "light" | "dark";
   moodOptions?: MoodOption[];
   selectedMoodId?: string;
   globalMood?: MoodBoard; // 선택 무드 + 이미지
-  paletteConfirmed?: boolean;
   bySectionId?: Record<string, SectionReference>; // 섹션별 (Step 10-b)
   analysisTargetList?: AnalysisTargetListItem[]; // 1단계 목록 (누적, 사라지지 않음)
   targetAnalyses?: Record<string, AnalysisTargetAnalysis>; // id → 깊은 분석 (누적)

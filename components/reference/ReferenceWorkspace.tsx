@@ -141,34 +141,39 @@ export default function ReferenceWorkspace({
         />
       )}
 
-      <button
-        onClick={onConfirm}
-        disabled={!references.paletteConfirmed || references.referenceConfirmed}
-        title={
-          !references.paletteConfirmed
-            ? "컬러·무드 탭에서 팔레트·무드를 먼저 확정하세요"
-            : undefined
-        }
-        className="btn-primary"
-        style={{
-          alignSelf: "flex-start",
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-xs)",
-          padding: "10px var(--space-base)",
-          borderRadius: "var(--radius-md)",
-          border: "none",
-          background:
-            !references.paletteConfirmed || references.referenceConfirmed
-              ? "var(--locked)"
-              : undefined,
-          fontWeight: 600,
-          fontSize: 14,
-        }}
-      >
-        {references.referenceConfirmed && <Check size={16} color="var(--on-primary)" />}
-        {references.referenceConfirmed ? "레퍼런스·무드 확정됨" : "다음"}
-      </button>
+      {(() => {
+        const selectionComplete = Boolean(
+          references.editedPaletteOption && references.selectedMoodId,
+        );
+        const disabled = !selectionComplete || references.referenceConfirmed;
+        return (
+          <button
+            onClick={onConfirm}
+            disabled={disabled}
+            title={
+              !selectionComplete
+                ? "컬러·무드 탭에서 팔레트 1세트와 무드 1종을 먼저 선택하세요"
+                : undefined
+            }
+            className="btn-primary"
+            style={{
+              alignSelf: "flex-start",
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-xs)",
+              padding: "10px var(--space-base)",
+              borderRadius: "var(--radius-md)",
+              border: "none",
+              background: disabled ? "var(--locked)" : undefined,
+              fontWeight: 600,
+              fontSize: 14,
+            }}
+          >
+            {references.referenceConfirmed && <Check size={16} color="var(--on-primary)" />}
+            {references.referenceConfirmed ? "레퍼런스·무드 확정됨" : "다음"}
+          </button>
+        );
+      })()}
     </div>
   );
 }

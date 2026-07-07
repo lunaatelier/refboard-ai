@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { ProjectAnalysis, ProjectDirective, Section } from "@/lib/analysis/types";
 import { buildPlatformQueries, platformNameFromUrl } from "@/lib/reference/platforms";
 import type {
+  MoodImage,
   ReferenceItem,
   ReferenceResult,
   SectionReference,
@@ -42,6 +43,7 @@ export default function SectionRefsTab({
   const [openId, setOpenId] = useState<string>();
   const [copied, setCopied] = useState<string>();
   const [layoutCandidates, setLayoutCandidates] = useState<Record<string, string[]>>({});
+  const [imagesBusy, setImagesBusy] = useState<Record<string, boolean>>({});
 
   const confirmedSections: (Section & { pageTitle: string })[] =
     analysis.pages
@@ -151,6 +153,26 @@ export default function SectionRefsTab({
       ...references,
       bySectionId: { ...bySectionId, [sectionId]: { ...ref, ...patch } },
     });
+  };
+
+  // 섹션 전용 레퍼런스 이미지 (Step 10-b 보강) — 전역 무드보드(도메인 기준)와 별개로
+  // 이 섹션의 검색어(예: 로고 방향)로 직접 이미지를 가져온다.
+  const fetchSectionImages = async (sectionId: string, query: string) => {
+    if (!query.trim()) return;
+    setImagesBusy((b) => ({ ...b, [sectionId]: true }));
+    try {
+      const res = await fetch("/api/mood-images", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      const body = await res.json().catch(() => null);
+      patchRef(sectionId, {
+        images: Array.isArray(body?.images) ? (body.images as MoodImage[]) : [],
+      });
+    } finally {
+      setImagesBusy((b) => ({ ...b, [sectionId]: false }));
+    }
   };
 
   const addReferenceItem = (sectionId: string, item: ReferenceItem) =>
@@ -323,6 +345,56 @@ export default function SectionRefsTab({
                     }}
                   />
                 </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
+                  <button
+                    onClick={() => fetchSectionImages(s.sectionId, ref.searchQuery)}
+                    disabled={imagesBusy[s.sectionId]}
+                    className="btn-weak-primary"
+                    style={{
+                      alignSelf: "flex-start",
+                      padding: "6px 14px",
+                      borderRadius: "var(--radius-md)",
+                      border: "none",
+                      fontWeight: 600,
+                      fontSize: 14,
+                    }}
+                  >
+                    {imagesBusy[s.sectionId]
+                      ? "이미지 불러오는 중…"
+                      : ref.images
+                        ? "🖼 이미지 다시 불러오기"
+                        : "🖼 이 섹션 이미지 미리보기"}
+                  </button>
+                  {ref.images && (
+                    ref.images.length > 0 ? (
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                          gap: "var(--space-sm)",
+                        }}
+                      >
+                        {ref.images.map((img, i) => (
+                          <figure key={i} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={img.url}
+                              alt={img.attribution}
+                              style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: "var(--radius-md)" }}
+                            />
+                            <figcaption style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                              {img.attribution}
+                            </figcaption>
+                          </figure>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+                        이 검색어로 이미지를 찾지 못했습니다 (키워드로 플랫폼에서 직접 검색해 보세요).
+                      </p>
+                    )
+                  )}
+                </div>
                 <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
                   {ref.platformQueries.map((pq) => (
                     <li
