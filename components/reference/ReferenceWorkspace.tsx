@@ -62,7 +62,6 @@ export default function ReferenceWorkspace({
         display: "flex",
         flexDirection: "column",
         gap: "var(--space-base)",
-        maxWidth: 960,
       }}
     >
       <div

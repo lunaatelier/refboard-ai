@@ -216,12 +216,7 @@ export default function ImageHintsTab({
               <select
                 value={rep[key] ?? ""}
                 onChange={(e) => setRep({ [key]: e.target.value })}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--border)",
-                  font: "inherit",
-                }}
+                className="select-box"
               >
                 {selectedPages.map((p) => (
                   <option key={p.pageId} value={p.pageId}>
@@ -309,13 +304,7 @@ export default function ImageHintsTab({
             <select
               value={h.direction}
               onChange={(e) => patchHint(i, { direction: e.target.value })}
-              style={{
-                padding: "8px 12px",
-                borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border)",
-                font: "inherit",
-                fontSize: 14,
-              }}
+              className="select-box"
             >
               {[...new Set([h.direction, ...DIRECTIONS])].map((d) => (
                 <option key={d} value={d}>

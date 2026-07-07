@@ -132,7 +132,6 @@ export default function ImageConsentPanel({
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-lg)",
         padding: "var(--space-lg)",
-        maxWidth: 860,
         display: "flex",
         flexDirection: "column",
         gap: "var(--space-md)",

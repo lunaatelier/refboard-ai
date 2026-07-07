@@ -650,12 +650,8 @@ function CollectedReferences({
                       usage: e.target.value as ReferenceItem["usage"],
                     })
                   }
+                  className="select-box"
                   style={{
-                    padding: "var(--space-sm) var(--space-md)",
-                    borderRadius: "var(--radius-sm)",
-                    border: "1px solid var(--border)",
-                    font: "inherit",
-                    fontSize: 14,
                     color: r.usage === "embeddable" ? "var(--success)" : "var(--warning-weak-text)",
                     fontWeight: 600,
                   }}

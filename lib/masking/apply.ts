@@ -3,6 +3,7 @@ import type {
   Detection,
   DraftMaskResult,
   FinalMaskResult,
+  MaskingGroupSummary,
   MaskMapping,
   NumericDetection,
 } from "./types";
@@ -119,4 +120,51 @@ export function finalizeMask(
   seedMappings: MaskMapping[] = [],
 ): FinalMaskResult {
   return buildMask(text, detections, numericDetections, seedMappings);
+}
+
+// 확정 직전(원문·raw 폐기 전)에 호출 — kind별 카드 골격을 유지하기 위한
+// 비민감 요약을 만든다. raw는 절대 포함하지 않는다(토큰·개수만).
+export function summarizeMasking(
+  detections: Detection[],
+  numericDetections: NumericDetection[],
+  mappings: MaskMapping[],
+): MaskingGroupSummary[] {
+  const groups = new Map<string, MaskingGroupSummary>();
+
+  const ensure = (kind: Detection["kind"]): MaskingGroupSummary => {
+    let g = groups.get(kind);
+    if (!g) {
+      g = { kind, totalCount: 0, appliedCount: 0, keptCount: 0, skippedCount: 0, tokens: [] };
+      groups.set(kind, g);
+    }
+    return g;
+  };
+
+  for (const d of detections) {
+    const g = ensure(d.kind);
+    g.totalCount++;
+    if (!d.enabled) g.skippedCount++;
+    else if (d.keepPlaintext) g.keptCount++;
+    else g.appliedCount++;
+  }
+
+  for (const n of numericDetections) {
+    const g = ensure(n.kind);
+    g.totalCount++;
+    if (n.mode === "keep") g.keptCount++;
+    else g.appliedCount++;
+  }
+
+  // 토큰(치환 결과)은 실제 적용 순서를 보존하려 mappings를 kind별로 나눠 채운다.
+  for (const m of mappings) {
+    groups.get(m.kind)?.tokens.push(m.token);
+  }
+  // range-generalize는 토큰이 아닌 치환 문구라 mappings에 없다 — 별도로 채운다.
+  for (const n of numericDetections) {
+    if (n.mode === "range-generalize") {
+      ensure(n.kind).tokens.push(n.generalized ?? "비공개 수치");
+    }
+  }
+
+  return [...groups.values()];
 }

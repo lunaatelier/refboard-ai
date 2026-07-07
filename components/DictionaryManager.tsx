@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import {
   addDictionaryEntry,
   listDictionary,
@@ -24,6 +25,7 @@ export default function DictionaryManager() {
   );
   const [value, setValue] = useState("");
   const [kind, setKind] = useState<DictionaryEntry["kind"]>("company");
+  const [open, setOpen] = useState(false);
 
   const refresh = () => setEntries(listDictionary());
 
@@ -36,23 +38,43 @@ export default function DictionaryManager() {
 
   return (
     <details
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+      className="accordion-row"
       style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-lg)",
-        padding: "var(--space-base) var(--space-lg)",
-        maxWidth: 860,
+        borderTop: "1px solid var(--border)",
       }}
     >
-      <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: 16 }}>
-        내 사전 관리 ({entries.length}개 단어)
+      <summary
+        style={{
+          cursor: "pointer",
+          fontSize: 14,
+          fontWeight: 600,
+          color: "var(--text-muted)",
+          listStyle: "none",
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-xs)",
+          height: 40,
+          padding: "0 var(--space-xs)",
+        }}
+      >
+        <ChevronRight
+          size={14}
+          style={{
+            flexShrink: 0,
+            transition: "transform 150ms ease",
+            transform: open ? "rotate(90deg)" : "rotate(0deg)",
+          }}
+        />
+        내 사전 관리 {entries.length}개 단어
       </summary>
       <div
         style={{
           display: "flex",
           flexDirection: "column",
           gap: "var(--space-md)",
-          paddingTop: "var(--space-base)",
+          padding: "var(--space-sm) var(--space-xs) var(--space-base)",
         }}
       >
         <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
@@ -60,6 +82,18 @@ export default function DictionaryManager() {
           인명은 전역 — 모든 프로젝트에서 유지됩니다.
         </p>
         <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as DictionaryEntry["kind"])}
+            className="select-box"
+            style={{ width: 120 }}
+          >
+            {(Object.keys(KIND_LABELS) as DictionaryEntry["kind"][]).map((k) => (
+              <option key={k} value={k}>
+                {KIND_LABELS[k]}
+              </option>
+            ))}
+          </select>
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -75,23 +109,6 @@ export default function DictionaryManager() {
               font: "inherit",
             }}
           />
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value as DictionaryEntry["kind"])}
-            style={{
-              padding: "10px var(--space-md)",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--border)",
-              fontSize: 14,
-              font: "inherit",
-            }}
-          >
-            {(Object.keys(KIND_LABELS) as DictionaryEntry["kind"][]).map((k) => (
-              <option key={k} value={k}>
-                {KIND_LABELS[k]}
-              </option>
-            ))}
-          </select>
           <button
             onClick={handleAdd}
             className="btn-weak-primary"

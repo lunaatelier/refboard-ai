@@ -182,7 +182,7 @@ export default function AnalysisResult({
   const hiddenTagCount = uniqueTags.length - visibleTags.length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)", maxWidth: 860 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)" }}>
       {/* 지금 할 일 안내 */}
       <div
         style={{
@@ -296,7 +296,7 @@ export default function AnalysisResult({
               onChange={(e) =>
                 onChange({ ...analysis, domain: e.target.value as DomainHint })
               }
-              style={selectStyle}
+              className="select-box"
             >
               {(Object.keys(DOMAIN_LABELS) as DomainHint[]).map((d) => (
                 <option key={d} value={d}>
@@ -582,7 +582,7 @@ export default function AnalysisResult({
                           excludedReason: e.target.value as ExclusionReason,
                         })
                       }
-                      style={{ ...selectStyle, fontSize: 14 }}
+                      className="select-box"
                     >
                       {(Object.keys(EXCLUSION_LABELS) as ExclusionReason[]).map(
                         (r) => (
@@ -735,11 +735,6 @@ const inputStyle: React.CSSProperties = {
   borderRadius: "var(--radius-md)",
   fontSize: 14,
   font: "inherit",
-};
-
-const selectStyle: React.CSSProperties = {
-  ...inputStyle,
-  paddingRight: 32,
 };
 
 const pill: React.CSSProperties = {

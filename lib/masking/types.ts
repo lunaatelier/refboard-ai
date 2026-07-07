@@ -96,6 +96,18 @@ export interface FinalMaskResult {
   mappings: MaskMapping[]; // → SecureClientMemory (WorkflowState 아님)
 }
 
+// 검수 카드 골격 유지용 비민감 요약 — raw 없이 kind/개수/토큰만.
+// 확정 직후 WorkflowState에 저장해, 검수 화면이 카드 구조를 그대로 둔 채
+// 항목별 상세를 "적용/유지/제외 + 토큰" 요약으로 접을 수 있게 한다.
+export interface MaskingGroupSummary {
+  kind: SensitiveKind;
+  totalCount: number;
+  appliedCount: number; // 마스킹 토큰으로 치환됨
+  keptCount: number; // "유지"로 확정된 공개 엔티티 (실명 유지)
+  skippedCount: number; // 해제했거나 더미로 남겨 미적용
+  tokens: string[]; // 적용된 토큰/치환 문구 (예: "[전화A]", "수십억 원대")
+}
+
 // 파일명도 마스킹 대상 (실사용#32) — 원본 파일명은 화면 어디에도 노출 금지
 export interface UploadedFileMeta {
   originalFileName: string; // ⚠️ 민감 취급 — SecureClientMemory급

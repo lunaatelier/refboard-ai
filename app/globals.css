@@ -39,6 +39,7 @@
 
   /* Semantic */
   --success: #10b981;
+  --success-weak-bg: rgba(16, 185, 129, 0.12);
   --error: #ef4444;
   --error-hover: #dc2626;
   --error-weak-bg: rgba(239, 68, 68, 0.12);
@@ -254,6 +255,41 @@ button:not(:disabled) {
   outline: none;
 }
 
+/* 9b. Select — appearance-reset with a custom chevron; generous right
+   padding (36px) keeps the arrow from crowding the value text. Hover/
+   focus mirror .input-box so both control types read as one family. */
+.select-box {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding: 8px 36px 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font: inherit;
+  background-color: var(--surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  transition: border-color 150ms ease;
+}
+.select-box:hover:not(:focus) {
+  border-color: var(--border-strong);
+}
+.select-box:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+/* 9c. Accordion row — compact <details> summary with a custom chevron only
+   (no native disclosure triangle). Used for secondary/nested toggles like
+   "내 사전 관리" inside a parent card, where a full card look is too heavy. */
+.accordion-row > summary {
+  list-style: none;
+}
+.accordion-row > summary::-webkit-details-marker {
+  display: none;
+}
+
 /* 10. Toggle — on/off track hover */
 .toggle-track[data-on="true"] {
   background: var(--primary);
@@ -282,6 +318,43 @@ input[type="radio"] {
 *:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+/* ============================================================
+   11. Workspace shell responsiveness — LNB breakpoint is 1024px
+   (mobile + tablet collapse to a top bar + slide-in drawer; desktop
+   keeps the permanent sidebar). Below this width, the shell stacks
+   vertically so the mobile bar reads as a full-width top strip.
+   ============================================================ */
+.workspace-shell {
+  display: flex;
+  flex-direction: row;
+  min-height: 100vh;
+}
+
+.lnb-sidebar {
+  display: flex;
+}
+.lnb-mobile-bar {
+  display: none;
+}
+.lnb-backdrop {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .workspace-shell {
+    flex-direction: column;
+  }
+  .lnb-sidebar {
+    display: none;
+  }
+  .lnb-mobile-bar {
+    display: flex;
+  }
+  .workspace-main {
+    padding: var(--space-base) !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

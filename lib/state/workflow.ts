@@ -30,7 +30,10 @@ export const STEP_LABELS: Record<Step, string> = {
 import type { DocumentPurpose } from "../analysis/documentPurpose";
 import type { ProjectAnalysis, ProjectDirective } from "../analysis/types";
 import type { ConceptJson } from "../concept/types";
-import type { ExtractedAnalysisTarget } from "../masking/types";
+import type {
+  ExtractedAnalysisTarget,
+  MaskingGroupSummary,
+} from "../masking/types";
 import type { ReferenceResult } from "../reference/types";
 
 export interface WorkflowState {
@@ -40,6 +43,9 @@ export interface WorkflowState {
   // "analysis-json" = 저장된 분석 JSON으로 시작 → 마스킹 건너뛰고 ④ 직행, 복원키 없음.
   sourceType?: "raw-document" | "analysis-json";
   maskedText?: string; // 마스킹 확정 후에만 존재 — analysis 이후 단계의 보안 게이트 키
+  // 확정 시점의 kind별 비민감 요약(raw 없음) — 검수 화면이 카드 골격을 유지한 채
+  // "적용/유지/제외 + 토큰"으로 접어 보여주는 데 쓴다.
+  maskingSummary?: MaskingGroupSummary[];
   // 마스킹 검수에서 "유지"로 확정된 공개 엔티티 (실명 = 공개 정보라 허용)
   extractedAnalysisTargets?: ExtractedAnalysisTarget[];
   documentPurpose?: DocumentPurpose; // 업로드 직후 로컬 판정 (Step 8, 실사용#14)

@@ -129,7 +129,7 @@ export default function ConceptWorkspace({
     previewPages?.[0];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)", maxWidth: 960 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)" }}>
       <div style={card}>
         <h2 style={{ fontSize: 22, fontWeight: 700 }}>컨셉 3안</h2>
         <p style={{ color: "var(--text-muted)", fontSize: 16 }}>
@@ -268,12 +268,7 @@ export default function ConceptWorkspace({
                 <select
                   value={previewPage.pageId}
                   onChange={(e) => setPreviewPageId(e.target.value)}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: "var(--radius-md)",
-                    border: "1px solid var(--border)",
-                    font: "inherit",
-                  }}
+                  className="select-box"
                 >
                   {(previewPages ?? []).map((p) => (
                     <option key={p.pageId} value={p.pageId}>

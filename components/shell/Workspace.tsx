@@ -15,13 +15,15 @@ export default function Workspace({
   children,
 }: WorkspaceProps) {
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
+    <div className="workspace-shell" style={{ background: "var(--bg)" }}>
       <Lnb state={state} onNavigate={onNavigate} />
       <main
+        className="workspace-main"
         style={{
           flex: 1,
-          padding: "var(--space-xl)",
-          maxWidth: 1200,
+          minWidth: 0,
+          padding: "var(--space-xl) var(--space-xxl)",
+          maxWidth: 1600,
           width: "100%",
           margin: "0 auto",
         }}

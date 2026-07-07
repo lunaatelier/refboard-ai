@@ -3,7 +3,6 @@
 import { useRef, useState } from "react";
 import { Key, Save } from "lucide-react";
 import AnalysisResult from "@/components/AnalysisResult";
-import DictionaryManager from "@/components/DictionaryManager";
 import DirectiveEditor, { describeScope } from "@/components/DirectiveEditor";
 import ImageConsentPanel, {
   type ConsentImage,
@@ -11,13 +10,12 @@ import ImageConsentPanel, {
 } from "@/components/ImageConsentPanel";
 import ConceptWorkspace from "@/components/concept/ConceptWorkspace";
 import ReferenceWorkspace from "@/components/reference/ReferenceWorkspace";
-import MaskedPreview, { type MaskingStats } from "@/components/MaskedPreview";
 import MaskingReview from "@/components/MaskingReview";
 import LandingUpload from "@/components/shell/LandingUpload";
 import Workspace from "@/components/shell/Workspace";
 import { classifyDocumentPurpose } from "@/lib/analysis/documentPurpose";
 import { addDictionaryEntry, listDictionary } from "@/lib/dictionary/store";
-import { finalizeMask } from "@/lib/masking/apply";
+import { finalizeMask, summarizeMasking } from "@/lib/masking/apply";
 import { detect } from "@/lib/masking/detect";
 import { maskFileName } from "@/lib/masking/filename";
 import { detectNumeric } from "@/lib/masking/numeric";
@@ -66,7 +64,6 @@ export default function Home() {
   const [workflow, setWorkflow] = useState<WorkflowState>(initialWorkflowState);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [fileDisplayName, setFileDisplayName] = useState<string>();
-  const [maskingStats, setMaskingStats] = useState<MaskingStats>();
 
   // SecureClientMemory — 복원키. 메모리에만 존재, 새로고침 시 소멸 (CLAUDE.md §4.4).
   // React 상태가 아닌 ref: 렌더 데이터로 흘러들어가는 것을 구조적으로 차단.
@@ -121,7 +118,6 @@ export default function Home() {
         imagesRef.current = [];
         setImageInsights([]);
         setDraft(null);
-        setMaskingStats(undefined);
         setWorkflow({
           currentStep: "reference",
           completedSteps: ["upload", "masking", "analysis"],
@@ -173,7 +169,6 @@ export default function Home() {
         completedSteps: ["upload"],
         sourceType: "raw-document",
       });
-      setMaskingStats(undefined);
       secureMappingsRef.current = [];
       lastMaskedExportIdRef.current = undefined;
       importedExportIdRef.current = undefined;
@@ -237,7 +232,6 @@ export default function Home() {
       sourceType: "raw-document",
       documentPurpose: purpose,
     });
-    setMaskingStats(undefined);
     secureMappingsRef.current = [];
     lastMaskedExportIdRef.current = undefined;
     importedExportIdRef.current = undefined;
@@ -298,22 +292,18 @@ export default function Home() {
     // 새로 마스킹된 문서이므로 이전에 저장했던 exportId와의 연결은 무효화
     lastMaskedExportIdRef.current = undefined;
 
-    const numericMasked = draft.numericDetections.filter(
-      (n) => n.mode !== "keep",
-    ).length;
-    setMaskingStats({
-      detected: draft.detections.length + draft.numericDetections.length,
-      applied:
-        draft.detections.filter((d) => d.enabled && !d.keepPlaintext).length +
-        numericMasked,
-      keptPlaintext:
-        draft.detections.filter((d) => d.enabled && d.keepPlaintext).length +
-        (draft.numericDetections.length - numericMasked),
-    });
+    // raw를 폐기하기 전, kind별 비민감 요약(개수·토큰만)을 만들어 검수 카드
+    // 골격을 그대로 유지한 채 완료 상태로 접을 수 있게 한다.
+    const maskingSummary = summarizeMasking(
+      draft.detections,
+      draft.numericDetections,
+      mappings,
+    );
 
     setWorkflow((prev) => ({
       ...prev,
       maskedText,
+      maskingSummary,
       // "유지"로 확정된 공개 엔티티 → ④ 분석 대상 브랜드 소스 (실명 = 공개 정보)
       // 엔티티 등급(6종)은 검수 드롭다운에서 사용자가 확정한 값을 계승.
       extractedAnalysisTargets: draft.detections
@@ -524,104 +514,96 @@ export default function Home() {
       )}
 
       {workflow.currentStep === "masking" &&
-        (draft ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {draft.parsedText === IMAGE_ONLY_PLACEHOLDER && (
-              <Alert tone="info">
-                <b>이미지 전용 입력</b> — 마스킹할 본문 텍스트가 없습니다. 아래
-                검수를 그대로 확정한 뒤, 이미지 전송 동의를 거쳐 분석을
-                진행하세요. (이미지는 동의 전까지 외부로 나가지 않습니다)
-              </Alert>
-            )}
-            {workflow.documentPurpose === "company-profile" && (
-              <Alert tone="warn">
-                이 문서는 <b>회사소개서</b>로 보입니다. 프로젝트 기획서와 함께
-                분석하면 도메인 판정이 왜곡될 수 있습니다. 별도 문서라면 그대로
-                진행해도 됩니다 (판정은 참고용).
-              </Alert>
-            )}
-            {workflow.documentPurpose === "template-only" && (
-              <Alert tone="info">
-                본문 없이 <b>표지·간지·목차 구조만</b> 감지됐습니다. 이런
-                템플릿 문서는 전체 분석 없이 표지·간지·목차만 빠르게 만드는
-                경량 경로가 적합합니다 (경량 경로는 이후 스텝에서 제공 —
-                지금은 일반 경로로 진행됩니다).
-              </Alert>
-            )}
-            <MaskingReview
-              parsedText={draft.parsedText}
-              detections={draft.detections}
-              numericDetections={draft.numericDetections}
-              onUpdateDetections={(next) =>
-                setDraft((prev) => prev && { ...prev, detections: next })
-              }
-              onUpdateNumeric={(next) =>
-                setDraft(
-                  (prev) => prev && { ...prev, numericDetections: next },
-                )
-              }
-              onAddToDictionary={(value, kind) => {
-                addDictionaryEntry(value, kind);
-              }}
-              onConfirm={handleConfirmMasking}
-            />
-            <DictionaryManager />
-            {imagesRef.current.length > 0 && (
-              <ImageConsentPanel
-                images={imagesRef.current.map(toConsentImage)}
-                insights={imageInsights}
-                canAnalyze={false}
-                busy={imageBusy}
-                error={imageError}
-                onAnalyze={handleAnalyzeImages}
-              />
-            )}
-          </div>
-        ) : workflow.maskedText ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <MaskedPreview
-              maskedText={workflow.maskedText}
-              stats={maskingStats}
-              onNext={() => handleNavigate("analysis")}
-            />
-            {secureMappingsRef.current.length > 0 && (
-              <button
-                onClick={handleSaveRecoveryKey}
-                className="btn-tertiary"
-                style={{
-                  alignSelf: "flex-start",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--space-sm)",
-                  padding: "10px var(--space-base)",
-                  borderRadius: "var(--radius-md)",
-                  border: "none",
-                  fontWeight: 600,
-                  fontSize: 14,
+        (() => {
+          const maskingConfirmed = !draft && !!workflow.maskedText;
+          return draft || workflow.maskedText ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {!maskingConfirmed && draft?.parsedText === IMAGE_ONLY_PLACEHOLDER && (
+                <Alert tone="info">
+                  <b>이미지 전용 입력</b> — 마스킹할 본문 텍스트가 없습니다. 아래
+                  검수를 그대로 확정한 뒤, 이미지 전송 동의를 거쳐 분석을
+                  진행하세요. (이미지는 동의 전까지 외부로 나가지 않습니다)
+                </Alert>
+              )}
+              {!maskingConfirmed && workflow.documentPurpose === "company-profile" && (
+                <Alert tone="warn">
+                  이 문서는 <b>회사소개서</b>로 보입니다. 프로젝트 기획서와 함께
+                  분석하면 도메인 판정이 왜곡될 수 있습니다. 별도 문서라면 그대로
+                  진행해도 됩니다 (판정은 참고용).
+                </Alert>
+              )}
+              {!maskingConfirmed && workflow.documentPurpose === "template-only" && (
+                <Alert tone="info">
+                  본문 없이 <b>표지·간지·목차 구조만</b> 감지됐습니다. 이런
+                  템플릿 문서는 전체 분석 없이 표지·간지·목차만 빠르게 만드는
+                  경량 경로가 적합합니다 (경량 경로는 이후 스텝에서 제공 —
+                  지금은 일반 경로로 진행됩니다).
+                </Alert>
+              )}
+              <MaskingReview
+                parsedText={draft?.parsedText ?? ""}
+                detections={draft?.detections ?? []}
+                numericDetections={draft?.numericDetections ?? []}
+                onUpdateDetections={(next) =>
+                  setDraft((prev) => prev && { ...prev, detections: next })
+                }
+                onUpdateNumeric={(next) =>
+                  setDraft(
+                    (prev) => prev && { ...prev, numericDetections: next },
+                  )
+                }
+                onAddToDictionary={(value, kind) => {
+                  addDictionaryEntry(value, kind);
                 }}
-              >
-                <Key size={18} />
-                복원키 파일 저장 — 실명 포함, 로컬 보관 전용 (서버 미전송)
-              </button>
-            )}
-            {imagesRef.current.length > 0 && (
-              <ImageConsentPanel
-                images={imagesRef.current.map(toConsentImage)}
-                insights={imageInsights}
-                canAnalyze={true}
-                busy={imageBusy}
-                error={imageError}
-                onAnalyze={handleAnalyzeImages}
+                onConfirm={handleConfirmMasking}
+                confirmed={maskingConfirmed}
+                maskedText={workflow.maskedText}
+                maskingSummary={workflow.maskingSummary}
+                onNext={() => handleNavigate("analysis")}
+                recoveryKeyAction={
+                  secureMappingsRef.current.length > 0 ? (
+                    <button
+                      onClick={handleSaveRecoveryKey}
+                      className="btn-tertiary"
+                      style={{
+                        alignSelf: "flex-start",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "var(--space-sm)",
+                        padding: "10px var(--space-base)",
+                        borderRadius: "var(--radius-md)",
+                        border: "none",
+                        fontWeight: 600,
+                        fontSize: 14,
+                      }}
+                    >
+                      <Key size={18} />
+                      복원키 파일 저장 — 실명 포함, 로컬 보관 전용 (서버 미전송)
+                    </button>
+                  ) : undefined
+                }
+                imageConsentPanel={
+                  imagesRef.current.length > 0 ? (
+                    <ImageConsentPanel
+                      images={imagesRef.current.map(toConsentImage)}
+                      insights={imageInsights}
+                      canAnalyze={maskingConfirmed}
+                      busy={imageBusy}
+                      error={imageError}
+                      onAnalyze={handleAnalyzeImages}
+                    />
+                  ) : undefined
+                }
               />
-            )}
-          </div>
-        ) : (
-          <Panel title="마스킹 검수">
-            <p style={{ color: "var(--text-muted)" }}>
-              검수할 문서가 없습니다. 문서를 먼저 업로드하세요.
-            </p>
-          </Panel>
-        ))}
+            </div>
+          ) : (
+            <Panel title="마스킹 검수">
+              <p style={{ color: "var(--text-muted)" }}>
+                검수할 문서가 없습니다. 문서를 먼저 업로드하세요.
+              </p>
+            </Panel>
+          );
+        })()}
 
       {workflow.currentStep === "analysis" &&
         (workflow.analysis ? (
@@ -959,7 +941,6 @@ function Alert({
         borderRadius: "var(--radius-md)",
         padding: "var(--space-md) var(--space-base)",
         fontSize: 14,
-        maxWidth: 860,
       }}
     >
       {children}
@@ -984,7 +965,6 @@ function Panel({
         display: "flex",
         flexDirection: "column",
         gap: "var(--space-base)",
-        maxWidth: 860,
         boxShadow: "var(--shadow-standard)",
       }}
     >
