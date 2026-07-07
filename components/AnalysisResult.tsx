@@ -67,7 +67,7 @@ const EXCLUSION_LABELS: Record<ExclusionReason, string> = {
   other: "기타",
 };
 
-const TAGS_PREVIEW_COUNT = 4;
+const TAGS_PREVIEW_COUNT = 2;
 
 interface AnalysisResultProps {
   analysis: ProjectAnalysis;
@@ -115,7 +115,16 @@ export default function AnalysisResult({
 }: AnalysisResultProps) {
   const [notice, setNotice] = useState<string>();
   const [tagsExpanded, setTagsExpanded] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const selectedCount = analysis.pages.filter((p) => p.selected).length;
+
+  const toggleSectionExpanded = (sectionId: string) =>
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
 
   const patchPage = (pageId: string, patch: Partial<ProjectAnalysis["pages"][number]>) =>
     onChange({
@@ -166,10 +175,11 @@ export default function AnalysisResult({
 
   const confidencePct = Math.round(analysis.domainConfidence * 100);
   const confidenceLow = analysis.domainConfidence < 0.7;
+  const uniqueTags = [...new Set(analysis.tags)];
   const visibleTags = tagsExpanded
-    ? analysis.tags
-    : analysis.tags.slice(0, TAGS_PREVIEW_COUNT);
-  const hiddenTagCount = analysis.tags.length - visibleTags.length;
+    ? uniqueTags
+    : uniqueTags.slice(0, TAGS_PREVIEW_COUNT);
+  const hiddenTagCount = uniqueTags.length - visibleTags.length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)", maxWidth: 860 }}>
@@ -374,7 +384,7 @@ export default function AnalysisResult({
               +{hiddenTagCount}
             </button>
           )}
-          {tagsExpanded && analysis.tags.length > TAGS_PREVIEW_COUNT && (
+          {tagsExpanded && uniqueTags.length > TAGS_PREVIEW_COUNT && (
             <button
               onClick={() => setTagsExpanded(false)}
               className="btn-tertiary"
@@ -414,9 +424,9 @@ export default function AnalysisResult({
         )}
 
       {analysis.parentSiteRelation && (
-        <div style={{ ...card, borderColor: "var(--info)", background: "var(--info-weak-bg)" }}>
-          <h3 style={{ ...noticeHeading, color: "var(--info)" }}>
-            <LinkIcon size={20} color="var(--info)" />
+        <div style={{ ...card, borderColor: "var(--border)", background: "var(--surface-alt)" }}>
+          <h3 style={{ ...noticeHeading, color: "var(--text-strong)" }}>
+            <LinkIcon size={20} color="var(--text-muted)" />
             이 문서는 다른 사이트의 관리자 화면으로 보입니다
           </h3>
           <p style={{ fontSize: 14 }}>{analysis.parentSiteRelation.relationNote}</p>
@@ -429,10 +439,10 @@ export default function AnalysisResult({
                   gap: "var(--space-xs)",
                   fontWeight: 700,
                   fontSize: 14,
-                  color: "var(--info)",
+                  color: "var(--success)",
                 }}
               >
-                <Check size={16} color="var(--info)" />
+                <Check size={16} color="var(--success)" />
                 확정됨 — 레퍼런스가 &ldquo;부모 사이트를 관리하는 CMS
                 백오피스&rdquo;로 좁혀집니다
               </span>
@@ -507,9 +517,9 @@ export default function AnalysisResult({
 
       {analysis.detectedCaseStudies &&
         analysis.detectedCaseStudies.length > 0 && (
-          <div style={{ ...card, borderColor: "var(--info)", background: "var(--info-weak-bg)" }}>
-            <h3 style={{ ...noticeHeading, color: "var(--info)" }}>
-              <Search size={20} color="var(--info)" />
+          <div style={{ ...card, borderColor: "var(--border)", background: "var(--surface-alt)" }}>
+            <h3 style={{ ...noticeHeading, color: "var(--text-strong)" }}>
+              <Search size={20} color="var(--text-muted)" />
               문서 안에 기존 사례분석 {analysis.detectedCaseStudies.length}건
             </h3>
             <ul style={{ paddingLeft: 20, fontSize: 14 }}>
@@ -642,24 +652,52 @@ export default function AnalysisResult({
                             )}
                             <button
                               onClick={() => deleteSection(p.pageId, s.sectionId)}
-                              aria-label="섹션 삭제"
-                              title="섹션 삭제"
-                              className="btn-danger"
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                marginLeft: "auto",
-                                border: "none",
-                                borderRadius: "var(--radius-md)",
-                                padding: "2px 6px",
-                              }}
+                              aria-label="섹션 제외"
+                              title="섹션 제외"
+                              className="btn-icon-neutral"
+                              style={{ marginLeft: "auto", width: 28, height: 28 }}
                             >
-                              <X size={14} color="var(--on-primary)" />
+                              <X size={14} />
                             </button>
                           </div>
-                          <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
-                            {s.contentSummary}
-                          </span>
+                          {(() => {
+                            const expanded = expandedSections.has(s.sectionId);
+                            const isLong = s.contentSummary.length > 50;
+                            return (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                <span
+                                  style={{
+                                    color: "var(--text-muted)",
+                                    fontSize: 14,
+                                    ...(expanded || !isLong
+                                      ? {}
+                                      : {
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                          whiteSpace: "nowrap",
+                                        }),
+                                  }}
+                                >
+                                  {s.contentSummary}
+                                </span>
+                                {isLong && (
+                                  <button
+                                    onClick={() => toggleSectionExpanded(s.sectionId)}
+                                    className="btn-tertiary"
+                                    style={{
+                                      alignSelf: "flex-start",
+                                      border: "none",
+                                      padding: "2px 4px",
+                                      fontSize: 14,
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {expanded ? "접기" : "펼쳐보기"}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </li>
                       ))}
                     </ul>

@@ -44,6 +44,8 @@ export default function SectionRefsTab({
   const [copied, setCopied] = useState<string>();
   const [layoutCandidates, setLayoutCandidates] = useState<Record<string, string[]>>({});
   const [imagesBusy, setImagesBusy] = useState<Record<string, boolean>>({});
+  const [platformsOpen, setPlatformsOpen] = useState<Record<string, boolean>>({});
+  const [copiedMain, setCopiedMain] = useState<string>();
 
   const confirmedSections: (Section & { pageTitle: string })[] =
     analysis.pages
@@ -146,6 +148,12 @@ export default function SectionRefsTab({
     setTimeout(() => setCopied(undefined), 1500);
   };
 
+  const copyMain = async (sectionId: string, query: string) => {
+    await navigator.clipboard.writeText(query);
+    setCopiedMain(sectionId);
+    setTimeout(() => setCopiedMain(undefined), 1500);
+  };
+
   const patchRef = (sectionId: string, patch: Partial<SectionReference>) => {
     const ref = bySectionId[sectionId];
     if (!ref) return;
@@ -214,7 +222,7 @@ export default function SectionRefsTab({
         style={{
           ...card,
           padding: "var(--space-base) var(--space-md)",
-          background: "var(--info-weak-bg)",
+          background: "var(--primary-soft)",
           border: "none",
           flexDirection: "row",
           alignItems: "center",
@@ -229,10 +237,10 @@ export default function SectionRefsTab({
             gap: "var(--space-sm)",
             fontWeight: 600,
             fontSize: 14,
-            color: "var(--info)",
+            color: "var(--primary-hover)",
           }}
         >
-          <Info size={18} color="var(--info)" />
+          <Info size={18} color="var(--primary-hover)" />
           섹션을 펼쳐서 검색 키워드와 표현 방식을 확인·수정하세요
         </span>
       </div>
@@ -344,6 +352,28 @@ export default function SectionRefsTab({
                       fontSize: 14,
                     }}
                   />
+                  <button
+                    onClick={() => copyMain(s.sectionId, ref.searchQuery)}
+                    className="btn-tertiary"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "var(--space-xs)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius-sm)",
+                      padding: "6px var(--space-sm)",
+                      fontSize: 14,
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {copiedMain === s.sectionId ? (
+                      <Check size={14} color="var(--text-muted)" />
+                    ) : (
+                      <Copy size={14} color="var(--text-muted)" />
+                    )}
+                    {copiedMain === s.sectionId ? "복사됨" : "키워드 복사"}
+                  </button>
                 </label>
                 <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
                   <button
@@ -395,80 +425,110 @@ export default function SectionRefsTab({
                     )
                   )}
                 </div>
-                <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
-                  {ref.platformQueries.map((pq) => (
-                    <li
-                      key={pq.platform}
+                <div>
+                  <button
+                    onClick={() =>
+                      setPlatformsOpen((o) => ({ ...o, [s.sectionId]: !o[s.sectionId] }))
+                    }
+                    className="btn-tertiary"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "var(--space-xs)",
+                      border: "none",
+                      padding: "4px var(--space-sm)",
+                      fontSize: 14,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {platformsOpen[s.sectionId] ? (
+                      <ChevronDown size={14} />
+                    ) : (
+                      <ChevronRight size={14} />
+                    )}
+                    플랫폼별 검색 경로 ({ref.platformQueries.length})
+                  </button>
+                  {platformsOpen[s.sectionId] && (
+                    <ul
                       style={{
+                        listStyle: "none",
                         display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "var(--space-sm)",
-                        flexWrap: "wrap",
+                        flexDirection: "column",
+                        gap: "var(--space-xs)",
+                        marginTop: "var(--space-xs)",
                       }}
                     >
-                      <span style={{ fontWeight: 600, fontSize: 14 }}>
-                        {pq.platform}
-                      </span>
-                      <span style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
-                        <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
-                          &ldquo;{pq.query}&rdquo;
-                        </span>
-                        {pq.mode === "auto-search" && pq.url ? (
-                          <a
-                            href={pq.url}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "var(--space-xs)",
-                              fontSize: 14,
-                              fontWeight: 600,
-                              color: "var(--primary)",
-                              textDecoration: "none",
-                              border: "1px solid var(--border)",
-                              borderRadius: "var(--radius-sm)",
-                              padding: "3px var(--space-sm)",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            <Link size={14} color="var(--primary)" />
-                            바로 검색
-                          </a>
-                        ) : (
-                          <button
-                            onClick={() => copy(s.sectionId, pq.platform, pq.query)}
-                            className="btn-tertiary"
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "var(--space-xs)",
-                              fontSize: 14,
-                              fontWeight: 600,
-                              border: "1px solid var(--border)",
-                              borderRadius: "var(--radius-sm)",
-                              padding: "3px var(--space-sm)",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {copied === `${s.sectionId}:${pq.platform}` ? (
-                              <>
-                                <Check size={14} color="var(--text-muted)" />
-                                복사됨
-                              </>
+                      {ref.platformQueries.map((pq) => (
+                        <li
+                          key={pq.platform}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "var(--space-sm)",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <span style={{ fontWeight: 600, fontSize: 14 }}>
+                            {pq.platform}
+                          </span>
+                          <span style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+                            <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
+                              &ldquo;{pq.query}&rdquo;
+                            </span>
+                            {pq.mode === "auto-search" && pq.url ? (
+                              <a
+                                href={pq.url}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "var(--space-xs)",
+                                  fontSize: 14,
+                                  fontWeight: 600,
+                                  color: "var(--primary)",
+                                  textDecoration: "none",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                <Link size={14} color="var(--primary)" />
+                                바로 검색
+                              </a>
                             ) : (
-                              <>
-                                <Copy size={14} color="var(--text-muted)" />
-                                키워드 복사
-                              </>
+                              <button
+                                onClick={() => copy(s.sectionId, pq.platform, pq.query)}
+                                className="btn-tertiary"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "var(--space-xs)",
+                                  fontSize: 14,
+                                  fontWeight: 600,
+                                  border: "none",
+                                  padding: "3px var(--space-sm)",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {copied === `${s.sectionId}:${pq.platform}` ? (
+                                  <>
+                                    <Check size={14} color="var(--text-muted)" />
+                                    복사됨
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy size={14} color="var(--text-muted)" />
+                                    키워드 복사
+                                  </>
+                                )}
+                              </button>
                             )}
-                          </button>
-                        )}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
                 <CollectedReferences
                   items={ref.references ?? []}
                   onAdd={(item) => addReferenceItem(s.sectionId, item)}
@@ -605,17 +665,12 @@ function CollectedReferences({
                 </select>
                 <button
                   onClick={() => onRemove(i)}
-                  aria-label="레퍼런스 삭제"
-                  title="삭제"
-                  className="btn-danger"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    border: "none",
-                    padding: "var(--space-xs) var(--space-sm)",
-                  }}
+                  aria-label="레퍼런스 제외"
+                  title="제외"
+                  className="btn-icon-neutral"
+                  style={{ width: 28, height: 28 }}
                 >
-                  <X size={14} color="var(--on-primary)" />
+                  <X size={14} />
                 </button>
               </div>
               {r.usage === "embeddable" && (

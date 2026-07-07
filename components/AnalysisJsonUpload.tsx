@@ -54,7 +54,7 @@ export default function AnalysisJsonUpload({ onFile }: AnalysisJsonUploadProps) 
         }}
       >
         <div>
-          <p style={{ fontWeight: 600, fontSize: 14 }}>분석 결과 JSON 업로드</p>
+          <p style={{ fontWeight: 600, fontSize: 14 }}>이전 작업 불러오기</p>
           <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
             이전에 저장한 분석 결과 JSON을 다시 불러옵니다
           </p>

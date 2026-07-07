@@ -136,7 +136,7 @@ export default function DictionaryManager() {
                     removeDictionaryEntry(e.id);
                     refresh();
                   }}
-                  className="btn-danger"
+                  className="btn-weak-danger"
                   style={{
                     border: "none",
                     borderRadius: "var(--radius-md)",

@@ -94,18 +94,12 @@ export default function DirectiveEditor({
             </label>
             <button
               onClick={() => onChange(directives.filter((_, j) => j !== i))}
-              aria-label="지시 삭제"
-              className="btn-danger"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "none",
-                borderRadius: "var(--radius-md)",
-                padding: "6px var(--space-sm)",
-              }}
+              aria-label="지시 제거"
+              title="지시 제거"
+              className="btn-icon-neutral"
+              style={{ width: 32, height: 32 }}
             >
-              <X size={16} color="var(--text-body)" />
+              <X size={16} />
             </button>
           </div>
           <div

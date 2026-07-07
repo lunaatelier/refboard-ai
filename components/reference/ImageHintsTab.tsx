@@ -61,6 +61,7 @@ export default function ImageHintsTab({
   const [genEnabled, setGenEnabled] = useState(false);
   const [generating, setGenerating] = useState<number>();
   const [genError, setGenError] = useState<string>();
+  const [genErrorIndex, setGenErrorIndex] = useState<number>();
 
   useEffect(() => {
     let cancelled = false;
@@ -148,6 +149,7 @@ export default function ImageHintsTab({
   const generateOne = async (index: number, hint: ImageHint) => {
     setGenerating(index);
     setGenError(undefined);
+    setGenErrorIndex(undefined);
     try {
       const res = await fetch("/api/generate-image", {
         method: "POST",
@@ -166,6 +168,7 @@ export default function ImageHintsTab({
       setGenError(
         e instanceof Error ? e.message : "이미지 생성에 실패했습니다.",
       );
+      setGenErrorIndex(index);
     } finally {
       setGenerating(undefined);
     }
@@ -411,9 +414,43 @@ export default function ImageHintsTab({
         </div>
       ))}
       {genError && generating == null && (
-        <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600 }}>
-          {genError}
-        </p>
+        <div
+          role="alert"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--space-sm)",
+            background: "var(--surface)",
+            border: "1px solid var(--error)",
+            borderRadius: "var(--radius-md)",
+            padding: "var(--space-md)",
+          }}
+        >
+          <p style={{ fontWeight: 600, fontSize: 14, color: "var(--error-weak-text)" }}>
+            이미지 생성에 실패했어요.
+          </p>
+          <p style={{ fontSize: 14, color: "var(--text-body)" }}>
+            {genError} 서버 응답이 지연되었거나 요청이 처리되지 않았을 수 있습니다.
+          </p>
+          {genErrorIndex != null && (references.imageHints ?? [])[genErrorIndex] && (
+            <button
+              onClick={() =>
+                generateOne(genErrorIndex, (references.imageHints ?? [])[genErrorIndex])
+              }
+              className="btn-weak-primary"
+              style={{
+                alignSelf: "flex-start",
+                border: "none",
+                borderRadius: "var(--radius-md)",
+                padding: "6px 14px",
+                fontWeight: 600,
+                fontSize: 14,
+              }}
+            >
+              다시 시도
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

@@ -41,6 +41,8 @@ const card: React.CSSProperties = {
   gap: "var(--space-md)",
 };
 
+const VISIBLE_TARGET_COUNT = 9;
+
 const AXIS_LABELS: [keyof AnalysisTargetAnalysis, string][] = [
   ["layoutStrategy", "1. 레이아웃 전략"],
   ["colorVisualStrategy", "2. 컬러·비주얼 전략"],
@@ -73,6 +75,7 @@ export default function TargetsTab({
   const [menuOpenId, setMenuOpenId] = useState<string>();
   const [manualName, setManualName] = useState("");
   const [manualUrl, setManualUrl] = useState("");
+  const [showAllTargets, setShowAllTargets] = useState(false);
 
   const list = references.analysisTargetList ?? [];
   const analyses = references.targetAnalyses ?? {};
@@ -250,7 +253,7 @@ export default function TargetsTab({
         style={{
           ...card,
           padding: "var(--space-base) var(--space-md)",
-          background: "var(--info-weak-bg)",
+          background: "var(--primary-soft)",
           border: "none",
           flexDirection: "row",
           alignItems: "center",
@@ -266,17 +269,17 @@ export default function TargetsTab({
             gap: "var(--space-sm)",
             fontWeight: 600,
             fontSize: 14,
-            color: "var(--info)",
+            color: "var(--primary-hover)",
           }}
         >
-          <Info size={18} color="var(--info)" />
+          <Info size={18} color="var(--primary-hover)" />
           분석 대상 브랜드를 넓게 훑고, 깊게 볼 것만 선택해 분석하세요
         </span>
         <span
           style={{
             fontWeight: 600,
             fontSize: 14,
-            color: "var(--info)",
+            color: "var(--primary-hover)",
             background: "var(--surface)",
             borderRadius: "var(--radius-full)",
             padding: "var(--space-xs) var(--space-md)",
@@ -357,7 +360,7 @@ export default function TargetsTab({
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "var(--space-md)" }}>
-        {list.map((item) => {
+        {(showAllTargets ? list : list.slice(0, VISIBLE_TARGET_COUNT)).map((item) => {
           const a = analyses[item.id];
           const host = hostnameOf(item.url);
           const busy = busyIds.has(item.id);
@@ -386,28 +389,12 @@ export default function TargetsTab({
                 <b style={{ fontSize: 16 }}>{item.name}</b>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)", flexWrap: "wrap" }}>
-                <span
-                  style={pill(
-                    item.source === "spec"
-                      ? "var(--surface-alt)"
-                      : item.source === "manual"
-                        ? "var(--info-weak-bg)"
-                        : "var(--primary-weak-bg)",
-                    item.source === "spec"
-                      ? "var(--text-muted)"
-                      : item.source === "manual"
-                        ? "var(--info)"
-                        : "var(--primary-hover)",
-                  )}
-                >
-                  {item.source === "spec" ? "설계서" : item.source === "manual" ? "직접" : "Gemini"}
-                </span>
                 {item.analysisStatus === "analyzed" && (
                   <span style={pill("var(--success)", "var(--on-primary)")}>분석됨</span>
                 )}
                 {a && (
                   <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
-                    · {daysAgo(a.analyzedAt) === 0 ? "오늘 분석" : `${daysAgo(a.analyzedAt)}일 전`}
+                    {daysAgo(a.analyzedAt) === 0 ? "오늘 분석" : `${daysAgo(a.analyzedAt)}일 전`}
                   </span>
                 )}
               </div>
@@ -421,6 +408,9 @@ export default function TargetsTab({
                     </a>
                   </>
                 )}
+              </p>
+              <p style={{ fontSize: 14, color: "var(--text-placeholder)" }}>
+                출처: {item.source === "spec" ? "설계서" : item.source === "manual" ? "직접 입력" : "Gemini"}
               </p>
               <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {item.analysisStatus !== "analyzed" ? (
@@ -437,7 +427,7 @@ export default function TargetsTab({
                       fontSize: 14,
                     }}
                   >
-                    {busy ? "분석 중…" : "깊게 분석 (7축)"}
+                    {busy ? "분석 중…" : "분석하기"}
                   </button>
                 ) : (
                   <>
@@ -563,6 +553,22 @@ export default function TargetsTab({
           );
         })}
       </div>
+      {!showAllTargets && list.length > VISIBLE_TARGET_COUNT && (
+        <button
+          onClick={() => setShowAllTargets(true)}
+          className="btn-tertiary"
+          style={{
+            alignSelf: "flex-start",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            padding: "8px var(--space-base)",
+            fontWeight: 600,
+            fontSize: 14,
+          }}
+        >
+          {list.length - VISIBLE_TARGET_COUNT}개 더 보기
+        </button>
+      )}
     </div>
   );
 }

@@ -162,7 +162,9 @@ button:disabled {
   color: var(--text-tertiary-hover); /* slate-700 */
 }
 
-/* 5. Danger — destructive confirmation (delete, discard original text) */
+/* 5. Danger — destructive confirmation (delete, discard original text).
+   Reserve for genuinely irreversible actions only — never for removing a
+   single item from a list (use .btn-icon-neutral or .btn-weak-danger). */
 .btn-danger {
   background: var(--error);
   color: var(--on-primary);
@@ -170,6 +172,38 @@ button:disabled {
 }
 .btn-danger:hover:not(:disabled) {
   background: var(--error-hover);
+}
+
+/* 5b. WeakDanger — permanent-but-routine removal (e.g. a stored dictionary
+   entry). Softer than Fill/Danger; still reads as "this deletes something". */
+.btn-weak-danger {
+  background: var(--error-weak-bg);
+  color: var(--error-weak-text);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.btn-weak-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* 5c. Icon/neutral — exclude, close, remove-from-list. This is the default
+   for any "X" button. It is NOT a delete action visually, even if the
+   underlying handler removes an item — only Fill/Danger and WeakDanger
+   should ever read as destructive. */
+.btn-icon-neutral {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-radius: var(--radius-md);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.btn-icon-neutral:hover:not(:disabled) {
+  background: var(--border); /* #E2E8F0 */
+  color: var(--text-strong);
 }
 
 button:not(:disabled) {
