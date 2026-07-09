@@ -489,9 +489,19 @@ interface OutputConfig {
 interface ConceptOption {
   optionId: string;
   conceptKeywords: ConceptAxis[]; // 3축 컨셉서 (사용성/일관성/효율성 등)
+  designBasis: DesignBasis;       // Phase 3 확정 팔레트·무드·타이포 방향 (구조화 — Phase 5 변환의 기반)
   uiStructure: UiStructure;       // 전체 UI 방향
   keyVisual: KeyVisual;           // 전체 비주얼 방향
   pages: ConceptPage[];           // 페이지별 구성
+}
+
+// Phase 3에서 확정한 디자인 결정을 줄글이 아니라 구조화된 데이터로 계승한다.
+// Phase 5(디자인 MD 변환)가 이 필드를 그대로 매핑만 하면 되게 하는 것이 목적
+// (CLAUDE.md §6 "Phase 4 Concept JSON은 컬러·타이포·무드를 구조화된 데이터로 보유").
+interface DesignBasis {
+  palette: Palette;             // Phase 3 확정 팔레트(역할 매핑 반영, 이 옵션이 채택한 모드 기준)
+  moodKeywords: string[];       // Phase 3에서 선택한 MoodBoard.keywords 계승
+  typographyDirection: string;  // 선택 무드의 styleAttributes.typographyNote 계승(옵션별 보강 가능)
 }
 
 interface ConceptAxis {           // 컨셉서 3축 포맷
@@ -538,7 +548,7 @@ interface ContentMapping {
 }
 ```
 
-**컨셉 = 3안 × 3축:** 각 ConceptOption은 UiStructure(레이아웃/네비/정보구조) + KeyVisual(이미지톤/일러스트·3D·사진/배경/장식) + Content Mapping(페이지·섹션별 본문 배치)으로 구성. 단순 "무드 3개"가 아니다.
+**컨셉 = 3안 × 3축:** 각 ConceptOption은 DesignBasis(Phase 3 확정 팔레트·무드·타이포의 구조화 계승) + UiStructure(레이아웃/네비/정보구조) + KeyVisual(이미지톤/일러스트·3D·사진/배경/장식) + Content Mapping(페이지·섹션별 본문 배치)으로 구성. 단순 "무드 3개"가 아니다.
 
 **렌더링:** ConceptJson → 클라이언트 렌더러 4종(HTML/PPT/PDF/MD). PPT는 `pptxgenjs`, PDF는 `jsPDF`/`pdf-lib`. 서버 렌더링 없음. 기본 마스킹본, 실명본은 명시적 선택 시 클라에서 복원.
 
@@ -558,7 +568,8 @@ interface ContentMapping {
    .recommendedLayout→   .layoutPattern(선택)→    .layoutPattern
    .contentSummary  →    ─                   →    .contentMapping.maskedContent
    .referenceQueries→    .platformQueries    →    (컨셉 근거로 참조)
-                    →    Palette/Mood        →    ConceptOption.keyVisual
+                    →    Palette/Mood        →    ConceptOption.designBasis (구조화)
+                                                   →  ConceptOption.keyVisual (서술)
 ```
 
 핵심: Phase 2의 한 Section이 Phase 4의 ConceptSection으로 자란다. `sectionId`가 동일하게 유지되어 어느 단계에서든 출처를 역추적할 수 있다.

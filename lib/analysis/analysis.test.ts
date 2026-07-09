@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildSourceMaterial } from "../ai/exclusion";
 import { buildAnalysisPrompt, buildDirectiveBlock } from "../ai/prompts";
+import { confirmSelectedSections } from "./confirm";
 import { classifyDocumentPurpose } from "./documentPurpose";
-import { normalizeAnalysis } from "./normalize";
+import { filterBrandColorCandidates, normalizeAnalysis } from "./normalize";
 import type { ProjectAnalysis } from "./types";
 
 describe("normalizeAnalysis — Gemini 응답 정규화", () => {
@@ -90,6 +91,45 @@ describe("normalizeAnalysis — Gemini 응답 정규화", () => {
     });
     assert.equal(without.parentSiteRelation, undefined);
   });
+
+  it("배경/테마 설명에만 등장한 hex는 brandColors에서 제외한다 (팔레트 그레이 버그 원인)", () => {
+    const sourceText =
+      "Theme: 반드시 'Dark Mode'를 기본 테마로 설정하세요. 배경은 깊은 네이비/차콜(#0f172a 또는 #1e293b) 계열을 사용해 장시간 관제 시 눈의 피로를 낮추세요.";
+    const a = normalizeAnalysis(
+      {
+        pages: [{ pageTitle: "메인", pageRole: "content", sections: [] }],
+        brandColors: ["#0f172a", "#1e293b"],
+      },
+      sourceText,
+    );
+    assert.equal(a.brandColors, undefined);
+  });
+
+  it("브랜드/로고 라벨이 붙은 hex는 배경 언급이 섞여 있어도 유지한다", () => {
+    const sourceText =
+      "배경은 흰색을 사용합니다. 브랜드 로고 컬러는 #2563EB 입니다.";
+    const a = normalizeAnalysis(
+      {
+        pages: [{ pageTitle: "메인", pageRole: "content", sections: [] }],
+        brandColors: ["#2563EB"],
+      },
+      sourceText,
+    );
+    assert.deepEqual(a.brandColors, ["#2563EB"]);
+  });
+});
+
+describe("filterBrandColorCandidates — 배경/테마 라벨 hex 제외", () => {
+  it("소스 텍스트가 없으면 필터링하지 않는다 (보수적 기본값)", () => {
+    assert.deepEqual(filterBrandColorCandidates(["#0f172a"], ""), ["#0f172a"]);
+  });
+
+  it("문서에서 찾을 수 없는 hex는 보수적으로 유지한다", () => {
+    assert.deepEqual(
+      filterBrandColorCandidates(["#0f172a"], "이 문서엔 색상 언급이 없다."),
+      ["#0f172a"],
+    );
+  });
 });
 
 describe("classifyDocumentPurpose — 문서 성격 판정 (Step 8, 실사용#14)", () => {
@@ -167,7 +207,7 @@ describe("buildSourceMaterial — 제외 페이지 차단 (Step 7)", () => {
   analysis.pages[1].excludedReason = "sensitive";
 
   it("선택 페이지 내용은 포함, 제외 페이지 내용은 미포함", () => {
-    const src = buildSourceMaterial(analysis);
+    const src = buildSourceMaterial(confirmSelectedSections(analysis));
     assert.ok(src.includes("[회사A] 연혁 타임라인"));
     assert.ok(!src.includes("[투자금A] 유치 상세")); // 제외 내용이 프롬프트에 없음
   });
@@ -179,5 +219,50 @@ describe("buildSourceMaterial — 제외 페이지 차단 (Step 7)", () => {
         'Excluded page "투자 정보" must not be used as source material. Reason: sensitive content.',
       ),
     );
+  });
+});
+
+describe("confirmSelectedSections — 선택 페이지 확정 게이트", () => {
+  it("선택한 페이지 섹션만 confirmed로 바꾸고, 미선택 페이지 섹션은 후보로 남긴다", () => {
+    const analysis = normalizeAnalysis({
+      pages: [
+        {
+          pageTitle: "선택",
+          pageRole: "content",
+          sections: [{ sectionTitle: "포함", contentSummary: "포함 내용" }],
+        },
+        {
+          pageTitle: "제외",
+          pageRole: "content",
+          sections: [{ sectionTitle: "제외", contentSummary: "제외 내용" }],
+        },
+      ],
+    });
+    analysis.pages[1].selected = false;
+
+    const confirmed = confirmSelectedSections(analysis);
+
+    assert.equal(confirmed.pages[0].sections[0].status, "confirmed");
+    assert.equal(confirmed.pages[1].sections[0].status, "candidate");
+  });
+
+  it("후속 소스 자료에는 선택됐지만 아직 확정되지 않은 섹션도 포함하지 않는다", () => {
+    const analysis = normalizeAnalysis({
+      pages: [
+        {
+          pageTitle: "선택",
+          pageRole: "content",
+          sections: [
+            { sectionTitle: "확정 전", contentSummary: "아직 후보인 내용" },
+          ],
+        },
+      ],
+    });
+
+    const beforeConfirm = buildSourceMaterial(analysis);
+    assert.ok(!beforeConfirm.includes("아직 후보인 내용"));
+
+    const afterConfirm = buildSourceMaterial(confirmSelectedSections(analysis));
+    assert.ok(afterConfirm.includes("아직 후보인 내용"));
   });
 });

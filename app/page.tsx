@@ -43,6 +43,7 @@ import {
   isAnalysisJsonFile,
   parseAnalysisImport,
 } from "@/lib/state/recycle";
+import { confirmSelectedSections } from "@/lib/analysis/confirm";
 import {
   buildRecoveryKeyExport,
   parseRecoveryKeyImport,
@@ -495,16 +496,7 @@ export default function Home() {
       return {
         ...prev,
         // 확정 게이트: 남긴 후보 섹션을 confirmed로 전환 (Phase 3 입력 자격)
-        analysis: {
-          ...prev.analysis,
-          pages: prev.analysis.pages.map((p) => ({
-            ...p,
-            sections: p.sections.map((s) => ({
-              ...s,
-              status: "confirmed" as const,
-            })),
-          })),
-        },
+        analysis: confirmSelectedSections(prev.analysis),
         completedSteps: prev.completedSteps.includes("analysis")
           ? prev.completedSteps
           : [...prev.completedSteps, "analysis"],

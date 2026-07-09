@@ -18,13 +18,15 @@ Write-Output "$weekStart ~ $weekEnd"
 
 ## 2. 세션 로그 읽기
 
-`$workspace\work-log\refboard-ai\session_[weekStart].md` 를 읽어
+`$workspace\work-log\design-orchestrator\session_[weekStart].md` 를 읽어
 이번 주 세션들의 작업 내용을 파악합니다.
+
+> `design-orchestrator`이 `refboard-ai`과 다르면, 이 세션 로그에는 같은 그룹으로 묶인 다른 프로젝트의 세션도 함께 들어있을 수 있습니다(세션 제목의 `— refboard-ai` 표시로 구분). 연구노트는 이들을 인위적으로 분리하지 않고, 하나의 작업 흐름으로 종합해 작성합니다.
 
 ## 3. 연구노트 작성
 
 세션 로그 내용을 바탕으로 아래 서식에 맞춰 연구노트를 작성합니다.
-저장 경로: `$workspace\work-log\refboard-ai\research_[weekStart].md`
+저장 경로: `$workspace\work-log\design-orchestrator\research_[weekStart].md`
 
 **비개발자 친화적 모드 (필수):** 세션 로그가 개발 용어로 남아있더라도, 연구노트로 옮길 때는 개발 용어를 그대로 쓰지 않고 "무엇을 할 수 있게 됐는지/무엇을 알게 됐는지" 결과 중심으로 풀어 쓴다. 팀장·기획자 등 비개발자가 읽어도 이해할 수 있어야 한다.
 

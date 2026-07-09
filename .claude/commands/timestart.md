@@ -21,14 +21,16 @@ Get-Date -Format "yyyy-MM-dd HH:mm (ddd)"
 ## 3. 프로젝트명
 
 이 프로젝트는 `refboard-ai` 으로 고정되어 있습니다 (설치 시 자동 지정, 다시 묻지 않습니다).
+기록 저장 그룹은 `design-orchestrator` 입니다 (`refboard-ai`과 다르면, 다른 프로젝트와 시간추적을 하나로 묶는 특수 설정).
 
 ## 4. 세션 시작 선언
 
-아래 형식으로 출력합니다.
+아래 형식으로 출력합니다. `design-orchestrator`이 `refboard-ai`과 같으면 "그룹" 줄은 생략합니다.
 
 ```
 ✅ 세션 시작
 프로젝트  : refboard-ai
+그룹      : design-orchestrator
 시작 시각 : [KST 시각]
 기준      : IDLE_CAP 10분 / AI 응답·도구 실행 시간 제외
 

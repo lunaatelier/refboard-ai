@@ -49,7 +49,7 @@ ${buildDirectiveBlock(directives, "analysis")}${imageBlock}
   (화면 생김새가 아니라 메뉴·기능의 "행위 성격" 기준으로 판정: 게시판·배너·회원 관리 등 CRUD 행위 → dashboard-ops(관리자), 통계·차트·모니터링 행위 → dashboard-ops(분석형), 브랜드 소개·전환 유도 → marketing-web, 제안서·소개서 문서 → document)
 - domainConfidence: 0~1
 - targetUser, projectType(브로셔/홈페이지/관리자/대시보드/앱 등), tags(3~8개)
-- brandColors: 문서에 브랜드 컬러 언급이 있을 때만 hex 배열
+- brandColors: 문서에 "브랜드/로고/CI 컬러"로 명시된 hex만 포함하라. 배경·테마·다크모드·UI 컬러 시스템 설명(예: "배경은 #0f172a 계열")에만 등장하는 hex는 브랜드 컬러가 아니므로 절대 포함하지 마라.
 
 2. 구성 페이지 재구성 (중요)
 - 슬라이드·장 구분과 1:1로 만들지 마라. 내용 기준으로 페이지를 재구성한다 (여러 슬라이드가 1페이지일 수도, 1슬라이드에 여러 섹션이 있을 수도 있다).

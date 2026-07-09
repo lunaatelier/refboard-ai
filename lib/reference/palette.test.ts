@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   colorPool,
+  contrastRatio,
   generatePaletteOptions,
   hexToHsl,
   hslToHex,
@@ -83,5 +84,41 @@ describe("palette — 3세트 생성 (Step 10-a)", () => {
     const pool = colorPool(generatePaletteOptions()[0]);
     assert.equal(new Set(pool).size, pool.length);
     assert.ok(pool.length >= 7);
+  });
+});
+
+describe("palette — 산출물 검증 (대비비·채도 하한, 그레이 팔레트 재발 방지)", () => {
+  it("채도는 있지만 명도가 낮아 거의 검게 보이는 시드도 브랜드 충실형에서 눈에 띄는 색으로 보정된다", () => {
+    // #0f172a: HSL s≈0.47, l≈0.11 — isUsableBrandColor는 통과하지만
+    // 화면에서는 거의 검정/짙은 남색으로 보인다. 흰 배경 대비 대비비는
+    // 원래도 높으므로(어두운 색일수록 대비비만으로는 못 잡는다) 명도 하한이
+    // 실제로 원본 hex를 밀어 올렸는지까지 확인한다.
+    const opts = generatePaletteOptions(["#0f172a"]);
+    const faithful = opts.find((o) => o.optionId === "brand-faithful")!;
+    assert.notEqual(faithful.light.primary, "#0F172A"); // 보정이 실제로 일어남
+    const hsl = hexToHsl(faithful.light.primary)!;
+    assert.ok(hsl.s >= 0.35, `채도 하한 미달: ${hsl.s}`);
+    assert.ok(hsl.l >= 0.3, `명도 하한 미달: ${hsl.l}`);
+    assert.ok(
+      contrastRatio(faithful.light.primary, "#FFFFFF") >= 2.5,
+      "배경 대비 대비비 미달",
+    );
+  });
+
+  it("브랜드 미니멀형 primary는 의도된 저채도를 유지한다 (accent가 브랜드색 담당)", () => {
+    const opts = generatePaletteOptions(["#0f172a"]);
+    const minimal = opts.find((o) => o.optionId === "brand-minimal")!;
+    const hsl = hexToHsl(minimal.light.primary)!;
+    assert.ok(hsl.s < 0.35);
+  });
+
+  it("이미 기준을 만족하는 색은 원본 그대로 유지한다 (불필요한 보정 없음)", () => {
+    const opts = generatePaletteOptions(["#E91E63"]);
+    assert.equal(opts[0].light.primary, "#E91E63");
+  });
+
+  it("contrastRatio: 동일 색은 1, 흑백은 21에 가깝다", () => {
+    assert.ok(Math.abs(contrastRatio("#FFFFFF", "#FFFFFF") - 1) < 0.001);
+    assert.ok(contrastRatio("#000000", "#FFFFFF") > 20);
   });
 });

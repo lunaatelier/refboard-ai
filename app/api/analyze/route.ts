@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     const raw = await generateJson(
       buildAnalysisPrompt(maskedText, keptTargets, directives, imageNotes),
     );
-    return NextResponse.json({ analysis: normalizeAnalysis(raw) });
+    return NextResponse.json({ analysis: normalizeAnalysis(raw, maskedText) });
   } catch (e) {
     const message = e instanceof Error ? e.message : "분석에 실패했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });

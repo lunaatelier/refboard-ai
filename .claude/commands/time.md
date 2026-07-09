@@ -123,16 +123,18 @@ $weekEnd = $today.AddDays(-$daysSinceFri + 6).ToString("yyyy-MM-dd")
 Write-Output "$weekStart ~ $weekEnd"
 ```
 
-파일 경로: `$workspace\work-log\refboard-ai\session_[weekStart].md`
+파일 경로: `$workspace\work-log\design-orchestrator\session_[weekStart].md`
 
 폴더가 없으면 생성 후 파일을 새로 만들고, 있으면 기존 파일에 누적 추가합니다.
+
+> `design-orchestrator`이 `refboard-ai`과 다르면, 이 프로젝트는 다른 프로젝트와 시간추적 기록을 하나로 묶어서 저장하는 특수 설정입니다(설치 시 지정됨). 세션 감지(위 2단계)는 항상 `refboard-ai` 기준 그대로이고, **저장 위치만** `design-orchestrator` 폴더를 씁니다.
 
 ## 안전한 쓰기 절차 (필수 — 데이터 손실 방지)
 
 경로 혼동(`refboard-ai\work-log\...`라는 프로젝트 내부 경로에 잘못 저장)과 전체 덮어쓰기가 겹치면 기존 세션이 통째로 사라질 수 있습니다. 세션 로그 파일에 쓰기 전 반드시 아래 순서를 지킵니다.
 
 0. **PowerShell로 쓸 때는 반드시 single-quoted here-string(`@'...'@`)을 사용**: 작업 내용 요약에 백틱(`` ` ``, 코드 포맷용)이 들어가는 경우가 많은데, 큰따옴표 here-string(`@"..."@`)을 쓰면 PowerShell이 백틱을 escape 문자로 해석합니다 — `` `t ``/`` `n ``/`` `r ``이 각각 tab/newline/carriage-return으로 치환되며 그 뒤 글자(t/n/r)가 사라져 "tsc"가 "sc", "resolveX"가 "esolveX"처럼 손상됩니다. 변수 보간이 필요 없는 고정 텍스트라면 항상 `@'...'@`(single-quoted, 리터럴)를 쓰고, `@"..."@`는 쓰지 않습니다.
-1. **경로 검증**: 대상 경로에 `refboard-ai\work-log\`가 포함되면(프로젝트 폴더 내부) 금지 경로이므로 즉시 중단하고 사용자에게 알립니다. 올바른 경로는 `$workspace\work-log\refboard-ai\session_[weekStart].md`처럼 workspace 루트(프로젝트 폴더의 부모 폴더) 기준이어야 합니다.
+1. **경로 검증**: 대상 경로에 `refboard-ai\work-log\`가 포함되면(프로젝트 폴더 내부) 금지 경로이므로 즉시 중단하고 사용자에게 알립니다. 올바른 경로는 `$workspace\work-log\design-orchestrator\session_[weekStart].md`처럼 workspace 루트(프로젝트 폴더의 부모 폴더) 기준이어야 합니다.
 2. **파일이 이미 존재하면**:
    - 먼저 `Get-Content`로 전체 내용을 읽어 기존 세션 개수와 내용을 확인합니다.
    - 같은 폴더에 `session_[weekStart].md.bak`으로 현재 내용을 백업합니다 (매번 최신 상태로 덮어써도 됩니다).
@@ -141,7 +143,7 @@ Write-Output "$weekStart ~ $weekEnd"
 4. **쓰기 후 검증**: 파일을 다시 읽어 (a) 쓰기 전에 있던 세션 항목 수가 줄지 않았는지, (b) 새 세션이 끝에 추가됐는지 확인합니다. 항목이 줄었으면 즉시 `.bak`에서 복구하고 사용자에게 알립니다.
 5. **검증 통과 시에만 커밋**: 4번 검증을 통과한 경우에만 `work-log` 저장소에 커밋합니다. 검증에 실패했으면 커밋하지 않습니다 — 잘못된 상태가 git 기록에 남지 않도록 합니다.
    ```powershell
-   git -C "$workspace\work-log" add "refboard-ai/session_[weekStart].md"
+   git -C "$workspace\work-log" add "design-orchestrator/session_[weekStart].md"
    git -C "$workspace\work-log" commit -m "log: refboard-ai [YYYY-MM-DD] 세션 기록"
    ```
    커밋된 내용은 이후 다시 잘못 쓰여도 `git log`/`git show`로 언제든 이전 정상 상태를 복구할 수 있는 영구 기록이 됩니다.
@@ -151,7 +153,7 @@ Write-Output "$weekStart ~ $weekEnd"
 파일이 없으면 헤더를 먼저 작성합니다:
 
 ```
-# refboard-ai — AI 협업 세션 로그
+# design-orchestrator — AI 협업 세션 로그
 ## 주간: [weekStart](금) ~ [weekEnd](목)
 
 ---
@@ -168,6 +170,8 @@ Write-Output "$weekStart ~ $weekEnd"
   - ...
 
 ```
+
+`design-orchestrator`이 `refboard-ai`과 다르면(여러 프로젝트가 기록을 공유하는 경우), 세션 제목 끝에 실제 작업한 프로젝트를 표시합니다: `### [YYYY-MM-DD (요일)] 세션 N [Claude Code / Codex — refboard-ai]`
 
 오늘이 **목요일**이면 주간 합계를 파일 끝에 추가합니다:
 
@@ -188,5 +192,5 @@ Write-Output "$weekStart ~ $weekEnd"
 도구          : [Claude Code / Codex]
 세션 시간     : HH:MM ~ HH:MM (KST)
 AI 협업 사람 능동시간 : XX분
-저장          : work-log/refboard-ai/session_[weekStart].md
+저장          : work-log/design-orchestrator/session_[weekStart].md
 ```

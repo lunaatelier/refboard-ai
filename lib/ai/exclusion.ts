@@ -26,7 +26,7 @@ export function buildSourceMaterial(analysis: ProjectAnalysis): string {
     const lines = [
       `## 페이지: ${page.pageTitle} (pageId: ${page.pageId}, 역할: ${page.pageRole})`,
     ];
-    for (const s of page.sections) {
+    for (const s of page.sections.filter((section) => section.status === "confirmed")) {
       lines.push(
         `- (sectionId: ${s.sectionId}) [${s.contentType} / ${s.recommendedLayout}] ${s.sectionTitle}: ${s.contentSummary}`,
       );

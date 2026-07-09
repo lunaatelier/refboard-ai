@@ -78,29 +78,106 @@ function isUsableBrandColor(hex: string): boolean {
   return hsl.s >= 0.12 && hsl.l >= 0.08 && hsl.l <= 0.92;
 }
 
+// ── 산출물 검증 (2026-07-09/10 그레이 팔레트 재발 방지) ──
+// isUsableBrandColor는 "시드로 쓸 수 있는가"만 본다. 통과한 시드라도(예: 채도는
+// 있지만 명도가 매우 낮은 짙은 남색 #0f172a — s≈0.47인데 l≈0.11)를 그대로
+// primary에 쓰면 화면에서 거의 검정처럼 보인다. 이런 케이스는 대비비만으로는
+// 못 잡는다 — 어두운 색은 흰 배경 대비 오히려 대비비가 "높게"(예: 17.8) 나오기
+// 때문. 그래서 명도 하한선을 별도로 두고, 채도·대비비와 함께 검증한다.
+const MIN_PRIMARY_SATURATION = 0.35;
+const MIN_PRIMARY_LIGHTNESS = 0.3; // 이보다 어두우면 배경과 무관하게 "검정"처럼 보임
+const MIN_PRIMARY_CONTRAST = 2.5; // 배경과 실질적으로 구분되는지의 안전망(WCAG 3:1보다 약간 관대 — 채도 있는 중간톤 색까지 통과시키기 위함)
+
+function hexToRgb(hex: string): [number, number, number] | null {
+  const m = hex.trim().match(/^#?([0-9a-f]{6})$/i);
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function relativeLuminance(hex: string): number {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0;
+  const [r, g, b] = rgb.map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// WCAG 2.x 대비비 공식. 1(무대비)~21(최대 대비).
+export function contrastRatio(hexA: string, hexB: string): number {
+  const a = relativeLuminance(hexA);
+  const b = relativeLuminance(hexB);
+  const lighter = Math.max(a, b);
+  const darker = Math.min(a, b);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// primary가 배경과 구분 안 되는 무채색(짙은 남색·회색·검정)으로 나오는 걸
+// 막는다. 채도·명도를 하한까지 끌어올리고, 그래도 대비비가 부족하면 배경 반대
+// 방향으로 명도를 조금씩 밀며 재시도한다. 이미 기준을 만족하면 원본 hex를
+// 그대로 반환(불필요한 HSL 왕복 변환으로 인한 반올림 오차 방지).
+function ensureVividPrimary(hex: string, backgroundHex: string): string {
+  const hsl = hexToHsl(hex);
+  if (!hsl) return hex;
+  if (
+    hsl.s >= MIN_PRIMARY_SATURATION &&
+    hsl.l >= MIN_PRIMARY_LIGHTNESS &&
+    contrastRatio(hex, backgroundHex) >= MIN_PRIMARY_CONTRAST
+  ) {
+    return hex;
+  }
+
+  let { h, s, l } = hsl;
+  if (s < MIN_PRIMARY_SATURATION) s = MIN_PRIMARY_SATURATION;
+  if (l < MIN_PRIMARY_LIGHTNESS) l = MIN_PRIMARY_LIGHTNESS;
+  let candidate = hslToHex({ h, s, l });
+  const bgIsDark = relativeLuminance(backgroundHex) < 0.5;
+  let attempts = 0;
+  while (
+    contrastRatio(candidate, backgroundHex) < MIN_PRIMARY_CONTRAST &&
+    attempts < 12
+  ) {
+    l = bgIsDark ? Math.min(0.92, l + 0.03) : Math.max(0.08, l - 0.03);
+    candidate = hslToHex({ h, s, l });
+    attempts++;
+  }
+  return candidate;
+}
+
+const LIGHT_BG = "#FFFFFF";
+const DARK_BG = "#0F1115";
+
 function buildPair(
   optionId: string,
   label: string,
   primary: string,
   secondary: string,
   accent: string,
+  // "미니멀형" 계열은 primary를 의도적으로 저채도로 설계한다(포인트는
+  // accent가 담당) — 그런 경우엔 채도 강제 보정을 건너뛴다.
+  enforceVividPrimary = true,
 ): PaletteOption {
+  const darkPrimaryRaw = adjust(primary, { l: 0.12 }); // 다크에서 시인성 확보
   const light: Palette = {
     mode: "light",
-    primary,
+    primary: enforceVividPrimary ? ensureVividPrimary(primary, LIGHT_BG) : primary,
     secondary,
     accent,
-    background: "#FFFFFF",
+    background: LIGHT_BG,
     surface: "#F7F8FA",
     text: "#1C1F24",
     navigation: "#FFFFFF",
   };
   const dark: Palette = {
     mode: "dark",
-    primary: adjust(primary, { l: 0.12 }), // 다크에서 시인성 확보
+    primary: enforceVividPrimary
+      ? ensureVividPrimary(darkPrimaryRaw, DARK_BG)
+      : darkPrimaryRaw,
     secondary: adjust(secondary, { l: 0.12 }),
     accent: adjust(accent, { l: 0.08 }),
-    background: "#0F1115",
+    background: DARK_BG,
     surface: "#171A21",
     text: "#E8EAED",
     navigation: "#12151B",
@@ -143,6 +220,7 @@ function buildBrandOption(
         adjust(brand, { s: -0.35 + j(0.1) }),
         "#6B7280",
         brand,
+        false, // 저채도 primary가 의도된 디자인 — accent가 브랜드색을 담당
       );
   }
 }
@@ -162,7 +240,7 @@ export function generatePaletteOptions(
   return [
     buildPair("trust", "신뢰형", "#2563EB", "#64748B", "#0EA5E9"),
     buildPair("innovation", "혁신형", "#7C3AED", "#14B8A6", "#F59E0B"),
-    buildPair("minimal", "미니멀형", "#1C1F24", "#6B7280", "#2563EB"),
+    buildPair("minimal", "미니멀형", "#1C1F24", "#6B7280", "#2563EB", false),
   ];
 }
 
