@@ -50,15 +50,8 @@ export default function DirectiveEditor({
         value={text}
         onChange={(e) => applyText(e.target.value)}
         placeholder='예: "ESG 강조" — 실명·기밀 정보는 넣지 마세요. 여러 요청은 줄바꿈으로 구분하세요.'
-        className="input-box"
+        className="textarea-box"
         rows={3}
-        style={{
-          padding: "10px var(--space-md)",
-          borderRadius: "var(--radius-md)",
-          fontSize: 14,
-          font: "inherit",
-          resize: "vertical",
-        }}
       />
       <div
         style={{

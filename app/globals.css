@@ -21,12 +21,12 @@
   --on-primary: #ffffff;
 
   /* Surfaces */
-  --bg: #f8fafc; /* page canvas (slate50) */
-  --surface: #ffffff; /* card / panel surface */
+  --surface: #f8fafc; /* page canvas (slate50) */
+  --canvas: #ffffff; /* card / panel surface */
   --surface-alt: #f1f5f9; /* secondary surface (slate100) */
 
   /* Text (Tailwind slate scale) */
-  --text: #0f172a; /* slate900 - foreground/heading */
+  --foreground: #0f172a; /* slate900 - foreground/heading */
   --text-strong: #1e293b; /* slate800 - nav/input emphasis */
   --text-tertiary-hover: #334155; /* slate700 - tertiary-button hover text only */
   --text-body: #475569; /* slate600 - body copy */
@@ -36,6 +36,9 @@
   /* Borders */
   --border: #e2e8f0; /* slate200 */
   --border-strong: #cbd5e1; /* slate300 */
+
+  /* Overlay */
+  --scrim: rgba(15, 23, 42, 0.5); /* dialog/drawer/모바일 LNB 드로어 배경 오버레이 */
 
   /* Semantic */
   --success: #10b981;
@@ -91,7 +94,7 @@ body {
     -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px; /* UI 원칙: 최소 14px */
   color: var(--text-body);
-  background: var(--bg);
+  background: var(--surface);
   line-height: 1.6;
 }
 
@@ -99,7 +102,7 @@ h1,
 h2,
 h3,
 h4 {
-  color: var(--text);
+  color: var(--foreground);
   font-weight: 700;
 }
 
@@ -216,12 +219,12 @@ button:not(:disabled) {
    it's applied directly on the element). */
 .dropzone {
   border: 2px dashed var(--border);
-  background: var(--bg);
+  background: var(--surface);
   transition: border-color 150ms ease, background-color 150ms ease;
 }
 .dropzone:hover {
   border-color: var(--primary);
-  background: var(--surface);
+  background: var(--canvas);
 }
 
 /* 7. Clickable reference/concept cards — hover border only; a selected
@@ -255,6 +258,34 @@ button:not(:disabled) {
   outline: none;
 }
 
+textarea.input-box,
+.textarea-box {
+  min-height: 96px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--canvas);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color 150ms ease;
+}
+textarea.input-box::placeholder,
+.textarea-box::placeholder {
+  color: var(--text-placeholder);
+}
+textarea.input-box:hover:not(:focus),
+.textarea-box:hover:not(:focus) {
+  border-color: var(--border-strong);
+}
+textarea.input-box:focus,
+.textarea-box:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
 /* 9b. Select — appearance-reset with a custom chevron; generous right
    padding (36px) keeps the arrow from crowding the value text. Hover/
    focus mirror .input-box so both control types read as one family. */
@@ -266,7 +297,7 @@ button:not(:disabled) {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   font: inherit;
-  background-color: var(--surface);
+  background-color: var(--canvas);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
@@ -313,6 +344,71 @@ input[type="radio"] {
   accent-color: var(--primary);
   cursor: pointer;
   flex-shrink: 0;
+}
+
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  place-content: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+input[type="checkbox"]:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+input[type="checkbox"]:checked {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+input[type="checkbox"]::after {
+  content: "";
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid var(--on-primary);
+  border-bottom: 2px solid var(--on-primary);
+  transform: rotate(-45deg) scale(0);
+  transform-origin: center;
+  transition: transform 150ms ease;
+}
+input[type="checkbox"]:checked::after {
+  transform: rotate(-45deg) scale(1);
+}
+input[type="checkbox"]:disabled {
+  border-color: var(--border);
+  background: var(--surface-alt);
+  cursor: not-allowed;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--canvas);
+  color: var(--text-body);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.data-table th,
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.data-table th {
+  background: var(--surface-alt);
+  color: var(--text-strong);
+  font-weight: 600;
+}
+.data-table tr:last-child > th,
+.data-table tr:last-child > td {
+  border-bottom: none;
 }
 
 *:focus-visible {

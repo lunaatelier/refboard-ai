@@ -61,6 +61,19 @@ describe("palette — 3세트 생성 (Step 10-a)", () => {
     assert.equal(opts[2].light.accent, "#E91E63"); // 미니멀형 = 브랜드색 포인트
   });
 
+  it("검정/회색 placeholder 브랜드컬러는 추천 기준에서 제외한다", () => {
+    const opts = generatePaletteOptions(["#000000", "#777777"]);
+    assert.deepEqual(
+      opts.map((o) => o.optionId),
+      ["trust", "innovation", "minimal"],
+    );
+  });
+
+  it("무채색과 유채색이 함께 있으면 유채색을 기준으로 추천한다", () => {
+    const opts = generatePaletteOptions(["#111111", "#0EA5E9"]);
+    assert.equal(opts[0].light.primary, "#0EA5E9");
+  });
+
   it("잘못된 브랜드컬러는 무시하고 기본 3세트로 폴백", () => {
     const opts = generatePaletteOptions(["파란색"]);
     assert.equal(opts[0].optionId, "trust");

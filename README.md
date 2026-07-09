@@ -1,4 +1,4 @@
-# Design Reference Generator (제품 A) — 문서 세트
+# RefBoard AI (제품 A) — 문서 세트
 
 디자이너가 기획서를 올리면 분석 → 레퍼런스/무드보드 → 컨셉서까지 자동화하는 Next.js 웹앱.
 이 폴더는 **Claude Code로 구현하기 위한 설계 문서 세트**다.

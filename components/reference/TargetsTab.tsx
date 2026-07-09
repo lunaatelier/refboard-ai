@@ -32,7 +32,7 @@ interface TargetsTabProps {
 }
 
 const card: React.CSSProperties = {
-  background: "var(--surface)",
+  background: "var(--canvas)",
   border: "1px solid var(--border)",
   borderRadius: "var(--radius-lg)",
   padding: "var(--space-lg)",
@@ -280,7 +280,7 @@ export default function TargetsTab({
             fontWeight: 600,
             fontSize: 14,
             color: "var(--primary-hover)",
-            background: "var(--surface)",
+            background: "var(--canvas)",
             borderRadius: "var(--radius-full)",
             padding: "var(--space-xs) var(--space-md)",
           }}
@@ -305,6 +305,7 @@ export default function TargetsTab({
               borderRadius: "var(--radius-md)",
               border: "none",
               background: listBusy ? "var(--locked)" : undefined,
+              color: listBusy ? "var(--on-primary)" : undefined,
               fontWeight: 600,
               fontSize: 14,
             }}
@@ -423,6 +424,7 @@ export default function TargetsTab({
                       borderRadius: "var(--radius-md)",
                       border: "none",
                       background: busy ? "var(--locked)" : undefined,
+                      color: busy ? "var(--on-primary)" : undefined,
                       fontWeight: 600,
                       fontSize: 14,
                     }}
@@ -478,7 +480,7 @@ export default function TargetsTab({
                             position: "absolute",
                             right: 0,
                             top: "calc(100% + 4px)",
-                            background: "var(--surface)",
+                            background: "var(--canvas)",
                             border: "1px solid var(--border)",
                             borderRadius: "var(--radius-md)",
                             boxShadow: "var(--shadow-elevated)",

@@ -15,7 +15,7 @@ export default function Workspace({
   children,
 }: WorkspaceProps) {
   return (
-    <div className="workspace-shell" style={{ background: "var(--bg)" }}>
+    <div className="workspace-shell" style={{ background: "var(--surface)" }}>
       <Lnb state={state} onNavigate={onNavigate} />
       <main
         className="workspace-main"

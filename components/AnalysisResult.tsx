@@ -77,7 +77,7 @@ interface AnalysisResultProps {
 }
 
 const card: React.CSSProperties = {
-  background: "var(--surface)",
+  background: "var(--canvas)",
   border: "1px solid var(--border)",
   borderRadius: "var(--radius-lg)",
   padding: "var(--space-lg)",
@@ -214,7 +214,7 @@ export default function AnalysisResult({
           fontWeight: 700,
           fontSize: 14,
           color: "var(--primary)",
-          background: "var(--surface)",
+          background: "var(--canvas)",
           borderRadius: "var(--radius-full)",
           padding: "4px 14px",
         }}
@@ -642,7 +642,7 @@ export default function AnalysisResult({
                             flexDirection: "column",
                             gap: "var(--space-xs)",
                             padding: "10px var(--space-md)",
-                            background: "var(--bg)",
+                            background: "var(--surface)",
                             borderRadius: "var(--radius-md)",
                           }}
                         >

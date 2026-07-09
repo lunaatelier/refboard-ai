@@ -23,7 +23,7 @@ interface SectionRefsTabProps {
 }
 
 const card: React.CSSProperties = {
-  background: "var(--surface)",
+  background: "var(--canvas)",
   border: "1px solid var(--border)",
   borderRadius: "var(--radius-lg)",
   padding: "var(--space-lg)",
@@ -262,6 +262,7 @@ export default function SectionRefsTab({
               borderRadius: "var(--radius-md)",
               border: "none",
               background: busy ? "var(--locked)" : undefined,
+              color: busy ? "var(--on-primary)" : undefined,
               fontWeight: 600,
               fontSize: 14,
             }}
@@ -621,7 +622,7 @@ function CollectedReferences({
                 flexDirection: "column",
                 gap: "var(--space-xs)",
                 padding: "var(--space-sm) var(--space-md)",
-                background: "var(--bg)",
+                background: "var(--surface)",
                 borderRadius: "var(--radius-md)",
               }}
             >

@@ -78,13 +78,53 @@ function SectionBlock({ s, p }: { s: ConceptSection; p: Palette }) {
       return (
         <div style={base}>
           {title}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2, fontSize: 13 }}>
-            {["항목", "A", "B", "…", "…", "…"].map((c, i) => (
-              <div key={i} style={{ background: i < 3 ? p.primary + "22" : p.background, color: p.text, padding: "6px 10px", fontWeight: i < 3 ? 700 : 400 }}>
-                {c}
-              </div>
-            ))}
-          </div>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "separate",
+              borderSpacing: 0,
+              overflow: "hidden",
+              border: `1px solid ${p.secondary}33`,
+              borderRadius: 8,
+              background: p.background,
+              color: p.text,
+              fontSize: 13,
+            }}
+          >
+            <thead>
+              <tr>
+                {["항목", "A", "B"].map((c) => (
+                  <th
+                    key={c}
+                    style={{
+                      padding: "6px 10px",
+                      background: `${p.primary}22`,
+                      color: p.text,
+                      fontWeight: 700,
+                      textAlign: "left",
+                    }}
+                  >
+                    {c}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                {["…", "…", "…"].map((c, i) => (
+                  <td
+                    key={i}
+                    style={{
+                      padding: "6px 10px",
+                      borderTop: `1px solid ${p.secondary}22`,
+                    }}
+                  >
+                    {c}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
           <span style={{ fontSize: 13, color: p.secondary }}>{content}</span>
         </div>
       );

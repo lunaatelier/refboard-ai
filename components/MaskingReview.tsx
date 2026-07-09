@@ -248,7 +248,7 @@ export default function MaskingReview({
   );
 
   const card: React.CSSProperties = {
-    background: "var(--surface)",
+    background: "var(--canvas)",
     border: "1px solid var(--border)",
     borderRadius: "var(--radius-lg)",
     padding: "var(--space-lg)",
@@ -296,7 +296,7 @@ export default function MaskingReview({
           fontSize: 14,
           fontWeight: 600,
           color: confirmed ? "var(--success)" : "var(--primary)",
-          background: "var(--surface)",
+          background: "var(--canvas)",
           borderRadius: "var(--radius-full)",
           padding: "4px 14px",
         }}
@@ -717,7 +717,7 @@ export default function MaskingReview({
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
             fontFamily: "inherit",
-            background: "var(--bg)",
+            background: "var(--surface)",
             borderRadius: "var(--radius-md)",
             padding: "var(--space-base)",
             maxHeight: confirmed ? 400 : 320,

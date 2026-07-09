@@ -23,7 +23,7 @@ interface ImageHintsTabProps {
 }
 
 const card: React.CSSProperties = {
-  background: "var(--surface)",
+  background: "var(--canvas)",
   border: "1px solid var(--border)",
   borderRadius: "var(--radius-lg)",
   padding: "var(--space-lg)",
@@ -293,7 +293,7 @@ export default function ImageHintsTab({
                 fontSize: 14,
                 fontWeight: 700,
                 color: SCALE_COLORS[h.scale],
-                background: "var(--bg)",
+                background: "var(--surface)",
                 border: "1px solid var(--border)",
                 borderRadius: "var(--radius-full)",
                 padding: "1px 10px",
@@ -328,7 +328,7 @@ export default function ImageHintsTab({
                 fontSize: 14,
                 color: "var(--text-muted)",
                 fontFamily: "monospace",
-                background: "var(--bg)",
+                background: "var(--surface)",
                 borderRadius: "var(--radius-md)",
                 padding: "8px 12px",
               }}
@@ -409,7 +409,7 @@ export default function ImageHintsTab({
             display: "flex",
             flexDirection: "column",
             gap: "var(--space-sm)",
-            background: "var(--surface)",
+            background: "var(--canvas)",
             border: "1px solid var(--error)",
             borderRadius: "var(--radius-md)",
             padding: "var(--space-md)",

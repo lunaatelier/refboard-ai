@@ -31,7 +31,7 @@ export default function PageLayout({
     >
       {banner}
       <div>
-        <h2 style={{ fontSize: 22, fontWeight: 700, color: "var(--text)" }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: "var(--foreground)" }}>
           {title}
         </h2>
         {description && (
@@ -55,7 +55,7 @@ export default function PageLayout({
 // 표준 카드 스타일 — MaskingReview/AnalysisResult/ConceptWorkspace가 이미 각자
 // 로컬로 들고 있던 값과 동일. 새 카드를 추가할 때 이걸 재사용해 드리프트를 막는다.
 export const pageCardStyle: React.CSSProperties = {
-  background: "var(--surface)",
+  background: "var(--canvas)",
   border: "1px solid var(--border)",
   borderRadius: "var(--radius-lg)",
   padding: "var(--space-lg)",

@@ -76,11 +76,11 @@ export default function ReferenceWorkspace({
               padding: "var(--space-sm) var(--space-base)",
               borderRadius: "var(--radius-md)",
               border: "none",
-              background: tab === t.id ? "var(--surface)" : "var(--surface-alt)",
+              background: tab === t.id ? "var(--canvas)" : "var(--surface-alt)",
               color: !t.ready
                 ? "var(--locked)"
                 : tab === t.id
-                  ? "var(--text)"
+                  ? "var(--foreground)"
                   : "var(--text-muted)",
               boxShadow: tab === t.id ? "var(--shadow-subtle)" : "none",
               fontSize: 14,

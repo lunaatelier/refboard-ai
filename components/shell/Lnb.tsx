@@ -122,7 +122,7 @@ export default function Lnb({ state, onNavigate }: LnbProps) {
           top: 0,
           alignSelf: "flex-start",
           height: "100vh",
-          background: "var(--surface)",
+          background: "var(--canvas)",
           borderRight: "1px solid var(--border)",
           padding: "var(--space-lg) var(--space-md)",
           flexDirection: "column",
@@ -134,7 +134,7 @@ export default function Lnb({ state, onNavigate }: LnbProps) {
             padding: "0 var(--space-md) var(--space-base)",
             fontWeight: 700,
             fontSize: 18,
-            color: "var(--text)",
+            color: "var(--foreground)",
           }}
         >
           RefBoard AI
@@ -151,7 +151,7 @@ export default function Lnb({ state, onNavigate }: LnbProps) {
           position: "sticky",
           top: 0,
           zIndex: 20,
-          background: "var(--surface)",
+          background: "var(--canvas)",
           borderBottom: "1px solid var(--border)",
           padding: "var(--space-sm) var(--space-base)",
         }}
@@ -163,7 +163,7 @@ export default function Lnb({ state, onNavigate }: LnbProps) {
         >
           <Menu size={22} />
         </button>
-        <span style={{ fontWeight: 700, fontSize: 16, color: "var(--text)" }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: "var(--foreground)" }}>
           RefBoard AI
         </span>
         <span
@@ -191,7 +191,7 @@ export default function Lnb({ state, onNavigate }: LnbProps) {
             style={{
               position: "fixed",
               inset: 0,
-              background: "rgba(15, 23, 42, 0.4)",
+              background: "var(--scrim)",
               zIndex: 30,
             }}
           />
@@ -205,7 +205,7 @@ export default function Lnb({ state, onNavigate }: LnbProps) {
               width: 260,
               maxWidth: "80vw",
               zIndex: 31,
-              background: "var(--surface)",
+              background: "var(--canvas)",
               padding: "var(--space-lg) var(--space-md)",
               display: "flex",
               flexDirection: "column",
@@ -222,7 +222,7 @@ export default function Lnb({ state, onNavigate }: LnbProps) {
                 padding: "0 var(--space-md) var(--space-base)",
               }}
             >
-              <span style={{ fontWeight: 700, fontSize: 18, color: "var(--text)" }}>
+              <span style={{ fontWeight: 700, fontSize: 18, color: "var(--foreground)" }}>
                 RefBoard AI
               </span>
               <button

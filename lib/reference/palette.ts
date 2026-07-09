@@ -63,6 +63,21 @@ function adjust(hex: string, delta: Partial<Hsl>): string {
   });
 }
 
+function normalizeHex(hex: string): string | null {
+  const hsl = hexToHsl(hex);
+  if (!hsl) return null;
+  const m = hex.trim().match(/^#?([0-9a-f]{6})$/i);
+  return m ? `#${m[1].toUpperCase()}` : null;
+}
+
+function isUsableBrandColor(hex: string): boolean {
+  const hsl = hexToHsl(hex);
+  if (!hsl) return false;
+  // Gemini can return placeholder black/gray from documents. If used as the
+  // brand seed, every generated variation becomes gray, so ignore neutrals.
+  return hsl.s >= 0.12 && hsl.l >= 0.08 && hsl.l <= 0.92;
+}
+
 function buildPair(
   optionId: string,
   label: string,
@@ -135,7 +150,9 @@ function buildBrandOption(
 export function generatePaletteOptions(
   brandColors: string[] = [],
 ): PaletteOption[] {
-  const brand = brandColors.map((c) => hexToHsl(c) && c).find(Boolean);
+  const brand = brandColors
+    .map(normalizeHex)
+    .find((c): c is string => Boolean(c && isUsableBrandColor(c)));
 
   if (brand) {
     // 브랜드컬러 기반 3변주: 원색 충실 / 보색 포인트 / 저채도 미니멀

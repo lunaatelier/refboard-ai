@@ -32,7 +32,7 @@ interface ConceptWorkspaceProps {
 }
 
 const card: React.CSSProperties = {
-  background: "var(--surface)",
+  background: "var(--canvas)",
   border: "1px solid var(--border)",
   borderRadius: "var(--radius-lg)",
   padding: "var(--space-lg)",
@@ -253,7 +253,7 @@ export default function ConceptWorkspace({
                             ? "var(--locked)"
                             : previewPlatform === pf
                               ? "var(--primary)"
-                              : "var(--text)",
+                              : "var(--foreground)",
                           fontWeight: 600,
                           fontSize: 14,
                         }}

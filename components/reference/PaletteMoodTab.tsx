@@ -38,7 +38,7 @@ interface PaletteMoodTabProps {
 }
 
 const card: React.CSSProperties = {
-  background: "var(--surface)",
+  background: "var(--canvas)",
   border: "1px solid var(--border)",
   borderRadius: "var(--radius-lg)",
   padding: "var(--space-lg)",
@@ -341,7 +341,7 @@ export default function PaletteMoodTab({
                       borderRadius: "var(--radius-md)",
                       border: `1px solid ${mode === m ? "var(--primary)" : "var(--border)"}`,
                       background: mode === m ? "var(--primary-soft)" : "transparent",
-                      color: mode === m ? "var(--primary)" : "var(--text)",
+                      color: mode === m ? "var(--primary)" : "var(--foreground)",
                       fontWeight: 600,
                       fontSize: 14,
                     }}
@@ -366,19 +366,17 @@ export default function PaletteMoodTab({
                     <span style={{ flex: 1, fontSize: 14 }}>
                       {ROLE_LABELS[role]}
                     </span>
-                    <input
-                      type="color"
-                      value={currentPalette[role]}
-                      onChange={(e) => setRole(role, e.target.value.toUpperCase())}
-                      title="컬러 피커로 선택"
+                    <span
+                      aria-hidden="true"
+                      title={currentPalette[role]}
                       style={{
                         width: 30,
                         height: 30,
-                        padding: 0,
+                        flex: "0 0 30px",
+                        display: "inline-block",
                         border: "1px solid var(--border)",
                         borderRadius: "var(--radius-sm)",
-                        background: "none",
-                        cursor: "pointer",
+                        background: currentPalette[role],
                       }}
                     />
                     <input

@@ -218,7 +218,7 @@ export default function ImageConsentPanel({
   return (
     <div
       style={{
-        background: "var(--surface)",
+        background: "var(--canvas)",
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-lg)",
         padding: "var(--space-lg)",
@@ -242,7 +242,7 @@ export default function ImageConsentPanel({
           font: "inherit",
         }}
       >
-        <span style={{ fontSize: 18, fontWeight: 600, color: "var(--text)" }}>
+        <span style={{ fontSize: 18, fontWeight: 600, color: "var(--foreground)" }}>
           이미지 분석{" "}
           <span style={{ fontSize: 14, fontWeight: 400, color: "var(--text-muted)" }}>
             (선택 사항)
@@ -331,7 +331,7 @@ export default function ImageConsentPanel({
                     border: `1px solid ${isSelected ? "var(--primary)" : "var(--border)"}`,
                     background: isSelected
                       ? "var(--primary-weak-bg)"
-                      : "var(--surface)",
+                      : "var(--canvas)",
                     borderRadius: "var(--radius-lg)",
                     padding: "var(--space-sm)",
                     display: "flex",
@@ -348,7 +348,7 @@ export default function ImageConsentPanel({
                         width: "100%",
                         height: 110,
                         objectFit: "contain",
-                        background: "var(--bg)",
+                        background: "var(--surface)",
                         borderRadius: "var(--radius-md)",
                         display: "block",
                       }}

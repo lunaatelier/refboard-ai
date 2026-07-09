@@ -1,4 +1,4 @@
-# Design Reference Generator — 프로젝트 컨텍스트
+# RefBoard AI — 프로젝트 컨텍스트
 
 > 이 문서는 Claude Code가 프로젝트 전체를 이해하기 위한 최상위 컨텍스트다.
 > 세부 구현 명세는 `docs/specs/` 하위 문서를 참조한다.
