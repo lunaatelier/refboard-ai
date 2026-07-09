@@ -85,12 +85,12 @@ describe("Step 12-b — 마스킹본/실명본", () => {
   it("기본(마스킹본)은 토큰 유지, 실명본 transform은 렌더 시점에만 복원", () => {
     const masked = buildConceptPrintHtml(concept, cfg("proposal"), identityTransform);
     assert.ok(masked.includes("[고객사A]"));
-    assert.ok(!masked.includes("그린테크"));
+    assert.ok(!masked.includes("가상그린"));
 
     const restoredHtml = buildConceptPrintHtml(concept, cfg("proposal"), (t) =>
-      t.split("[고객사A]").join("그린테크"),
+      t.split("[고객사A]").join("가상그린"),
     );
-    assert.ok(restoredHtml.includes("그린테크"));
+    assert.ok(restoredHtml.includes("가상그린"));
     assert.ok(!restoredHtml.includes("[고객사A]"));
     // 원본(SSoT)은 그대로 마스킹본 — 렌더가 원본을 오염시키지 않음
     assert.equal(

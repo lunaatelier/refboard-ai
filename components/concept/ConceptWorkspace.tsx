@@ -14,6 +14,7 @@ import {
 } from "@/lib/render/output";
 import { buildConceptPptx } from "@/lib/render/pptx";
 import { buildConceptPrintHtml } from "@/lib/render/printHtml";
+import PageLayout, { PageCta } from "../shell/PageLayout";
 
 // ⑤ 컨셉 3안 (Step 12-a) — 프로젝트 전체를 관통하는 방향 3가지.
 // 페이지마다 3안(=15개)을 만들지 않는다. 대표 페이지로 각 안을 시각화.
@@ -129,14 +130,11 @@ export default function ConceptWorkspace({
     previewPages?.[0];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)" }}>
+    <PageLayout
+      title="컨셉 3안"
+      description="레퍼런스·무드에서 확정한 팔레트·무드·레이아웃·벤치마킹 시사점을 반영해 전체 방향 3안을 만듭니다. 3안 모두 컨셉서로 내보냅니다 (1안 확정이 아님)."
+    >
       <div style={card}>
-        <h2 style={{ fontSize: 22, fontWeight: 700 }}>컨셉 3안</h2>
-        <p style={{ color: "var(--text-muted)", fontSize: 16 }}>
-          레퍼런스·무드에서 확정한 팔레트·무드·레이아웃·벤치마킹 시사점을 반영해 전체
-          방향 3안을 만듭니다. 3안 모두 컨셉서로 내보냅니다 (1안 확정이
-          아님).
-        </p>
         {variants.length >= 2 && (
           <label style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
             <input
@@ -311,7 +309,7 @@ export default function ConceptWorkspace({
           />
         </>
       )}
-    </div>
+    </PageLayout>
   );
 }
 
@@ -486,26 +484,10 @@ function OutputPanel({
         </p>
       )}
 
-      <button
-        onClick={onConfirm}
-        disabled={confirmed}
-        className="btn-primary"
-        style={{
-          alignSelf: "flex-start",
-          padding: "10px var(--space-base)",
-          borderRadius: "var(--radius-md)",
-          border: "none",
-          background: confirmed ? "var(--locked)" : undefined,
-          fontWeight: 600,
-          fontSize: 14,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
+      <PageCta onClick={onConfirm} disabled={confirmed} locked={confirmed}>
         {confirmed && <Check size={16} color="var(--on-primary)" strokeWidth={2.5} />}
         {confirmed ? "컨셉 확정됨" : "다음"}
-      </button>
+      </PageCta>
     </div>
   );
 }

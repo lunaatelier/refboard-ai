@@ -18,6 +18,7 @@ export interface OcrScanResult {
   assetId: string;
   findings: OcrFinding[]; // 비민감 요약만 (원문 조각 없음)
   textLength: number; // 0이면 "글자 없는 이미지"로 안내
+  failed?: boolean; // true면 해당 이미지만 인식 실패 — findings는 신뢰할 수 없음
 }
 
 // 순수 함수 — OCR 텍스트에서 비민감 요약만 뽑는다 (테스트 대상)
@@ -49,8 +50,15 @@ export async function scanImagesForSensitiveText(
   try {
     const results: OcrScanResult[] = [];
     for (const [i, img] of images.entries()) {
-      const { data } = await worker.recognize(img.dataUrl);
-      results.push(summarizeSensitiveText(img.assetId, data.text, dictionary));
+      try {
+        const { data } = await worker.recognize(img.dataUrl);
+        results.push(
+          summarizeSensitiveText(img.assetId, data.text, dictionary),
+        );
+      } catch {
+        // 이 이미지 하나만 인식 실패 — 나머지 이미지 스캔은 계속 진행한다.
+        results.push({ assetId: img.assetId, findings: [], textLength: 0, failed: true });
+      }
       onProgress?.(i + 1, images.length);
     }
     return results;

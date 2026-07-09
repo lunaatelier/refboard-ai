@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, Check } from "lucide-react";
 import DictionaryManager from "./DictionaryManager";
+import PageLayout, { PageCta } from "./shell/PageLayout";
 import TokenText from "./TokenText";
 import { createDraft } from "@/lib/masking/apply";
 import {
@@ -47,6 +48,26 @@ const KIND_LABELS: Partial<Record<SensitiveKind, string>> = {
 // 엔티티 등급 태깅 대상 — 회사·기관명 계열 (Step 6: 6종 드롭다운)
 const ENTITY_KINDS: SensitiveKind[] = ["company", "client"];
 
+// 종류보다 "가릴지 유지할지"가 중요하므로, 인명/회사명/고객사/제품은 카드 하나
+// ("민감정보")로 통합해서 보여준다. 나머지(이메일/전화/URL 등)는 kind별 유지.
+const MERGED_ENTITY_KINDS: SensitiveKind[] = [
+  "personName",
+  "company",
+  "client",
+  "product",
+];
+const MERGED_GROUP_TITLE = "민감정보";
+const MERGED_BUCKET = "merged";
+
+function bucketFor(kind: SensitiveKind): string {
+  return MERGED_ENTITY_KINDS.includes(kind) ? MERGED_BUCKET : kind;
+}
+
+function bucketTitle(bucket: string): string {
+  if (bucket === MERGED_BUCKET) return MERGED_GROUP_TITLE;
+  return KIND_LABELS[bucket as SensitiveKind] ?? bucket;
+}
+
 const NUMERIC_KIND_LABELS: Record<NumericDetection["kind"], string> = {
   financialMetric: "재무 수치",
   businessMetric: "비즈니스 지표",
@@ -55,7 +76,9 @@ const NUMERIC_KIND_LABELS: Record<NumericDetection["kind"], string> = {
 
 const NUMERIC_KIND_SET = new Set<string>(Object.keys(NUMERIC_KIND_LABELS));
 
-function summaryLine(g: MaskingGroupSummary): string {
+function summaryLine(
+  g: Pick<MaskingGroupSummary, "appliedCount" | "keptCount" | "skippedCount">,
+): string {
   const parts: string[] = [];
   if (g.appliedCount > 0) parts.push(`${g.appliedCount}건 적용됨`);
   if (g.keptCount > 0) parts.push(`${g.keptCount}건 실명 유지`);
@@ -137,17 +160,32 @@ export default function MaskingReview({
     [detections],
   );
 
+  // kind별로 묶은 뒤, 같은 kind 안에서도 같은 raw 값끼리 한 번 더 묶는다 —
+  // "AI 인터렉션팀"이 3곳에서 발견돼도 검수 목록엔 한 줄("AI 인터렉션팀 3건")만
+  // 보여주고, 그 줄에서의 조작(체크/유지 등)은 같은 값의 항목 전체에 적용한다.
   const grouped = useMemo(() => {
-    const map = new Map<SensitiveKind, Detection[]>();
+    const byBucket = new Map<string, Detection[]>();
     for (const d of detections) {
-      map.set(d.kind, [...(map.get(d.kind) ?? []), d]);
+      const bucket = bucketFor(d.kind);
+      byBucket.set(bucket, [...(byBucket.get(bucket) ?? []), d]);
     }
-    return [...map.entries()];
+    return [...byBucket.entries()].map(([bucket, items]) => {
+      const byRaw = new Map<string, Detection[]>();
+      for (const d of items) {
+        byRaw.set(d.raw, [...(byRaw.get(d.raw) ?? []), d]);
+      }
+      return {
+        bucket,
+        title: bucketTitle(bucket),
+        items,
+        rawGroups: [...byRaw.values()],
+      };
+    });
   }, [detections]);
 
-  const patch = (id: string, p: Partial<Detection>) =>
+  const patchGroup = (ids: string[], p: Partial<Detection>) =>
     onUpdateDetections(
-      detections.map((d) => (d.id === id ? { ...d, ...p } : d)),
+      detections.map((d) => (ids.includes(d.id) ? { ...d, ...p } : d)),
     );
 
   const handleManualAdd = () => {
@@ -178,9 +216,25 @@ export default function MaskingReview({
     setManualWord("");
   };
 
-  const entitySummaryGroups = (maskingSummary ?? []).filter(
-    (g) => !NUMERIC_KIND_SET.has(g.kind),
-  );
+  // 확정 후 요약 카드도 검수 중과 동일하게 인명/회사명/고객사/제품을 "민감정보"
+  // 하나로 합쳐서 보여준다 (bucketFor/bucketTitle — 검수 중 그룹핑과 동일 기준).
+  const entitySummaryGroups = (() => {
+    const raw = (maskingSummary ?? []).filter((g) => !NUMERIC_KIND_SET.has(g.kind));
+    const byBucket = new Map<string, MaskingGroupSummary[]>();
+    for (const g of raw) {
+      const bucket = bucketFor(g.kind);
+      byBucket.set(bucket, [...(byBucket.get(bucket) ?? []), g]);
+    }
+    return [...byBucket.entries()].map(([bucket, groups]) => ({
+      bucket,
+      title: bucketTitle(bucket),
+      totalCount: groups.reduce((sum, g) => sum + g.totalCount, 0),
+      appliedCount: groups.reduce((sum, g) => sum + g.appliedCount, 0),
+      keptCount: groups.reduce((sum, g) => sum + g.keptCount, 0),
+      skippedCount: groups.reduce((sum, g) => sum + g.skippedCount, 0),
+      tokens: groups.flatMap((g) => g.tokens),
+    }));
+  })();
   const numericSummaryGroups = (maskingSummary ?? []).filter((g) =>
     NUMERIC_KIND_SET.has(g.kind),
   );
@@ -203,88 +257,79 @@ export default function MaskingReview({
     gap: "var(--space-md)",
   };
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)" }}>
-      {/* 상태 배너 — 검수 중 ↔ 완료 전환은 이 배너의 톤·문구만 바뀐다 (화면 구조는 유지) */}
-      <div
+  // 상태 배너 — 검수 중 ↔ 완료 전환은 이 배너의 톤·문구만 바뀐다 (화면 구조는 유지)
+  const statusBanner = (
+    <div
+      style={{
+        ...card,
+        padding: "var(--space-base) var(--space-lg)",
+        background: confirmed ? "var(--success-weak-bg)" : "var(--primary-soft)",
+        border: confirmed ? "1px solid var(--success)" : "1px solid var(--primary)",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "var(--space-md)",
+        flexWrap: "wrap",
+      }}
+    >
+      <span
         style={{
-          ...card,
-          padding: "var(--space-base) var(--space-lg)",
-          background: confirmed ? "var(--success-weak-bg)" : "var(--primary-soft)",
-          border: confirmed ? "1px solid var(--success)" : "1px solid var(--primary)",
-          flexDirection: "row",
+          display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          gap: "var(--space-md)",
-          flexWrap: "wrap",
+          gap: "var(--space-xs)",
+          fontSize: 14,
+          fontWeight: 600,
+          color: confirmed ? "var(--success)" : "var(--primary)",
         }}
       >
-        <span
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-xs)",
-            fontSize: 14,
-            fontWeight: 600,
-            color: confirmed ? "var(--success)" : "var(--primary)",
-          }}
-        >
-          {confirmed ? (
-            <Check size={16} color="var(--success)" style={{ flexShrink: 0 }} />
-          ) : (
-            <ArrowRight size={16} color="var(--primary)" style={{ flexShrink: 0 }} />
-          )}
-          {confirmed
-            ? "마스킹 검수 완료 — 확정된 텍스트만 다음 단계로 전달됩니다"
-            : "탐지된 항목을 확인하고 가릴지/유지할지 정한 뒤, 하단에서 마스킹을 확정하세요"}
-        </span>
-        <span
-          style={{
-            fontSize: 14,
-            fontWeight: 600,
-            color: confirmed ? "var(--success)" : "var(--primary)",
-            background: "var(--surface)",
-            borderRadius: "var(--radius-full)",
-            padding: "4px 14px",
-          }}
-        >
-          {confirmed ? `${totalApplied}건 적용됨` : `${enabledCount}건 적용 예정`}
-        </span>
-      </div>
+        {confirmed ? (
+          <Check size={16} color="var(--success)" style={{ flexShrink: 0 }} />
+        ) : (
+          <ArrowRight size={16} color="var(--primary)" style={{ flexShrink: 0 }} />
+        )}
+        {confirmed
+          ? "마스킹 검수 완료 — 확정된 텍스트만 다음 단계로 전달됩니다"
+          : "탐지 항목을 확인한 뒤 마스킹을 확정하세요."}
+      </span>
+      <span
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          color: confirmed ? "var(--success)" : "var(--primary)",
+          background: "var(--surface)",
+          borderRadius: "var(--radius-full)",
+          padding: "4px 14px",
+        }}
+      >
+        {confirmed ? `${totalApplied}건 적용됨` : `${enabledCount}건 적용 예정`}
+      </span>
+    </div>
+  );
 
+  return (
+    <PageLayout title="마스킹 검수" banner={statusBanner}>
       {!confirmed && (
-        <div style={card}>
-          <h2 style={{ fontSize: 18, fontWeight: 700 }}>마스킹 검수</h2>
-          <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
-            민감정보 {detections.length}건 탐지됨 — 외부로는 마스킹된 텍스트만 전송됩니다.
-          </p>
-          <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
-            <b>더미 추정</b> 항목은 기본 미적용입니다 — 실제 정보라면 직접 켜주세요.
-          </p>
-          <details>
-            <summary style={{ cursor: "pointer", fontSize: 14, fontWeight: 600, color: "var(--text-muted)" }}>
-              보안 처리 방식 자세히
-            </summary>
-            <p style={{ fontSize: 14, color: "var(--text-muted)", paddingTop: "var(--space-sm)" }}>
-              회사명은 기본 가림이며, 경쟁사·벤치마킹 브랜드처럼 분석에 필요한
-              공개 엔티티만 &ldquo;유지&rdquo;로 바꾼 것만 실명으로 전송됩니다.
-              확정 즉시 원문은 폐기되며, 이후에는 마스킹된 텍스트만 남습니다.
-            </p>
-          </details>
-        </div>
+        <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
+          외부로는 마스킹된 텍스트만 전송됩니다.
+        </p>
       )}
 
       {!confirmed &&
-        grouped.map(([kind, items]) => (
-          <div key={kind} style={card}>
-            <h3 style={{ fontSize: 16 }}>
-              {KIND_LABELS[kind] ?? kind}{" "}
+        grouped.map(({ bucket, title, items, rawGroups }) => (
+          <div key={bucket} style={card}>
+            <h3 style={{ fontSize: 18, fontWeight: 600 }}>
+              {title}{" "}
               <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
                 {items.length}건
               </span>
             </h3>
             <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
-              {items.map((d) => (
+              {rawGroups.map((group) => {
+                const d = group[0];
+                const ids = group.map((g) => g.id);
+                const count = group.length;
+                const allEnabled = group.every((g) => g.enabled);
+                return (
                 <li
                   key={d.id}
                   style={{
@@ -294,23 +339,38 @@ export default function MaskingReview({
                     padding: "10px var(--space-md)",
                     border: "1px solid var(--border)",
                     borderRadius: "var(--radius-md)",
-                    opacity: d.enabled || d.keepPlaintext ? 1 : 0.55,
+                    opacity: allEnabled || d.keepPlaintext ? 1 : 0.55,
                   }}
                 >
                   <label style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
                     <input
                       type="checkbox"
-                      checked={d.enabled}
-                      onChange={(e) => patch(d.id, { enabled: e.target.checked })}
+                      checked={allEnabled}
+                      onChange={(e) => patchGroup(ids, { enabled: e.target.checked })}
                     />
-                    <span style={{ wordBreak: "break-all", fontWeight: 600 }}>{d.raw}</span>
+                    <span style={{ wordBreak: "break-all", fontWeight: 600 }}>
+                      {d.raw}{" "}
+                      <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
+                        {count}건
+                      </span>
+                    </span>
                   </label>
                 <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
                   {d.dummyConfidence === "likely-dummy" && (
-                    <span style={badge("var(--warning-weak-text)", "var(--warning-weak-bg)")}>더미 추정</span>
+                    <span
+                      title="더미 추정 항목은 기본 미적용입니다 — 실제 정보라면 체크해서 켜주세요"
+                      style={badge("var(--warning-weak-text)", "var(--warning-weak-bg)")}
+                    >
+                      더미 추정
+                    </span>
                   )}
                   {d.dummyConfidence === "uncertain" && (
-                    <span style={badge("var(--text-muted)", "var(--surface-alt)")}>더미?</span>
+                    <span
+                      title="더미인지 확실하지 않은 항목입니다 — 실제 정보인지 확인해주세요"
+                      style={badge("var(--text-muted)", "var(--surface-alt)")}
+                    >
+                      더미?
+                    </span>
                   )}
                   {d.source === "dictionary" && (
                     <span style={badge("var(--primary-hover)", "var(--primary-weak-bg)")}>사전</span>
@@ -323,7 +383,7 @@ export default function MaskingReview({
                       법정 고지 — 최종본 직접 입력
                     </span>
                   )}
-                  {ENTITY_KINDS.includes(d.kind) && d.enabled && (
+                  {ENTITY_KINDS.includes(d.kind) && allEnabled && (
                     <>
                       <select
                         value={d.entityKind ?? "customer"}
@@ -331,7 +391,7 @@ export default function MaskingReview({
                           const entityKind = e.target
                             .value as AnalysisTargetKind;
                           // 공개 등급 선택 = 유지 의사로 보고 기본 체크, 기밀은 강제 가림
-                          patch(d.id, {
+                          patchGroup(ids, {
                             entityKind,
                             keepPlaintext: isPublicEntityKind(entityKind)
                               ? true
@@ -356,7 +416,7 @@ export default function MaskingReview({
                             type="checkbox"
                             checked={d.keepPlaintext ?? false}
                             onChange={(e) =>
-                              patch(d.id, { keepPlaintext: e.target.checked })
+                              patchGroup(ids, { keepPlaintext: e.target.checked })
                             }
                           />
                           <span style={{ color: "var(--text-muted)" }}>
@@ -383,7 +443,7 @@ export default function MaskingReview({
                               유지 후보 — 사례분석 출처
                             </span>
                           )}
-                          {d.enabled && (
+                          {allEnabled && (
                             <label
                               style={{
                                 display: "flex",
@@ -395,7 +455,7 @@ export default function MaskingReview({
                                 type="checkbox"
                                 checked={d.keepPlaintext ?? false}
                                 onChange={(e) =>
-                                  patch(d.id, { keepPlaintext: e.target.checked })
+                                  patchGroup(ids, { keepPlaintext: e.target.checked })
                                 }
                               />
                               <span style={{ color: "var(--text-muted)" }}>
@@ -430,16 +490,17 @@ export default function MaskingReview({
                     )}
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </div>
         ))}
 
       {confirmed &&
         entitySummaryGroups.map((g) => (
-          <div key={g.kind} style={card}>
-            <h3 style={{ fontSize: 16 }}>
-              {KIND_LABELS[g.kind] ?? g.kind}{" "}
+          <div key={g.bucket} style={card}>
+            <h3 style={{ fontSize: 18, fontWeight: 600 }}>
+              {g.title}{" "}
               <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
                 {g.totalCount}건
               </span>
@@ -461,7 +522,7 @@ export default function MaskingReview({
 
       {!confirmed && numericDetections.length > 0 && (
         <div style={card}>
-          <h3 style={{ fontSize: 16 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 600 }}>
             민감 수치{" "}
             <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
               {numericDetections.length}건 — 후보 탐지이며 최종 판단은
@@ -520,7 +581,7 @@ export default function MaskingReview({
 
       {confirmed && numericSummaryGroups.length > 0 && (
         <div style={card}>
-          <h3 style={{ fontSize: 16 }}>민감 수치</h3>
+          <h3 style={{ fontSize: 18, fontWeight: 600 }}>민감 수치</h3>
           {numericSummaryGroups.map((g) => (
             <div key={g.kind} style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
               <p style={{ fontSize: 14, fontWeight: 600 }}>
@@ -544,9 +605,12 @@ export default function MaskingReview({
         </div>
       )}
 
+      {/* 순서: 민감정보 → 민감 수치(위) → 단어 추가 → 이미지 분석 → 미리보기.
+          미리보기는 항상 실시간 반영이라 어디에 있든 최신 상태를 보여준다 —
+          여기서는 "지금까지 정리한 걸 최종 확인"하는 위치로 맨 끝에 둔다. */}
       {!confirmed && (
         <div style={card}>
-          <h3 style={{ fontSize: 16 }}>단어 직접 추가</h3>
+          <h3 style={{ fontSize: 18, fontWeight: 600 }}>단어 추가</h3>
           <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap", alignItems: "center" }}>
             <select
               value={manualKind}
@@ -609,6 +673,8 @@ export default function MaskingReview({
         </div>
       )}
 
+      {imageConsentPanel}
+
       {confirmed && totalSkipped > 0 && (
         <p
           role="alert"
@@ -632,7 +698,7 @@ export default function MaskingReview({
 
       <div style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-sm)" }}>
-          <h3 style={{ fontSize: 16 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 600 }}>
             {confirmed ? "마스킹된 텍스트 (외부로 나가는 유일한 텍스트)" : "미리보기"}
           </h3>
           {!confirmed && (
@@ -675,23 +741,9 @@ export default function MaskingReview({
       </div>
 
       {recoveryKeyAction}
-      {imageConsentPanel}
 
-      <button
-        onClick={confirmed ? onNext : onConfirm}
-        className="btn-primary"
-        style={{
-          alignSelf: "flex-start",
-          padding: "12px var(--space-lg)",
-          borderRadius: "var(--radius-md)",
-          border: "none",
-          fontWeight: 600,
-          fontSize: 14,
-        }}
-      >
-        다음
-      </button>
-    </div>
+      <PageCta onClick={confirmed ? onNext : onConfirm}>다음</PageCta>
+    </PageLayout>
   );
 }
 

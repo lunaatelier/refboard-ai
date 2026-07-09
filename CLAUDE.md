@@ -194,7 +194,7 @@ interface SecureClientMemory {
 - **Concept JSON** = 제품 내부 산출물의 단일 원천 (Phase 4에서 확정).
 - **표준 디자인 MD 스키마** = 이 레포 밖과 공유하는 외부 계약 (Phase 5 직전 확정). Phase 5의 MD 렌더러가 Concept JSON을 읽어 이 스키마로 변환한다.
 
-**복원 매핑 규칙:** `삼성전자→[회사A]` 같은 매핑은 **SecureClientMemory(클라이언트 메모리)에만** 보관한다. 결과 화면 실명 복원·실명본 다운로드에만 쓰고, 어떤 경우에도 서버·외부 API로 전송하지 않는다. Concept JSON에는 항상 `maskedContent`만 저장하며 실명 복원본은 저장하지 않는다(렌더 시점에만 생성).
+**복원 매핑 규칙:** `가상전자→[회사A]` 같은 매핑은 **SecureClientMemory(클라이언트 메모리)에만** 보관한다. 결과 화면 실명 복원·실명본 다운로드에만 쓰고, 어떤 경우에도 서버·외부 API로 전송하지 않는다. Concept JSON에는 항상 `maskedContent`만 저장하며 실명 복원본은 저장하지 않는다(렌더 시점에만 생성).
 
 ---
 

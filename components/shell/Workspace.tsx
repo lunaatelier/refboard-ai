@@ -22,7 +22,7 @@ export default function Workspace({
         style={{
           flex: 1,
           minWidth: 0,
-          padding: "var(--space-xl) var(--space-xxl)",
+          padding: 40,
           maxWidth: 1600,
           width: "100%",
           margin: "0 auto",

@@ -5,8 +5,10 @@ import { Clipboard, Link, Lock, RefreshCw, Zap } from "lucide-react";
 import { clipboardFileName } from "@/lib/parse/image";
 import AnalysisJsonUpload from "../AnalysisJsonUpload";
 import FileUpload from "../FileUpload";
+import PageLayout, { pageCardStyle } from "./PageLayout";
 
-// 랜딩 모드 — LNB 없이 중앙 업로드 UI만 (phase1-masking-spec §8.1).
+// 업로드 단계 (phase1-masking-spec §8.1) — 워크스페이스 셸(LNB 포함) 안에서
+// 다른 단계 패널과 동일한 카드 골격으로 렌더링된다.
 // txt/md는 브라우저에서 직접 파싱되어 원문이 PC를 떠나지 않는다.
 // Step 16: 클립보드 캡처 붙여넣기(Ctrl+V) — Figma/V0 화면 캡처를 바로 올리는 경로.
 
@@ -76,30 +78,13 @@ export default function LandingUpload({
   }, [onFile]);
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "var(--space-lg)",
-        padding: "var(--space-xl)",
-      }}
+    <PageLayout
+      title="업로드"
+      description="기획서를 업로드하면 AI가 프로젝트를 분석하여 레퍼런스 · 무드보드 · 컨셉을 생성합니다."
     >
-      <div style={{ textAlign: "center" }}>
-        <h1 style={{ fontSize: 28, marginBottom: "var(--space-sm)" }}>RefBoard AI</h1>
-        <p style={{ fontSize: 16, color: "var(--text-muted)" }}>
-          기획서를 업로드하면 AI가 프로젝트를 분석하여 레퍼런스 · 무드보드 ·
-          컨셉을 생성합니다.
-        </p>
-      </div>
-
       <div
         style={{
-          width: "min(560px, 90vw)",
-          display: "flex",
-          flexDirection: "column",
+          ...pageCardStyle,
           gap: "var(--space-base)",
         }}
       >
@@ -155,12 +140,11 @@ export default function LandingUpload({
 
         <div
           style={{
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-lg)",
-            padding: "var(--space-base) var(--space-lg)",
             display: "flex",
             flexDirection: "column",
             gap: "var(--space-sm)",
+            paddingTop: "var(--space-lg)",
+            borderTop: "1px solid var(--border)",
           }}
         >
           <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)" }}>
@@ -178,6 +162,6 @@ export default function LandingUpload({
           ))}
         </div>
       </div>
-    </main>
+    </PageLayout>
   );
 }

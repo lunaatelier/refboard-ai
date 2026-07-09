@@ -86,7 +86,7 @@ Phase 1 = **셸 전체 + 마스킹 모듈**. Gemini 호출은 Phase 1 범위가 
 export interface Detection {
   id: string;
   kind: SensitiveKind;
-  raw: string;         // ⚠️ 민감 등급: 매칭된 원문 조각("삼성전자"). SecureClientMemory 취급.
+  raw: string;         // ⚠️ 민감 등급: 매칭된 원문 조각("가상전자"). SecureClientMemory 취급.
   start: number;
   end: number;
   source: "rule" | "dictionary" | "manual";
@@ -96,7 +96,7 @@ export interface Detection {
 // ⚠️ 복원키 — SecureClientMemory 전용. 직렬화·전송·스토리지·로그 금지.
 export interface MaskMapping {
   token: string;       // "[회사A]"
-  raw: string;         // "삼성전자"
+  raw: string;         // "가상전자"
   kind: SensitiveKind;
 }
 
@@ -156,7 +156,7 @@ Security KPI 문서가 요구하는 탐지 대상을 규칙으로 변환한다. 
 기본: URL은 전부 가림 후보.
 예외 1(유지 후보): 도메인이 AnalysisTargetKind=benchmarkBrand/competitor로
   태깅된 브랜드의 공식 도메인과 일치 → "사례분석 출처 URL"로 보고 유지 후보 표시.
-  예: 파타고니아를 benchmarkBrand로 유지했다면, patagonia.com URL도 자동 유지 후보.
+  예: 가상아웃도어를 benchmarkBrand로 유지했다면, virtual-outdoor.example URL도 자동 유지 후보.
 예외 2(가림 확정): 사내 협업툴 URL 패턴(atlassian.net, notion.so 등 워크스페이스 URL)
   → 항상 가림, 유지 후보로 표시하지 않음.
 ```
@@ -207,7 +207,7 @@ Security KPI 문서가 요구하는 탐지 대상을 규칙으로 변환한다. 
 ```typescript
 export interface DictionaryEntry {
   id: string;
-  value: string;                         // 예: "삼성전자" / "이수빈"
+  value: string;                         // 예: "가상전자" / "가상담당자A"
   kind: "company" | "client" | "product" | "person";  // person = 실사용#3/#5/#19/#27
   scope: "project" | "global";           // person은 기본 global (아래 참조)
 }
@@ -220,7 +220,7 @@ export interface DictionaryEntry {
 ```
 
 **person 카테고리는 기본이 전역(global)이다 — 실사용 검증에서 발견된 이유(#27):**
-같은 실무자(예: "이수빈")가 서로 다른 클라이언트 프로젝트 여러 개에 개정이력 작성자·리뷰어로 반복 등장하는 사례가 10개 문서 중 3건에서 확인됨. 프로젝트마다 매번 인명을 새로 등록하는 건 비효율적이라, **person만 프로젝트 경계를 넘어 재사용**한다. 한 프로젝트에서 "이수빈"을 등록하면 다음 프로젝트 마스킹 검수에서 자동으로 탐지 후보에 뜬다.
+같은 실무자(예: "가상담당자A")가 서로 다른 클라이언트 프로젝트 여러 개에 개정이력 작성자·리뷰어로 반복 등장하는 사례가 10개 문서 중 3건에서 확인됨. 프로젝트마다 매번 인명을 새로 등록하는 건 비효율적이라, **person만 프로젝트 경계를 넘어 재사용**한다. 한 프로젝트에서 "가상담당자A"를 등록하면 다음 프로젝트 마스킹 검수에서 자동으로 탐지 후보에 뜬다.
 
 UI(`DictionaryManager.tsx`): 단어 추가/삭제, 종류 선택. 검수 화면에서 "이 단어 항상 가리기"로 사전에 바로 등록하는 동선도 제공. person 등록 시 "이 이름은 앞으로 모든 프로젝트에서 자동 탐지됩니다" 안내 표시.
 

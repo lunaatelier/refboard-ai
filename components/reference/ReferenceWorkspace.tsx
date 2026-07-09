@@ -11,6 +11,7 @@ import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
 import type { ExtractedAnalysisTarget } from "@/lib/masking/types";
 import { generatePaletteOptions } from "@/lib/reference/palette";
 import type { ReferenceResult } from "@/lib/reference/types";
+import PageLayout, { PageCta } from "../shell/PageLayout";
 
 // ④ 레퍼런스·무드 (Step 10) — 정보량이 많아 탭으로 분할, 세로 무한 스크롤 금지 (flow-spec ④).
 // 10-a: [컬러·무드] / 10-b: [섹션별 레퍼런스] / 10-c: [분석 대상 브랜드]
@@ -57,28 +58,15 @@ export default function ReferenceWorkspace({
   }, []);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "var(--space-base)",
-      }}
-    >
+    <PageLayout title="레퍼런스·무드">
       <div
         style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius-lg)",
-          padding: "var(--space-base) var(--space-lg)",
           display: "flex",
           gap: "var(--space-sm)",
           alignItems: "center",
           flexWrap: "wrap",
         }}
       >
-        <h2 style={{ marginRight: "var(--space-sm)", fontSize: 22, fontWeight: 700 }}>
-          레퍼런스·무드
-        </h2>
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -146,33 +134,21 @@ export default function ReferenceWorkspace({
         );
         const disabled = !selectionComplete || references.referenceConfirmed;
         return (
-          <button
+          <PageCta
             onClick={onConfirm}
             disabled={disabled}
+            locked={disabled}
             title={
               !selectionComplete
                 ? "컬러·무드 탭에서 팔레트 1세트와 무드 1종을 먼저 선택하세요"
                 : undefined
             }
-            className="btn-primary"
-            style={{
-              alignSelf: "flex-start",
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-xs)",
-              padding: "10px var(--space-base)",
-              borderRadius: "var(--radius-md)",
-              border: "none",
-              background: disabled ? "var(--locked)" : undefined,
-              fontWeight: 600,
-              fontSize: 14,
-            }}
           >
             {references.referenceConfirmed && <Check size={16} color="var(--on-primary)" />}
             {references.referenceConfirmed ? "레퍼런스·무드 확정됨" : "다음"}
-          </button>
+          </PageCta>
         );
       })()}
-    </div>
+    </PageLayout>
   );
 }

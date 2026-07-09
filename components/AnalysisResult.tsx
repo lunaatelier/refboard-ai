@@ -23,6 +23,7 @@ import type {
   ExclusionReason,
   ProjectAnalysis,
 } from "@/lib/analysis/types";
+import PageLayout, { PageCta } from "./shell/PageLayout";
 
 // 분석 결과 (Step 7) — 자동 도출하되 셀렉트/편집으로 수정 가능 (UI 원칙).
 // 페이지 최대 5개 선택, 제외 시 사유 = 이후 프롬프트 차단 조건.
@@ -181,49 +182,54 @@ export default function AnalysisResult({
     : uniqueTags.slice(0, TAGS_PREVIEW_COUNT);
   const hiddenTagCount = uniqueTags.length - visibleTags.length;
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)" }}>
-      {/* 지금 할 일 안내 */}
-      <div
+  const taskBanner = (
+    <div
+      style={{
+        ...card,
+        padding: "var(--space-base) var(--space-md)",
+        background: "var(--primary-soft)",
+        border: "1px solid var(--primary)",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "var(--space-md)",
+        flexWrap: "wrap",
+      }}
+    >
+      <span
         style={{
-          ...card,
-          padding: "var(--space-base) var(--space-md)",
-          background: "var(--primary-soft)",
-          border: "1px solid var(--primary)",
-          flexDirection: "row",
+          display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          gap: "var(--space-md)",
-          flexWrap: "wrap",
+          gap: "var(--space-sm)",
+          fontWeight: 700,
+          fontSize: 14,
+          color: "var(--primary)",
         }}
       >
-        <span
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-sm)",
-            fontWeight: 700,
-            fontSize: 14,
-            color: "var(--primary)",
-          }}
-        >
-          <Info size={18} color="var(--primary)" />
-          구성 페이지를 확인하고 선택한 뒤, 하단에서 분석을 확정하세요
-        </span>
-        <span
-          style={{
-            fontWeight: 700,
-            fontSize: 14,
-            color: "var(--primary)",
-            background: "var(--surface)",
-            borderRadius: "var(--radius-full)",
-            padding: "4px 14px",
-          }}
-        >
-          {selectedCount}/{MAX_SELECTED_PAGES}개 선택됨
-        </span>
-      </div>
+        <Info size={18} color="var(--primary)" />
+        구성 페이지를 확인하고 선택한 뒤, 하단에서 분석을 확정하세요
+      </span>
+      <span
+        style={{
+          fontWeight: 700,
+          fontSize: 14,
+          color: "var(--primary)",
+          background: "var(--surface)",
+          borderRadius: "var(--radius-full)",
+          padding: "4px 14px",
+        }}
+      >
+        {selectedCount}/{MAX_SELECTED_PAGES}개 선택됨
+      </span>
+    </div>
+  );
 
+  return (
+    <PageLayout
+      title="분석 결과"
+      description="AI가 도출한 구성 페이지·섹션·도메인을 확인하고 필요하면 수정하세요."
+      banner={taskBanner}
+    >
       {/* 프로젝트 정보 */}
       <div style={card}>
         <span style={groupLabel}>프로젝트 정보</span>
@@ -574,9 +580,9 @@ export default function AnalysisResult({
                     <RoleIcon size={18} color="var(--text-muted)" />
                   </span>
                   <span style={{ fontWeight: 700, flex: 1, fontSize: 14 }}>{p.pageTitle}</span>
-                  {!p.selected && (
+                  {!p.selected && p.excludedReason && (
                     <select
-                      value={p.excludedReason ?? "user-choice"}
+                      value={p.excludedReason}
                       onChange={(e) =>
                         patchPage(p.pageId, {
                           excludedReason: e.target.value as ExclusionReason,
@@ -592,6 +598,20 @@ export default function AnalysisResult({
                         ),
                       )}
                     </select>
+                  )}
+                  {/* excludedReason이 없으면 "제외"가 아니라 상위 N개 자동 선택에서 밀린
+                      것뿐 — 사용자·AI 누구도 이 페이지를 의도적으로 뺀 적이 없으므로
+                      "직접 제외" 같은 확정적 사유를 보여주지 않는다 (체크만 하면 바로 복귀). */}
+                  {!p.selected && !p.excludedReason && (
+                    <span
+                      style={{
+                        fontSize: 14,
+                        color: "var(--text-muted)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      자동 미선택 — 상위 {MAX_SELECTED_PAGES}개만 기본 선택됨
+                    </span>
                   )}
                 </div>
                 <div
@@ -709,23 +729,10 @@ export default function AnalysisResult({
         </div>
       </div>
 
-      <button
-        onClick={onConfirm}
-        disabled={selectedCount === 0}
-        className="btn-primary"
-        style={{
-          alignSelf: "flex-start",
-          padding: "14px var(--space-xl)",
-          borderRadius: "var(--radius-md)",
-          border: "none",
-          background: selectedCount === 0 ? "var(--locked)" : undefined,
-          fontWeight: 700,
-          fontSize: 16,
-        }}
-      >
+      <PageCta onClick={onConfirm} disabled={selectedCount === 0} locked={selectedCount === 0}>
         다음
-      </button>
-    </div>
+      </PageCta>
+    </PageLayout>
   );
 }
 

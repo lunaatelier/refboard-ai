@@ -76,10 +76,20 @@ export interface Detection {
   isLegallyRequiredDisclosure?: boolean; // (Step 6, 실사용#28)
 }
 
+// 표 헤더 라벨(작성자/소속 등) 기반 자동 탐지 후보 — 정규식 대신 문서의 표
+// 구조(헤더 열 이름)로 판단하므로 personName/company를 규칙 없이도 잡을 수 있다.
+// 생성처: lib/parse/pptx.ts extractPptxText(). 소비처: lib/masking/detect.ts.
+export interface LabeledEntityCandidate {
+  kind: "personName" | "company";
+  raw: string;
+  start: number;
+  end: number;
+}
+
 // ⚠️ 복원키 — SecureClientMemory 전용. 직렬화·전송·스토리지·로그 금지.
 export interface MaskMapping {
   token: string; // "[회사A]"
-  raw: string; // "삼성전자"
+  raw: string; // "가상전자"
   kind: SensitiveKind;
 }
 
@@ -140,7 +150,7 @@ export interface ExtractedAnalysisTarget {
 // 내 사전 항목 (lib/dictionary는 Step 4에서 — 여기선 탐지 입력 계약만 정의)
 export interface DictionaryEntry {
   id: string;
-  value: string; // "삼성전자" / "이수빈"
+  value: string; // "가상전자" / "가상담당자A"
   kind: "company" | "client" | "product" | "person";
   scope: "project" | "global"; // person은 기본 global (실사용#27)
 }

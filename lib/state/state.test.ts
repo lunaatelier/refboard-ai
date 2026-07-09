@@ -62,7 +62,7 @@ describe("Step 13 — 분석 JSON 저장/불러오기", () => {
     maskedText: "[고객사A] 텍스트",
     analysis,
     extractedAnalysisTargets: [
-      { name: "파타고니아", entityKind: "benchmarkBrand" },
+      { name: "가상아웃도어", entityKind: "benchmarkBrand" },
     ],
     projectDirective: [{ text: "ESG 강조" }],
     documentPurpose: "project-brief",
@@ -74,7 +74,7 @@ describe("Step 13 — 분석 JSON 저장/불러오기", () => {
     assert.ok(!json.includes("maskedText")); // 본문 텍스트도 미포함 (분석만)
     const imported = parseAnalysisImport(json);
     assert.equal(imported.analysis.title, "[고객사A] 리뉴얼");
-    assert.equal(imported.extractedAnalysisTargets[0].name, "파타고니아");
+    assert.equal(imported.extractedAnalysisTargets[0].name, "가상아웃도어");
     assert.equal(imported.projectDirective[0].text, "ESG 강조");
     assert.equal(imported.documentPurpose, "project-brief");
   });
@@ -114,8 +114,8 @@ describe("Step 13 — 분석 JSON 저장/불러오기", () => {
 
 describe("Step 14 — 복원키 파일 내보내기/가져오기", () => {
   const mappings = [
-    { token: "[회사A]", raw: "삼성전자", kind: "company" as const },
-    { token: "[담당자A]", raw: "김철수", kind: "personName" as const },
+    { token: "[회사A]", raw: "가상전자", kind: "company" as const },
+    { token: "[담당자A]", raw: "가상담당자C", kind: "personName" as const },
   ];
 
   it("내보내기 → 가져오기 왕복: exportId와 매핑이 보존된다", () => {

@@ -60,7 +60,7 @@ describe("normalizeAnalysis — Gemini 응답 정규화", () => {
         { label: "Main2", sourceSlides: [4], contentSummary: "시안 2" },
       ],
       detectedCaseStudies: [
-        { name: "파타고니아", extractedNote: "지속가능성 사례", sourceUrls: [] },
+        { name: "가상아웃도어", extractedNote: "지속가능성 사례", sourceUrls: [] },
       ],
     });
     assert.equal(a.pages[0].sourceDocumentId, "RUC-UI-MAI");
@@ -68,7 +68,7 @@ describe("normalizeAnalysis — Gemini 응답 정규화", () => {
       "[김OO 9/25] 문구 확정 필요",
     ]);
     assert.equal(a.existingContentVariants?.length, 2);
-    assert.equal(a.detectedCaseStudies?.[0].name, "파타고니아");
+    assert.equal(a.detectedCaseStudies?.[0].name, "가상아웃도어");
   });
 
   it("parentSiteRelation: AI 후보는 confirmed:false로 시작, 없으면 필드 없음 (실사용#31)", () => {

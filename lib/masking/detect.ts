@@ -1,5 +1,10 @@
 import { classifyDummy, MASK_RULES } from "./rules";
-import type { Detection, DictionaryEntry, SensitiveKind } from "./types";
+import type {
+  Detection,
+  DictionaryEntry,
+  LabeledEntityCandidate,
+  SensitiveKind,
+} from "./types";
 
 // 탐지 엔진 (phase1-masking-spec §4) — isomorphic 순수 함수.
 // 1) 정규식 규칙 매칭 → 2) 사전 매칭 → 3) 인덱스 겹침 제거(넓은 범위 우선) → 4) start 정렬
@@ -26,8 +31,21 @@ interface Candidate {
 export function detect(
   text: string,
   dictionary: DictionaryEntry[] = [],
+  labeledEntities: LabeledEntityCandidate[] = [],
 ): Detection[] {
   const candidates: Candidate[] = [];
+
+  // 표 헤더 라벨(작성자/소속 등) 기반 후보 — 정규식·사전과 무관하게 문서
+  // 구조로 판단된 것이라 가장 먼저 넣는다 (겹침 시 다른 규칙과 동일하게 경쟁).
+  for (const entity of labeledEntities) {
+    candidates.push({
+      kind: entity.kind,
+      raw: entity.raw,
+      start: entity.start,
+      end: entity.end,
+      source: "rule",
+    });
+  }
 
   for (const rule of MASK_RULES) {
     const regex = new RegExp(rule.regex.source, rule.regex.flags);

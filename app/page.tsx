@@ -12,6 +12,7 @@ import ConceptWorkspace from "@/components/concept/ConceptWorkspace";
 import ReferenceWorkspace from "@/components/reference/ReferenceWorkspace";
 import MaskingReview from "@/components/MaskingReview";
 import LandingUpload from "@/components/shell/LandingUpload";
+import PageLayout, { pageCardStyle } from "@/components/shell/PageLayout";
 import Workspace from "@/components/shell/Workspace";
 import { classifyDocumentPurpose } from "@/lib/analysis/documentPurpose";
 import { addDictionaryEntry, listDictionary } from "@/lib/dictionary/store";
@@ -23,6 +24,7 @@ import { remaskText } from "@/lib/masking/remask";
 import { restore } from "@/lib/masking/restore";
 import type {
   Detection,
+  LabeledEntityCandidate,
   MaskMapping,
   NumericDetection,
 } from "@/lib/masking/types";
@@ -84,10 +86,6 @@ export default function Home() {
   const [imageInsights, setImageInsights] = useState<ImageInsight[]>([]);
   const [imageBusy, setImageBusy] = useState(false);
   const [imageError, setImageError] = useState<string>();
-
-  const isLanding =
-    workflow.currentStep === "upload" &&
-    !workflow.completedSteps.includes("upload");
 
   const [uploadError, setUploadError] = useState<string>();
   const [parsing, setParsing] = useState(false);
@@ -178,6 +176,7 @@ export default function Home() {
 
     setParsing(true);
     let text: string;
+    let labeledEntities: LabeledEntityCandidate[] = [];
     try {
       // txt/md = 브라우저 파싱(원문이 PC를 안 떠남) / pdf·pptx = 자사 서버(메모리·무저장)
       if (isBrowserParsable(file.name)) {
@@ -186,6 +185,7 @@ export default function Home() {
       } else {
         const parsed = await parseViaServer(file);
         text = parsed.text;
+        labeledEntities = parsed.labeledEntities;
         // 민감 가능성 힌트: 해당 슬라이드 텍스트에 개인정보성 키워드가 있으면 표시
         imagesRef.current = parsed.images.map((img) => ({
           ...img,
@@ -210,14 +210,20 @@ export default function Home() {
     beginMaskingDraft(
       text,
       maskFileName(file.name, listDictionary()).displayName,
+      labeledEntities,
     );
   };
 
   // 텍스트 원문으로 마스킹 검수를 시작하는 공통 경로 (파일 업로드·링크 입력 공용).
   // 재시작 = 새 워크플로 (이전 분석·레퍼런스·컨셉·복원키 전부 무효화)
-  const beginMaskingDraft = (text: string, displayName: string) => {
+  // labeledEntities = 표 헤더 라벨(작성자/소속 등) 기반 자동 탐지 후보 (pptx 전용, Step 5 확장)
+  const beginMaskingDraft = (
+    text: string,
+    displayName: string,
+    labeledEntities: LabeledEntityCandidate[] = [],
+  ) => {
     const dictionary = listDictionary();
-    const detections = detect(text, dictionary);
+    const detections = detect(text, dictionary, labeledEntities);
     setDraft({
       parsedText: text,
       detections,
@@ -281,10 +287,15 @@ export default function Home() {
 
   const handleConfirmMasking = () => {
     if (!draft) return;
+    // 이미지 분석이 텍스트 확정보다 먼저 실행됐다면(이제 순서 제약이 없어짐)
+    // secureMappingsRef에 이미 매핑이 쌓여있을 수 있다 — 시드로 넘겨 덮어쓰지
+    // 않고 이어받는다. 토큰 할당은 (kind, raw) 기준 결정적이라 같은 항목은
+    // 항상 같은 토큰을 받으므로 순서가 바뀌어도 안전하다.
     const { maskedText, mappings } = finalizeMask(
       draft.parsedText,
       draft.detections,
       draft.numericDetections,
+      secureMappingsRef.current,
     );
 
     // 복원키 → SecureClientMemory (WorkflowState 아님)
@@ -320,6 +331,8 @@ export default function Home() {
       completedSteps: prev.completedSteps.includes("masking")
         ? prev.completedSteps
         : [...prev.completedSteps, "masking"],
+      // 확정과 동시에 다음 단계로 — 별도 "다음" 클릭을 기다리지 않는다.
+      currentStep: "analysis",
     }));
 
     setDraft(null); // ← 원문·Detection[]·NumericDetection[](raw 포함) 즉시 폐기
@@ -330,6 +343,18 @@ export default function Home() {
       assetIds.includes(img.assetId),
     );
     if (consented.length === 0) return;
+    // 텍스트 마스킹이 아직 확정 전(draft 존재)이어도 이미지 분석을 먼저 실행할
+    // 수 있다 — 그 순간의 draft 상태로 매핑을 미리 계산해 둔다. secureMappingsRef만
+    // 믿으면 텍스트 확정 전엔 비어있어서, 이미지 설명 속 실명이 재마스킹을
+    // 통과 못 하고 그대로 저장될 위험이 있다 (personName/company는 사전 매칭 전용).
+    if (draft) {
+      secureMappingsRef.current = finalizeMask(
+        draft.parsedText,
+        draft.detections,
+        draft.numericDetections,
+        secureMappingsRef.current,
+      ).mappings;
+    }
     setImageBusy(true);
     setImageError(undefined);
     try {
@@ -488,30 +513,27 @@ export default function Home() {
     });
   };
 
-  if (isLanding) {
-    return (
-      <LandingUpload
-        onFile={handleFile}
-        onLink={handleLink}
-        error={uploadError}
-        parsing={parsing}
-      />
-    );
-  }
-
   return (
     <Workspace state={workflow} onNavigate={handleNavigate}>
-      {workflow.currentStep === "upload" && (
-        <Panel title="업로드 (완료)">
-          <p style={{ color: "var(--text-muted)" }}>
-            업로드된 파일: <b>{fileDisplayName ?? "(알 수 없음)"}</b>
-          </p>
-          <p style={{ color: "var(--text-muted)" }}>
-            다른 문서로 시작하려면 새로고침하세요. (메모리의 원문·복원키가 모두
-            소멸됩니다)
-          </p>
-        </Panel>
-      )}
+      {workflow.currentStep === "upload" &&
+        (workflow.completedSteps.includes("upload") ? (
+          <Panel title="업로드 (완료)">
+            <p style={{ color: "var(--text-muted)" }}>
+              업로드된 파일: <b>{fileDisplayName ?? "(알 수 없음)"}</b>
+            </p>
+            <p style={{ color: "var(--text-muted)" }}>
+              다른 문서로 시작하려면 새로고침하세요. (메모리의 원문·복원키가
+              모두 소멸됩니다)
+            </p>
+          </Panel>
+        ) : (
+          <LandingUpload
+            onFile={handleFile}
+            onLink={handleLink}
+            error={uploadError}
+            parsing={parsing}
+          />
+        ))}
 
       {workflow.currentStep === "masking" &&
         (() => {
@@ -587,7 +609,6 @@ export default function Home() {
                     <ImageConsentPanel
                       images={imagesRef.current.map(toConsentImage)}
                       insights={imageInsights}
-                      canAnalyze={maskingConfirmed}
                       busy={imageBusy}
                       error={imageError}
                       onAnalyze={handleAnalyzeImages}
@@ -948,6 +969,8 @@ function Alert({
   );
 }
 
+// 로딩·placeholder 화면(업로드 완료 요약, 디자인 MD 등)에서 쓰는 얇은 래퍼 —
+// 타이틀 렌더링은 PageLayout에 위임하고, 내용은 표준 카드 하나로 감싼다.
 function Panel({
   title,
   children,
@@ -956,22 +979,8 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-lg)",
-        padding: "var(--space-xl)",
-        display: "flex",
-        flexDirection: "column",
-        gap: "var(--space-base)",
-        boxShadow: "var(--shadow-standard)",
-      }}
-    >
-      <h2 style={{ fontSize: 22, fontWeight: 700, color: "var(--text)" }}>
-        {title}
-      </h2>
-      {children}
-    </div>
+    <PageLayout title={title}>
+      <div style={pageCardStyle}>{children}</div>
+    </PageLayout>
   );
 }

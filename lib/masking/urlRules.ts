@@ -27,7 +27,7 @@ function hostnameOf(url: string): string | null {
 }
 
 // publicBrandNames: 검수에서 "유지"로 태깅된 공개 엔티티 이름 목록.
-// 영문 브랜드명은 도메인과 직접 대조한다 (예: "Patagonia" ↔ patagonia.com).
+// 영문 브랜드명은 도메인과 직접 대조한다 (예: "VirtualOutdoor" ↔ virtual-outdoor.example).
 // 한글 브랜드명은 도메인 자동 대조가 불가하므로 사용자가 직접 유지 여부를 확정한다.
 export function classifyUrl(
   url: string,

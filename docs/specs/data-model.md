@@ -174,12 +174,12 @@ interface PersistentPersonDictionaryEntry {
 
 interface MaskMapping {       // ⚠️ 민감: SecureClientMemory 전용
   token: string;              // "[회사A]" / "[담당자A]" / "[주소A]"
-  raw: string;                // "삼성전자" / "홍길동" / "서울시 ..."
+  raw: string;                // "가상전자" / "가상담당자A" / "서울시 ..."
   kind: SensitiveKind;
 }
 
 // (#32 실사용 검증) 파일명 자체가 마스킹 대상이 될 수 있다.
-// 예: "..._수정본_신연주.pptx" — 본문이 아니라 파일명에 인명이 노출.
+// 예: "..._수정본_가상담당자A.pptx" — 본문이 아니라 파일명에 인명이 노출.
 // 업로드 시 파일명도 detect() 대상에 포함하고, 업로드 목록·로그 등 어디에도
 // 원본 파일명을 그대로 표시하지 않는다. 표시용 이름은 마스킹된 별칭으로 대체.
 interface UploadedFileMeta {

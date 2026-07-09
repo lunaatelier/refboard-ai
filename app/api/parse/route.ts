@@ -45,11 +45,13 @@ export async function POST(req: Request) {
     }
     // pptx: 텍스트 + 이미지 목록. 이미지는 opt-in 동의 전까지 외부로 나가지 않으며
     // 이 응답은 자사 서버 → 클라이언트 반환일 뿐이다 (Step 9).
-    const [text, images] = await Promise.all([
+    // labeledEntities = 표 헤더 라벨(작성자/소속 등) 기반 자동 탐지 후보 —
+    // 마스킹 원문급 민감이므로 텍스트와 마찬가지로 자사 서버까지만.
+    const [{ text, labeledEntities }, images] = await Promise.all([
       extractPptxText(buffer),
       extractPptxImages(buffer),
     ]);
-    return NextResponse.json({ text, images });
+    return NextResponse.json({ text, labeledEntities, images });
   } catch {
     // 파일 내용·파일명이 에러 메시지로 새지 않도록 고정 문구만 반환
     return NextResponse.json(
