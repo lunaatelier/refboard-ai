@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Key, Save } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Key, Loader2, Save } from "lucide-react";
 import AnalysisResult from "@/components/AnalysisResult";
 import { describeScope } from "@/components/DirectiveEditor";
 import ImageConsentPanel, {
@@ -490,6 +490,24 @@ export default function Home() {
     }
   };
 
+  // 분석 자동 시작 (Step 9) — 마스킹 확정 후 이 단계에 들어오면 버튼 클릭 없이
+  // 바로 호출한다. maskedText별로 한 번만 자동 시도하도록 기억해, 실패 후에도
+  // 무한 재시도 루프를 만들지 않는다(실패 시엔 사용자가 "다시 시도"를 직접 누른다).
+  const autoAnalyzedForRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (workflow.currentStep !== "analysis") return;
+    if (workflow.analysis) return;
+    if (!workflow.maskedText) return;
+    const imageOnlyBlocked =
+      workflow.maskedText === IMAGE_ONLY_PLACEHOLDER && imageInsights.length === 0;
+    if (imageOnlyBlocked) return;
+    if (analyzing) return;
+    if (autoAnalyzedForRef.current === workflow.maskedText) return;
+    autoAnalyzedForRef.current = workflow.maskedText;
+    void handleAnalyze();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflow.currentStep, workflow.analysis, workflow.maskedText, imageInsights.length, analyzing]);
+
   const handleConfirmAnalysis = () => {
     setWorkflow((prev) => {
       if (!prev.analysis) return prev;
@@ -712,35 +730,36 @@ export default function Home() {
                   후 &ldquo;선택 이미지 분석&rdquo;을 먼저 실행하세요.
                 </Alert>
               )}
-            <button
-              onClick={handleAnalyze}
-              disabled={
-                analyzing ||
-                (workflow.maskedText === IMAGE_ONLY_PLACEHOLDER &&
-                  imageInsights.length === 0)
-              }
-              className="btn-primary"
-              style={{
-                alignSelf: "flex-start",
-                padding: "12px var(--space-lg)",
-                borderRadius: "var(--radius-md)",
-                border: "none",
-                background:
-                  analyzing ||
-                  (workflow.maskedText === IMAGE_ONLY_PLACEHOLDER &&
-                    imageInsights.length === 0)
-                    ? "var(--locked)"
-                    : undefined,
-                fontWeight: 600,
-                fontSize: 14,
-              }}
-            >
-              {analyzing ? "분석 중… (수십 초 걸릴 수 있음)" : "분석 시작"}
-            </button>
+            {analyzing && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+                  <Loader2 size={18} className="spin" color="var(--primary)" />
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>분석 중</span>
+                </div>
+                <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                  수십 초 정도 걸릴 수 있어요.
+                </span>
+              </div>
+            )}
             {analysisError && (
-              <p role="alert" style={{ color: "var(--error)", fontWeight: 600, fontSize: 14 }}>
-                {analysisError}
-              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)", alignItems: "flex-start" }}>
+                <p role="alert" style={{ color: "var(--error)", fontWeight: 600, fontSize: 14 }}>
+                  {analysisError}
+                </p>
+                <button
+                  onClick={handleAnalyze}
+                  className="btn-primary"
+                  style={{
+                    padding: "10px var(--space-base)",
+                    borderRadius: "var(--radius-md)",
+                    border: "none",
+                    fontWeight: 600,
+                    fontSize: 14,
+                  }}
+                >
+                  다시 시도
+                </button>
+              </div>
             )}
           </Panel>
         ))}

@@ -462,3 +462,13 @@ input[type="checkbox"]:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}

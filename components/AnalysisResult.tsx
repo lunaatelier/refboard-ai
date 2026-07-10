@@ -22,6 +22,7 @@ import type {
   DomainHint,
   ExclusionReason,
   ExplicitRequirementKind,
+  Page,
   ProjectAnalysis,
   ProjectDirective,
 } from "@/lib/analysis/types";
@@ -78,7 +79,14 @@ const EXCLUSION_LABELS: Record<ExclusionReason, string> = {
   other: "기타",
 };
 
-const TAGS_PREVIEW_COUNT = 2;
+// 섹션이 "페이지 전체 구조 개요" 성격이면(예: 대시보드 레이아웃 통짜 설명) 부분 제외가
+// 의미 없다 — 페이지 단위 체크 해제로 충분하므로 X 버튼 자체를 렌더하지 않는다.
+// recommendedLayout 기준(contentType은 hero/feature/team 같은 "내용 성격" 축이라
+// 이 판단에 맞지 않음) + 명시 목록(넓은 "-layout" 접미사 매칭은 card-layout 같은
+// 일반 표현 방식까지 오탐할 수 있어 배제).
+const PAGE_STRUCTURE_LAYOUTS = new Set(["dashboard-layout"]);
+
+const SECTIONS_PREVIEW_COUNT = 3;
 
 interface AnalysisResultProps {
   analysis: ProjectAnalysis;
@@ -254,6 +262,102 @@ function ConfirmDialog({
   );
 }
 
+// 페이지 3가지 상태(선택됨 / 사용자 직접 제외 / AI 자동 미선택)를 한눈에 구분.
+function pageContainerStyle(p: Page): React.CSSProperties {
+  if (p.selected) {
+    return { border: "1px solid var(--border)", opacity: 1 };
+  }
+  if (p.excludedReason) {
+    // 사용자가 의도적으로 뺀 페이지 — 사유 셀렉트가 함께 노출된다.
+    return { border: "1px solid var(--border)", opacity: 0.82 };
+  }
+  // AI가 상위 N개 자동 선택에서 밀린 것뿐 — 점선으로 "확정 아님"을 표시.
+  return { border: "1px dashed var(--border)", opacity: 0.55 };
+}
+
+function SectionList({
+  page,
+  expanded,
+  onToggleExpanded,
+  onRenameSection,
+  onDeleteSection,
+}: {
+  page: Page;
+  expanded: boolean;
+  onToggleExpanded: () => void;
+  onRenameSection: (sectionId: string, title: string) => void;
+  onDeleteSection: (sectionId: string) => void;
+}) {
+  const visible = expanded ? page.sections : page.sections.slice(0, SECTIONS_PREVIEW_COUNT);
+  const hiddenCount = page.sections.length - visible.length;
+
+  return (
+    <>
+      <div style={{ borderTop: "1px solid var(--border)" }} />
+      <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
+        {visible.map((s) => (
+          <li
+            key={s.sectionId}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--space-xs)",
+              padding: "10px var(--space-md)",
+              background: "var(--surface)",
+              borderRadius: "var(--radius-md)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+              <input
+                value={s.sectionTitle}
+                onChange={(e) => onRenameSection(s.sectionId, e.target.value)}
+                className="input-box"
+                style={{
+                  ...inputStyle,
+                  border: undefined,
+                  fontWeight: 600,
+                  width: 180,
+                  padding: "4px var(--space-sm)",
+                }}
+              />
+              <span style={contentTypeTag} title="내용 성격">
+                {s.contentType}
+              </span>
+              <span style={layoutPatternTag} title="표현 방식">
+                {s.recommendedLayout}
+              </span>
+              {s.unresolvedNotes && s.unresolvedNotes.length > 0 && (
+                <span style={warningPill}>미결 {s.unresolvedNotes.length}</span>
+              )}
+              {!PAGE_STRUCTURE_LAYOUTS.has(s.recommendedLayout) && (
+                <button
+                  onClick={() => onDeleteSection(s.sectionId)}
+                  aria-label="이 섹션 제외"
+                  title="이 섹션 제외"
+                  className="btn-icon-neutral"
+                  style={{ marginLeft: "auto", width: 28, height: 28 }}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <ContentSummaryText text={s.contentSummary} />
+          </li>
+        ))}
+      </ul>
+      {page.sections.length > SECTIONS_PREVIEW_COUNT && (
+        <button
+          onClick={onToggleExpanded}
+          className="btn-tertiary"
+          style={{ alignSelf: "flex-start", border: "none", fontSize: 14, fontWeight: 600 }}
+        >
+          {expanded ? "접기" : `+${hiddenCount}개 섹션 더 보기`}
+        </button>
+      )}
+    </>
+  );
+}
+
 export default function AnalysisResult({
   analysis,
   onChange,
@@ -262,17 +366,25 @@ export default function AnalysisResult({
   onDirectivesChange,
 }: AnalysisResultProps) {
   const [notice, setNotice] = useState<string>();
-  const [tagsExpanded, setTagsExpanded] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const [businessDomainDraft, setBusinessDomainDraft] = useState(
     analysis.businessDomain ?? "",
   );
+  const [expandedSectionPages, setExpandedSectionPages] = useState<Set<string>>(new Set());
   const selectedCount = analysis.pages.filter((p) => p.selected).length;
 
   // 다른 분석 결과가 로드되면(재활용 등) 초안도 새 값으로 맞춘다.
   useEffect(() => {
     setBusinessDomainDraft(analysis.businessDomain ?? "");
   }, [analysis.businessDomain]);
+
+  const toggleSectionPageExpanded = (pageId: string) =>
+    setExpandedSectionPages((prev) => {
+      const next = new Set(prev);
+      if (next.has(pageId)) next.delete(pageId);
+      else next.add(pageId);
+      return next;
+    });
 
   // 화면 유형·프로젝트 도메인 변경 = 자동 반영 금지 (Step 6). 값만 바뀔 뿐 구성
   // 페이지·섹션 자체는 건드리지 않지만, 이후 레퍼런스·무드·컨셉 추천이 새 값
@@ -338,10 +450,6 @@ export default function AnalysisResult({
   const confidencePct = Math.round(analysis.domainConfidence * 100);
   const confidenceLow = analysis.domainConfidence < 0.7;
   const uniqueTags = [...new Set(analysis.tags)];
-  const visibleTags = tagsExpanded
-    ? uniqueTags
-    : uniqueTags.slice(0, TAGS_PREVIEW_COUNT);
-  const hiddenTagCount = uniqueTags.length - visibleTags.length;
   const businessDomainDirty = businessDomainDraft !== (analysis.businessDomain ?? "");
 
   const taskBanner = (
@@ -611,40 +719,14 @@ export default function AnalysisResult({
 
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
           <span style={fieldLabel}>핵심 키워드</span>
+          {/* 접기/펼치기 없이 항상 전체 노출 — 현재 개수(7개 안팎) 수준에선 접을
+              이유가 없다. 실사용에서 개수가 크게 늘어나면 그때 임계값을 재검토. */}
           <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap", alignItems: "center" }}>
-            {visibleTags.map((t) => (
-              <span
-                key={t}
-                style={{
-                  background: "var(--primary-soft)",
-                  color: "var(--primary)",
-                  borderRadius: "var(--radius-full)",
-                  padding: "4px 12px",
-                  fontSize: 14,
-                  fontWeight: 600,
-                }}
-              >
+            {uniqueTags.map((t) => (
+              <span key={t} style={hashtagPill}>
                 #{t}
               </span>
             ))}
-            {hiddenTagCount > 0 && (
-              <button
-                onClick={() => setTagsExpanded(true)}
-                className="btn-tertiary"
-                style={{ border: "none", fontSize: 14, fontWeight: 600 }}
-              >
-                +{hiddenTagCount}
-              </button>
-            )}
-            {tagsExpanded && uniqueTags.length > TAGS_PREVIEW_COUNT && (
-              <button
-                onClick={() => setTagsExpanded(false)}
-                className="btn-tertiary"
-                style={{ border: "none", fontSize: 14, fontWeight: 600 }}
-              >
-                접기
-              </button>
-            )}
           </div>
         </div>
 
@@ -700,7 +782,7 @@ export default function AnalysisResult({
           <ul style={{ paddingLeft: 20, fontSize: 14, display: "flex", flexDirection: "column", gap: 4 }}>
             {analysis.explicitRequirements.map((r, i) => (
               <li key={i}>
-                <span style={{ ...neutralPill, marginRight: 8 }}>
+                <span style={{ ...contentTypeTag, marginRight: 8 }}>
                   {REQUIREMENT_KIND_LABELS[r.kind]}
                 </span>
                 {r.text}
@@ -775,15 +857,15 @@ export default function AnalysisResult({
               <div
                 key={p.pageId}
                 style={{
-                  border: "1px solid var(--border)",
+                  ...pageContainerStyle(p),
                   borderRadius: "var(--radius-lg)",
                   padding: "var(--space-base)",
                   display: "flex",
                   flexDirection: "column",
                   gap: "var(--space-sm)",
-                  opacity: p.selected ? 1 : 0.6,
                 }}
               >
+                {/* 1행 — 강한 위계: 체크박스 + 페이지명(헤더) + 역할 뱃지 */}
                 <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
                   <input
                     type="checkbox"
@@ -796,33 +878,39 @@ export default function AnalysisResult({
                   >
                     <RoleIcon size={18} color="var(--text-muted)" />
                   </span>
-                  <span style={{ fontWeight: 700, flex: 1, fontSize: 14 }}>{p.pageTitle}</span>
+                  <span style={{ fontWeight: 700, fontSize: 16 }}>{p.pageTitle}</span>
+                  <span style={contentTypeTag}>{ROLE_LABELS[p.pageRole] ?? p.pageRole}</span>
+                  <span style={{ flex: 1 }} />
                   {!p.selected && p.excludedReason && (
-                    <select
-                      value={p.excludedReason}
-                      onChange={(e) =>
-                        patchPage(p.pageId, {
-                          excludedReason: e.target.value as ExclusionReason,
-                        })
-                      }
-                      className="select-box"
-                    >
-                      {(Object.keys(EXCLUSION_LABELS) as ExclusionReason[]).map(
-                        (r) => (
-                          <option key={r} value={r}>
-                            제외: {EXCLUSION_LABELS[r]}
-                          </option>
-                        ),
-                      )}
-                    </select>
+                    <>
+                      <span style={{ ...warningPill, fontSize: 13 }}>제외됨</span>
+                      <select
+                        value={p.excludedReason}
+                        onChange={(e) =>
+                          patchPage(p.pageId, {
+                            excludedReason: e.target.value as ExclusionReason,
+                          })
+                        }
+                        className="select-box"
+                      >
+                        {(Object.keys(EXCLUSION_LABELS) as ExclusionReason[]).map(
+                          (r) => (
+                            <option key={r} value={r}>
+                              제외: {EXCLUSION_LABELS[r]}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </>
                   )}
                   {/* excludedReason이 없으면 "제외"가 아니라 상위 N개 자동 선택에서 밀린
                       것뿐 — 사용자·AI 누구도 이 페이지를 의도적으로 뺀 적이 없으므로
-                      "직접 제외" 같은 확정적 사유를 보여주지 않는다 (체크만 하면 바로 복귀). */}
+                      "직접 제외" 같은 확정적 사유·셀렉트를 보여주지 않는다(체크만 하면
+                      바로 복귀). 점선 테두리+안내 문구만으로 "AI 자동 미선택"임을 표시. */}
                   {!p.selected && !p.excludedReason && (
                     <span
                       style={{
-                        fontSize: 14,
+                        fontSize: 13,
                         color: "var(--text-muted)",
                         whiteSpace: "nowrap",
                       }}
@@ -831,77 +919,30 @@ export default function AnalysisResult({
                     </span>
                   )}
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "var(--space-sm)",
-                    flexWrap: "wrap",
-                    fontSize: 14,
-                    color: "var(--text-muted)",
-                    paddingLeft: 28,
-                  }}
-                >
-                  <span style={{ ...neutralPill }}>
-                    {ROLE_LABELS[p.pageRole] ?? p.pageRole}
-                  </span>
-                  {p.sourceSlides && <span>슬라이드 {p.sourceSlides.join(", ")}</span>}
-                  {p.sourceDocumentId && <span>ID: {p.sourceDocumentId}</span>}
-                </div>
+                {/* 2행 — 보조 정보(낮은 위계): 출처 슬라이드·문서ID */}
+                {(p.sourceSlides || p.sourceDocumentId) && (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "var(--space-sm)",
+                      flexWrap: "wrap",
+                      fontSize: 12,
+                      color: "var(--text-muted)",
+                      paddingLeft: 28,
+                    }}
+                  >
+                    {p.sourceSlides && <span>슬라이드 {p.sourceSlides.join(", ")}</span>}
+                    {p.sourceDocumentId && <span>ID: {p.sourceDocumentId}</span>}
+                  </div>
+                )}
                 {p.selected && (
-                  <>
-                    <div style={{ borderTop: "1px solid var(--border)" }} />
-                    <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
-                      {p.sections.map((s) => (
-                        <li
-                          key={s.sectionId}
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "var(--space-xs)",
-                            padding: "10px var(--space-md)",
-                            background: "var(--surface)",
-                            borderRadius: "var(--radius-md)",
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
-                            <input
-                              value={s.sectionTitle}
-                              onChange={(e) =>
-                                renameSection(p.pageId, s.sectionId, e.target.value)
-                              }
-                              className="input-box"
-                              style={{
-                                ...inputStyle,
-                                border: undefined,
-                                fontWeight: 600,
-                                width: 180,
-                                padding: "4px var(--space-sm)",
-                              }}
-                            />
-                            <span style={pill}>{s.contentType}</span>
-                            <span style={neutralPill}>
-                              {s.recommendedLayout}
-                            </span>
-                            {s.unresolvedNotes && s.unresolvedNotes.length > 0 && (
-                              <span style={{ ...pill, background: "var(--warning-weak-bg)", color: "var(--warning-weak-text)" }}>
-                                미결 {s.unresolvedNotes.length}
-                              </span>
-                            )}
-                            <button
-                              onClick={() => deleteSection(p.pageId, s.sectionId)}
-                              aria-label="섹션 제외"
-                              title="섹션 제외"
-                              className="btn-icon-neutral"
-                              style={{ marginLeft: "auto", width: 28, height: 28 }}
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-                          <ContentSummaryText text={s.contentSummary} />
-                        </li>
-                      ))}
-                    </ul>
-                  </>
+                  <SectionList
+                    page={p}
+                    expanded={expandedSectionPages.has(p.pageId)}
+                    onToggleExpanded={() => toggleSectionPageExpanded(p.pageId)}
+                    onRenameSection={(sectionId, title) => renameSection(p.pageId, sectionId, title)}
+                    onDeleteSection={(sectionId) => deleteSection(p.pageId, sectionId)}
+                  />
                 )}
               </div>
             );
@@ -928,17 +969,42 @@ const inputStyle: React.CSSProperties = {
   font: "inherit",
 };
 
-const pill: React.CSSProperties = {
+const tagBase: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
-  color: "var(--primary)",
-  background: "var(--primary-soft)",
-  borderRadius: "var(--radius-full)",
   padding: "4px 10px",
 };
 
-const neutralPill: React.CSSProperties = {
-  ...pill,
+// 내용 성격(contentType) — 채워진 중립톤 pill. 인터랙티브 요소가 아니므로 primary 금지.
+const contentTypeTag: React.CSSProperties = {
+  ...tagBase,
   color: "var(--text-muted)",
   background: "var(--surface-alt)",
+  borderRadius: "var(--radius-full)",
+};
+
+// 표현 방식(layoutPattern) — contentType과 다른 축임을 "모양"으로 구분(테두리만, 사각).
+// 같은 중립톤(text-muted)이지만 locked(#94a3b8)와는 다른 토큰이라 "비활성"으로 안 읽힌다.
+const layoutPatternTag: React.CSSProperties = {
+  ...tagBase,
+  color: "var(--text-muted)",
+  background: "transparent",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-md)",
+};
+
+// 프로젝트 전역 해시태그(핵심 키워드) — contentType/layoutPattern(섹션 축)과 구분되도록
+// text-strong로 한 단계 진하게. surface-alt 배경은 공유하되 텍스트 톤 차등만 준다.
+const hashtagPill: React.CSSProperties = {
+  ...tagBase,
+  color: "var(--text-strong)",
+  background: "var(--surface-alt)",
+  borderRadius: "var(--radius-full)",
+};
+
+const warningPill: React.CSSProperties = {
+  ...tagBase,
+  color: "var(--warning-weak-text)",
+  background: "var(--warning-weak-bg)",
+  borderRadius: "var(--radius-full)",
 };
