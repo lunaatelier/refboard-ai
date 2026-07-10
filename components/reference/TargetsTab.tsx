@@ -18,6 +18,7 @@ import type {
   AnalysisTargetListItem,
   ReferenceResult,
 } from "@/lib/reference/types";
+import { ErrorState } from "../shell/PageLayout";
 
 // [분석 대상 브랜드] 탭 (Step 10-c, flow-spec ④)
 // 2단계 구조: 1단계 넓은 목록(spec/manual/gemini 3소스, 누적) → 2단계 깊은 분석(7축).
@@ -354,9 +355,7 @@ export default function TargetsTab({
           </button>
         </div>
         {error && (
-          <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600, fontSize: 14 }}>
-            {error}
-          </p>
+          <ErrorState title="목록 생성에 실패했어요" detail={error} onRetry={fetchMore} />
         )}
       </div>
 

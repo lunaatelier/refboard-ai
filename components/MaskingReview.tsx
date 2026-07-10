@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, Check } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, Info } from "lucide-react";
 import DictionaryManager from "./DictionaryManager";
 import PageLayout, { PageCta } from "./shell/PageLayout";
 import TokenText from "./TokenText";
@@ -117,6 +117,8 @@ interface MaskingReviewProps {
   onNext: () => void;
   recoveryKeyAction?: React.ReactNode;
   imageConsentPanel?: React.ReactNode;
+  hasImages?: boolean;
+  imageOnlyAnalysisBlocked?: boolean;
 }
 
 export default function MaskingReview({
@@ -133,6 +135,8 @@ export default function MaskingReview({
   onNext,
   recoveryKeyAction,
   imageConsentPanel,
+  hasImages = false,
+  imageOnlyAnalysisBlocked = false,
 }: MaskingReviewProps) {
   const [showOriginal, setShowOriginal] = useState(false);
   const [manualWord, setManualWord] = useState("");
@@ -742,7 +746,57 @@ export default function MaskingReview({
 
       {recoveryKeyAction}
 
-      <PageCta onClick={confirmed ? onNext : onConfirm}>다음</PageCta>
+      {/* 분석 실행 CTA (실사용#9, 2026-07-11 레이아웃 확정) — 별도 섹션 타이틀·박스
+          없이 한 행에 좌(안내문구)/우(버튼)로 배치한다. */}
+      {hasImages && !imageOnlyAnalysisBlocked && (
+        <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
+          이미지 분석은 선택 사항입니다. 선택하지 않으면 텍스트만 분석합니다.
+        </p>
+      )}
+      {imageOnlyAnalysisBlocked && (
+        <p
+          role="alert"
+          style={{
+            color: "var(--warning-weak-text)",
+            background: "var(--warning-weak-bg)",
+            borderRadius: "var(--radius-md)",
+            padding: "var(--space-sm) var(--space-md)",
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          이미지 전용 입력은 본문 텍스트가 없어 이미지 분석 요약이 필요합니다.
+          위의 이미지 분석에서 이미지를 선택해 먼저 분석하세요.
+        </p>
+      )}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "var(--space-base)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
+          <Info size={16} color="var(--text-muted)" />
+          <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
+            외부로는 마스킹본과 &ldquo;유지&rdquo;로 확정한 공개 엔티티 실명만
+            전송됩니다. 확정 후 분석이 시작됩니다.
+          </span>
+        </div>
+        <PageCta
+          onClick={confirmed ? onNext : onConfirm}
+          disabled={imageOnlyAnalysisBlocked}
+          locked={imageOnlyAnalysisBlocked}
+        >
+          {confirmed
+            ? "분석 결과로 이동"
+            : imageOnlyAnalysisBlocked
+              ? "이미지 분석 후 진행"
+              : "마스킹 확정하고 분석"}
+        </PageCta>
+      </div>
     </PageLayout>
   );
 }

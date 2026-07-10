@@ -9,6 +9,7 @@ import {
   recommendRepresentativePages,
 } from "@/lib/reference/imageHints";
 import type { ImageHint, ReferenceResult } from "@/lib/reference/types";
+import { ErrorState } from "../shell/PageLayout";
 
 // [이미지 힌트] 탭 (Step 11 + Step 19) — scale + 방향 + 프롬프트 표출.
 // Step 19: NVIDIA_API_KEY가 설정되면 프롬프트로 실제 이미지 생성까지 지원.
@@ -278,9 +279,11 @@ export default function ImageHintsTab({
               : "이미지 힌트 생성"}
         </button>
         {error && (
-          <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600 }}>
-            {error}
-          </p>
+          <ErrorState
+            title="이미지 힌트 생성에 실패했어요"
+            detail={error}
+            onRetry={generate}
+          />
         )}
       </div>
 
@@ -402,45 +405,19 @@ export default function ImageHintsTab({
           )}
         </div>
       ))}
-      {genError && generating == null && (
-        <div
-          role="alert"
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "var(--space-sm)",
-            background: "var(--canvas)",
-            border: "1px solid var(--error)",
-            borderRadius: "var(--radius-md)",
-            padding: "var(--space-md)",
-          }}
-        >
-          <p style={{ fontWeight: 600, fontSize: 14, color: "var(--error-weak-text)" }}>
-            이미지 생성에 실패했어요.
-          </p>
-          <p style={{ fontSize: 14, color: "var(--text-body)" }}>
-            {genError} 서버 응답이 지연되었거나 요청이 처리되지 않았을 수 있습니다.
-          </p>
-          {genErrorIndex != null && (references.imageHints ?? [])[genErrorIndex] && (
-            <button
-              onClick={() =>
-                generateOne(genErrorIndex, (references.imageHints ?? [])[genErrorIndex])
-              }
-              className="btn-weak-primary"
-              style={{
-                alignSelf: "flex-start",
-                border: "none",
-                borderRadius: "var(--radius-md)",
-                padding: "6px 14px",
-                fontWeight: 600,
-                fontSize: 14,
-              }}
-            >
-              다시 시도
-            </button>
-          )}
-        </div>
-      )}
+      {genError &&
+        generating == null &&
+        genErrorIndex != null &&
+        (references.imageHints ?? [])[genErrorIndex] && (
+          <ErrorState
+            title="이미지 생성에 실패했어요"
+            description="서버 응답이 지연되었거나 요청이 처리되지 않았을 수 있습니다."
+            detail={genError}
+            onRetry={() =>
+              generateOne(genErrorIndex, (references.imageHints ?? [])[genErrorIndex])
+            }
+          />
+        )}
     </div>
   );
 }

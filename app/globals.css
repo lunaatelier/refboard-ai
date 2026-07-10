@@ -245,8 +245,11 @@ button:not(:disabled) {
 }
 
 /* 9. Inputs — hover nudges the border faintly; focus is the confident,
-   unambiguous state. The two must read as visually distinct. */
+   unambiguous state. The two must read as visually distinct.
+   backgroundColor matches the input-default token contract (DESIGN-refboard-ai.md)
+   and .select-box/.textarea-box below, which already set it. */
 .input-box {
+  background-color: var(--canvas);
   border: 1px solid var(--border);
   transition: border-color 150ms ease;
 }

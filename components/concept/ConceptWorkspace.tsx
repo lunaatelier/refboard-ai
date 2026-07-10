@@ -14,7 +14,7 @@ import {
 } from "@/lib/render/output";
 import { buildConceptPptx } from "@/lib/render/pptx";
 import { buildConceptPrintHtml } from "@/lib/render/printHtml";
-import PageLayout, { PageCta } from "../shell/PageLayout";
+import PageLayout, { ErrorState, PageCta } from "../shell/PageLayout";
 
 // ⑤ 컨셉 3안 (Step 12-a) — 프로젝트 전체를 관통하는 방향 3가지.
 // 페이지마다 3안(=15개)을 만들지 않는다. 대표 페이지로 각 안을 시각화.
@@ -166,9 +166,7 @@ export default function ConceptWorkspace({
           {busy ? "컨셉 생성 중… (수십 초)" : concept ? "다시 생성" : "컨셉 3안 생성"}
         </button>
         {error && (
-          <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600 }}>
-            {error}
-          </p>
+          <ErrorState title="컨셉 생성에 실패했어요" detail={error} onRetry={generate} />
         )}
       </div>
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Info } from "lucide-react";
 import SkinPreview from "./SkinPreview";
+import { pickBackgroundColorRequirement } from "@/lib/analysis/requirements";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
 import {
   generatePaletteOptions,
@@ -16,6 +17,7 @@ import type {
   PaletteRole,
   ReferenceResult,
 } from "@/lib/reference/types";
+import { ErrorState } from "../shell/PageLayout";
 
 // [컬러·무드] 탭 (Step 10-a, flow-spec ④)
 // 팔레트 3세트 → 1선택 → 역할 매핑 편집 (색 유지, 배치만 변경) → 무드 3종 → 선택 → 스킨 프리뷰.
@@ -104,7 +106,10 @@ export default function PaletteMoodTab({
     const brand = customHex.trim();
     onChange({
       ...references,
-      paletteOptions: generatePaletteOptions([brand]),
+      paletteOptions: generatePaletteOptions(
+        [brand],
+        pickBackgroundColorRequirement(analysis.explicitRequirements),
+      ),
       paletteBrandHex: brand,
       editedPaletteOption: undefined,
       paletteMode: undefined,
@@ -115,7 +120,11 @@ export default function PaletteMoodTab({
   const regenerateOption = (optionId: string) => {
     const brand = references.paletteBrandHex;
     if (!brand) return;
-    const fresh = regenerateBrandOption(brand, optionId);
+    const fresh = regenerateBrandOption(
+      brand,
+      optionId,
+      pickBackgroundColorRequirement(analysis.explicitRequirements),
+    );
     if (!fresh) return;
     const nextOptions = (references.paletteOptions ?? []).map((o) =>
       o.optionId === optionId ? fresh : o,
@@ -535,9 +544,11 @@ export default function PaletteMoodTab({
           </div>
         )}
         {error && (
-          <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600 }}>
-            {error}
-          </p>
+          <ErrorState
+            title="무드 생성에 실패했어요"
+            detail={error}
+            onRetry={generateMoods}
+          />
         )}
       </div>
     </div>

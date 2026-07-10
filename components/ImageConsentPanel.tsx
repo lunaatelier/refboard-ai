@@ -13,6 +13,7 @@ import {
   scanImagesForSensitiveText,
   type OcrScanResult,
 } from "@/lib/ocr/scan";
+import { ErrorState } from "./shell/PageLayout";
 import TokenText from "./TokenText";
 
 // 이미지 opt-in 동의 (Step 9, flow-spec ①)
@@ -452,14 +453,10 @@ export default function ImageConsentPanel({
             </p>
           )}
           {ocrError && (
-            <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600, fontSize: 14 }}>
-              {ocrError}
-            </p>
+            <ErrorState title="이미지 검사에 실패했어요" detail={ocrError} onRetry={handleAnalyze} />
           )}
           {error && (
-            <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600, fontSize: 14 }}>
-              {error}
-            </p>
+            <ErrorState title="이미지 분석에 실패했어요" detail={error} onRetry={handleAnalyze} />
           )}
         </>
       )}

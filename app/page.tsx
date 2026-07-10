@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Key, Loader2, Save } from "lucide-react";
+import { Key, Save } from "lucide-react";
 import AnalysisResult from "@/components/AnalysisResult";
 import { describeScope } from "@/components/DirectiveEditor";
 import ImageConsentPanel, {
@@ -12,7 +12,11 @@ import ConceptWorkspace from "@/components/concept/ConceptWorkspace";
 import ReferenceWorkspace from "@/components/reference/ReferenceWorkspace";
 import MaskingReview from "@/components/MaskingReview";
 import LandingUpload from "@/components/shell/LandingUpload";
-import PageLayout, { pageCardStyle } from "@/components/shell/PageLayout";
+import PageLayout, {
+  ErrorState,
+  LoadingState,
+  pageCardStyle,
+} from "@/components/shell/PageLayout";
 import Workspace from "@/components/shell/Workspace";
 import { classifyDocumentPurpose } from "@/lib/analysis/documentPurpose";
 import { addDictionaryEntry, listDictionary } from "@/lib/dictionary/store";
@@ -625,6 +629,11 @@ export default function Home() {
                     />
                   ) : undefined
                 }
+                hasImages={imagesRef.current.length > 0}
+                imageOnlyAnalysisBlocked={
+                  (draft?.parsedText ?? workflow.maskedText) === IMAGE_ONLY_PLACEHOLDER &&
+                  imageInsights.length === 0
+                }
               />
             </div>
           ) : (
@@ -709,10 +718,6 @@ export default function Home() {
           </div>
         ) : (
           <Panel title="분석 결과">
-            <p style={{ color: "var(--text-muted)" }}>
-              마스킹된 텍스트를 Gemini로 분석합니다. 외부로는 마스킹본과
-              &ldquo;유지&rdquo;로 확정한 공개 엔티티 실명만 전송됩니다.
-            </p>
             {workflow.extractedAnalysisTargets &&
               workflow.extractedAnalysisTargets.length > 0 && (
                 <p style={{ color: "var(--text-muted)" }}>
@@ -722,44 +727,21 @@ export default function Home() {
                     .join(", ")}
                 </p>
               )}
-            {workflow.maskedText === IMAGE_ONLY_PLACEHOLDER &&
-              imageInsights.length === 0 && (
-                <Alert tone="warn">
-                  이미지 전용 입력은 <b>이미지 분석 요약</b>이 있어야 분석할
-                  수 있습니다. ② 마스킹 검수 단계로 돌아가 이미지 전송 동의
-                  후 &ldquo;선택 이미지 분석&rdquo;을 먼저 실행하세요.
-                </Alert>
-              )}
             {analyzing && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
-                  <Loader2 size={18} className="spin" color="var(--primary)" />
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>분석 중</span>
-                </div>
-                <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                  수십 초 정도 걸릴 수 있어요.
-                </span>
-              </div>
+              <LoadingState
+                securityNote={
+                  '마스킹된 텍스트를 Gemini로 분석합니다. 외부로는 마스킹본과 "유지"로 확정한 공개 엔티티 실명만 전송됩니다.'
+                }
+                label="분석 중"
+                caption="수십 초 정도 걸릴 수 있어요."
+              />
             )}
             {analysisError && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)", alignItems: "flex-start" }}>
-                <p role="alert" style={{ color: "var(--error)", fontWeight: 600, fontSize: 14 }}>
-                  {analysisError}
-                </p>
-                <button
-                  onClick={handleAnalyze}
-                  className="btn-primary"
-                  style={{
-                    padding: "10px var(--space-base)",
-                    borderRadius: "var(--radius-md)",
-                    border: "none",
-                    fontWeight: 600,
-                    fontSize: 14,
-                  }}
-                >
-                  다시 시도
-                </button>
-              </div>
+              <ErrorState
+                title="분석에 실패했어요"
+                detail={analysisError}
+                onRetry={handleAnalyze}
+              />
             )}
           </Panel>
         ))}

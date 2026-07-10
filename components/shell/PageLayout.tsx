@@ -1,8 +1,10 @@
 "use client";
 
+import { AlertTriangle, Loader2 } from "lucide-react";
+
 // 공통 페이지 레이아웃 — 모든 단계 화면이 같은 "제품"처럼 보이도록 타이틀·설명·
 // 카드·CTA 구조를 한 곳에서 강제한다. 구조: banner → title/description → children
-// (각 화면 고유 카드 스택, 내용은 그대로 둠) → cta(카드 밖, 맨 아래, 좌측 정렬).
+// (각 화면 고유 카드 스택, 내용은 그대로 둠) → cta(카드 밖, 맨 아래, 우측 정렬).
 // 카드 안에 카드를 또 두르지 않는다는 원칙(§ 박스는 한 레벨만)과 동일한 이유로,
 // 여기서도 타이틀 존은 별도 박스로 감싸지 않고 여백으로만 구분한다.
 
@@ -69,7 +71,9 @@ interface PageCtaProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 // 표준 하단 CTA — 화면마다 10px/12px/14px, 600/700, 14px/16px로 제각각이던 것을
-// 하나로 통일 (Reference/Concept가 이미 쓰던 값 = 다수결이자 DESIGN.md label 스펙에 가장 가까움).
+// 하나로 통일. 페이지 레벨 마감 액션이라 DESIGN.md의 xlarge 사이즈(48px·16px/600)를
+// 쓴다 — 카드/인라인 액션(large, 40px·14px/600)과 구분된다. 우측 정렬(게시판 관례:
+// 저장류 주 액션은 우측, 파괴적·역방향 액션이 있으면 반대편 좌측에 분리).
 export function PageCta({
   locked,
   style,
@@ -82,21 +86,122 @@ export function PageCta({
       {...props}
       className={className ?? (locked ? undefined : "btn-primary")}
       style={{
-        alignSelf: "flex-start",
+        alignSelf: "flex-end",
         display: "flex",
         alignItems: "center",
         gap: "var(--space-xs)",
-        padding: "10px var(--space-base)",
+        height: 48,
+        padding: "0 20px",
         borderRadius: "var(--radius-md)",
         border: "none",
         background: locked ? "var(--locked)" : undefined,
         color: locked ? "var(--on-primary)" : undefined,
         fontWeight: 600,
-        fontSize: 14,
+        fontSize: 16,
         ...style,
       }}
     >
       {children}
     </button>
+  );
+}
+
+interface LoadingStateProps {
+  label: string; // 예: "분석 중"
+  caption?: string; // 예: "수십 초 정도 걸릴 수 있어요"
+  securityNote?: string; // 이 대기 중 무엇이 외부로 나가는지 — 로딩 요소보다 옅은 톤
+}
+
+// 공통 로딩 상태 (실사용#16, known-gaps의 spinner 항목 해소) — 분석뿐 아니라
+// 레퍼런스 검색·무드보드·컨셉 생성 등 다른 API 대기 화면에서도 재사용한다.
+// 버튼 없음 — 대기 중엔 액션을 두지 않는다.
+export function LoadingState({ label, caption, securityNote }: LoadingStateProps) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
+        gap: "var(--space-sm)",
+        padding: "var(--space-xl) var(--space-lg)",
+      }}
+    >
+      {securityNote && (
+        <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>
+          {securityNote}
+        </p>
+      )}
+      <Loader2 size={36} className="spin" color="var(--primary)" />
+      <span style={{ fontSize: 18, fontWeight: 700 }}>{label}</span>
+      {caption && (
+        <span style={{ fontSize: 14, color: "var(--text-muted)" }}>{caption}</span>
+      )}
+    </div>
+  );
+}
+
+interface ErrorStateProps {
+  title: string; // 예: "분석에 실패했어요"
+  description?: string; // 일반 안내 문구 (고정)
+  detail: string; // 실제 실패 원인 한 줄 — catch된 에러에 따라 동적으로 달라짐
+  onRetry: () => void;
+}
+
+// 공통 에러 상태 (실사용#16, known-gaps의 critical-alert 항목 해소). 카드 내부
+// 복구 액션이라 button-primary(40px)를 쓰고 좌측 정렬 — 페이지 레벨 CTA(PageCta,
+// 48px·우측 정렬) 규칙과는 별개 컨텍스트다(혼동 방지).
+export function ErrorState({
+  title,
+  description = "일시적인 문제일 수 있습니다. 다시 시도해주세요.",
+  detail,
+  onRetry,
+}: ErrorStateProps) {
+  return (
+    <div
+      role="alert"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        gap: "var(--space-sm)",
+        padding: "var(--space-lg)",
+      }}
+    >
+      <span
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 40,
+          height: 40,
+          borderRadius: "var(--radius-full)",
+          background: "var(--error-weak-bg)",
+        }}
+      >
+        <AlertTriangle size={20} color="var(--error)" />
+      </span>
+      <span style={{ fontSize: 18, fontWeight: 700, color: "var(--error)" }}>
+        {title}
+      </span>
+      <p style={{ fontSize: 16, color: "var(--text-muted)", margin: 0 }}>
+        {description}
+      </p>
+      <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>{detail}</p>
+      <button
+        onClick={onRetry}
+        className="btn-primary"
+        style={{
+          border: "none",
+          borderRadius: "var(--radius-md)",
+          padding: "0 16px",
+          height: 40,
+          fontWeight: 600,
+          fontSize: 14,
+        }}
+      >
+        다시 시도
+      </button>
+    </div>
   );
 }
