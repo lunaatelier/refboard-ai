@@ -1,6 +1,6 @@
 ---
 name: RefBoard AI
-schema-version: "1.1"
+schema-version: "1.1.1"
 instance-version: "1.0"
 mode: light
 source: internal-md
@@ -79,7 +79,7 @@ radius: `{rounded.md}` 버튼·인풋, `{rounded.lg}` 카드·다이얼로그, `
 {
   "meta": {
     "name": "RefBoard AI",
-    "schema-version": "1.1",
+    "schema-version": "1.1.1",
     "instance-version": "1.0",
     "mode": "light",
     "source": "internal-md",

@@ -1,34 +1,18 @@
 // Phase 5(디자인 MD 렌더러) 개발·테스트용 목업 데이터.
-// Phase 4(컨셉 3안 생성)는 아직 미구현이며, designBasis는 현재 data-model.md §6에만
-// 명세가 확정된 필드다 — lib/concept/types.ts의 실제 ConceptOption에는 없다.
-// Phase 4 구현 시점에 정식 타입을 추가하고 normalize.ts/route.ts에서 채우는 로직을
-// 작성한다. 그 전까지 Phase 5 렌더러를 먼저 개발·테스트할 수 있도록, 여기서만
-// ConceptOption을 로컬 타입으로 확장해 designBasis를 채운 샘플을 제공한다.
+// Phase 4(컨셉 3안 생성, app/api/concept/route.ts + normalize.ts)는 이미 동작한다 —
+// 다만 그 실제 생성 흐름은 아직 designBasis 스냅샷(§12 액션 항목)을 채우지 않는다.
+// route.ts는 body.palette/body.moodSummary를 프롬프트 텍스트에는 반영하지만
+// ConceptOption.designBasis 필드로 옮겨 담는 배선은 아직 없다. 그 배선이 붙기 전까지
+// Phase 5 렌더러를 개발·테스트할 수 있도록, 여기서 designBasis를 채운 샘플을 제공한다.
 //
-// ⚠️ 이 파일은 프로덕션 경로에서 import되지 않는다 (Phase 4 미구현 상태이므로 실제
-// ConceptJson 생성 흐름과 무관). Phase 5 렌더러 작업 시 fixture로만 사용할 것.
+// ⚠️ 이 파일은 프로덕션 경로에서 import되지 않는다. Phase 5 렌더러 작업 시 fixture로만 사용할 것.
 
 import type {
-  ConceptJson,
-  ConceptOption,
+  ConceptJsonWithDesignBasis,
+  ConceptOptionWithDesignBasis,
   ConceptOutputSelection,
 } from "./types";
 import type { Palette } from "../reference/types";
-
-// data-model.md §6 DesignBasis — Phase 3 확정 팔레트·무드·타이포를 구조화 계승.
-export interface DesignBasis {
-  palette: Palette;
-  moodKeywords: string[];
-  typographyDirection: string;
-}
-
-export type ConceptOptionWithDesignBasis = ConceptOption & {
-  designBasis: DesignBasis;
-};
-
-export type ConceptJsonWithDesignBasis = Omit<ConceptJson, "options"> & {
-  options: ConceptOptionWithDesignBasis[];
-};
 
 const trustLightPalette: Palette = {
   mode: "light",
