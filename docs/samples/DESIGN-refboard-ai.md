@@ -54,6 +54,9 @@ radius: `{rounded.md}` 버튼·인풋, `{rounded.lg}` 카드·다이얼로그, `
 - 파괴적 액션은 반드시 Dialog 컨펌 후 실행
 - X/제외/닫기는 button-icon-neutral로
 - 화면 하단 Primary CTA는 1개만
+- 버튼 라벨은 행동을 가리키는 짧은 문구만 — 소요시간·조건 등은 helper text로 분리
+- 같은 역할의 버튼은 프로젝트 전체에서 표기 스타일 통일
+- 페이지 레벨 주 CTA는 하단 우측(button-primary-xl, 48px), 보조 액션은 좌측에 나란히
 
 **Don't:**
 - primary를 장식용으로 사용 금지 (클릭 불가 요소에 색 입히지 않음)
@@ -62,6 +65,8 @@ radius: `{rounded.md}` 버튼·인풋, `{rounded.lg}` 카드·다이얼로그, `
 - hover에서 transform·그림자 변화 금지 — 색상 전환만
 - 본문에 700 웨이트 금지
 - 무거운 그림자로 깊이 표현 금지 — 배경색 레이어링 우선
+- 버튼 라벨에 소요시간·조건 등 정보성 텍스트 삽입 금지
+- 파괴적·역방향 액션을 주 CTA와 같은 쪽(우측)에 배치 금지
 
 ## 8. Known Gaps
 
@@ -186,12 +191,15 @@ radius: `{rounded.md}` 버튼·인풋, `{rounded.lg}` 카드·다이얼로그, `
       "backgroundColor": "{colors.primary}", "textColor": "{colors.on-primary}",
       "typography": "{typography.button}", "rounded": "{rounded.md}",
       "height": "40px", "padding": "0 16px",
-      "use": "화면당 1개 주 CTA — 다음 단계, 마스킹 확정, 컨셉 확정. 선택 완료 전에는 locked 배경으로 비활성"
+      "use": "카드/인라인 실행 액션. 선택 완료 전에는 locked 배경으로 비활성"
     },
     "button-primary-hover":    { "backgroundColor": "{colors.primary-hover}" },
     "button-primary-disabled": { "backgroundColor": "{colors.locked}" },
     "button-primary-sm":       { "height": "32px", "padding": "0 12px" },
-    "button-primary-xl":       { "height": "48px", "typography": "{typography.button-lg}" },
+    "button-primary-xl": {
+      "height": "48px", "padding": "0 20px", "typography": "{typography.button-lg}",
+      "use": "화면당 1개, page-layout의 cta 슬롯 전용(PageCta) — 다음 단계, 마스킹 확정, 컨셉 확정. 우측 정렬"
+    },
 
     "button-neutral": {
       "category": "action", "type": "button",
@@ -359,6 +367,28 @@ radius: `{rounded.md}` 버튼·인풋, `{rounded.lg}` 카드·다이얼로그, `
       "use": "AI가 찾아낸 사실/발견 사항 — 채도 낮춘 보조 정보 카드. 사용법 안내가 아닌 정보 전달"
     },
 
+    "loading-state": {
+      "category": "feedback", "type": "spinner",
+      "parts": {
+        "spinner":       { "size": "36px", "color": "{colors.primary}" },
+        "label":         { "typography": "{typography.title}", "textColor": "{colors.foreground}" },
+        "caption":       { "typography": "{typography.body-sm}", "textColor": "{colors.text-muted}" },
+        "security-note": { "typography": "{typography.body-sm}", "textColor": "{colors.text-muted}" }
+      },
+      "use": "API 대기 화면 공통(실사용#16) — 분석·레퍼런스 검색·무드보드·컨셉 생성. 중앙정렬 수직 스택(보안 고지→스피너→라벨→캡션), 버튼 없음"
+    },
+
+    "critical-alert": {
+      "category": "feedback", "type": "alert",
+      "parts": {
+        "icon-badge":  { "backgroundColor": "{colors.error-weak}", "iconColor": "{colors.error}", "size": "40px", "rounded": "{rounded.full}" },
+        "title":       { "typography": "{typography.title}", "textColor": "{colors.error}" },
+        "description": { "typography": "{typography.body}", "textColor": "{colors.text-muted}" },
+        "detail":      { "typography": "{typography.body-sm}", "textColor": "{colors.text-muted}" }
+      },
+      "use": "API 실패 화면 공통(실사용#16) — 원인 한 줄 동적 표출(고정 문구 아님). 액션은 button-primary(카드 내부 규모, 좌측 정렬) '다시 시도' 하나만 — page-layout의 cta(button-primary-xl, 우측 정렬)와는 별개 컨텍스트"
+    },
+
     "toast-default": {
       "category": "feedback", "type": "alert",
       "backgroundColor": "{colors.surface-inverse}", "textColor": "{colors.on-primary}",
@@ -409,7 +439,7 @@ radius: `{rounded.md}` 버튼·인풋, `{rounded.lg}` 카드·다이얼로그, `
         "description": { "typography": "{typography.body-lg}", "textColor": "{colors.text-muted}" },
         "card-stack":  { "backgroundColor": "{colors.surface}", "border": "1px solid {colors.border}", "rounded": "{rounded.lg}", "padding": "24px" }
       },
-      "use": "모든 단계 화면의 공통 셸 — banner(선택)→title+description→카드 스택→CTA(좌측 정렬) 고정 순서. 타이틀 존은 박스로 감싸지 않음. 신규 화면은 이 구조 재사용"
+      "use": "모든 단계 화면의 공통 셸 — banner(선택)→title+description→카드 스택→CTA(button-primary-xl, 우측 정렬) 고정 순서. 타이틀 존은 박스로 감싸지 않음. 신규 화면은 이 구조 재사용"
     }
   },
 
@@ -457,7 +487,10 @@ radius: `{rounded.md}` 버튼·인풋, `{rounded.lg}` 카드·다이얼로그, `
       { "id": "security-gate-ui",         "severity": "must",   "scope": "navigation", "rule": "마스킹 미확정 상태에서 이후 LNB 단계 잠금을 해제하지 않는다 (보안 하드 게이트의 UI 반영)" },
       { "id": "banner-color-order",       "severity": "should", "scope": "feedback",   "rule": "배너 색 선택 순서: 사용법 안내→alert-guide, AI 발견 사실→alert-info-card, info(sky)는 작은 배지 수준만" },
       { "id": "shadow-restraint",         "severity": "should", "scope": "*",          "rule": "그림자로 깊이를 표현하지 않고 배경색 레이어링을 우선. 컬러 틴트 그림자 금지" },
-      { "id": "weight-discipline",        "severity": "should", "scope": "typography", "rule": "웨이트는 400/600/700만 사용. 본문에 700 금지 — 헤딩·강조 전용" }
+      { "id": "weight-discipline",        "severity": "should", "scope": "typography", "rule": "웨이트는 400/600/700만 사용. 본문에 700 금지 — 헤딩·강조 전용" },
+      { "id": "button-label-action-only", "severity": "must",   "scope": "action",     "rule": "버튼 라벨은 사용자가 취할 행동을 가리키는 짧은 문구여야 한다. 소요시간·조건·부연설명 등 정보성 텍스트는 라벨에 넣지 않고 버튼 옆/아래 helper text(body-sm, text-muted)로 분리한다" },
+      { "id": "button-label-consistency", "severity": "should", "scope": "action",     "rule": "같은 역할을 하는 버튼(상세 이동, 목록 이동, 재조회 등)은 프로젝트 전체에서 하나의 표기 스타일로 통일한다" },
+      { "id": "cta-placement",            "severity": "must",   "scope": "layout",     "rule": "페이지 레벨 주 CTA는 하단 우측 배치, 크기 48px(button-primary-xl). 보조 액션은 주 CTA 좌측에 나란히(weak/neutral). 파괴적·역방향 액션은 반대편(좌측)으로 분리" }
     ]
   },
 
@@ -479,10 +512,8 @@ radius: `{rounded.md}` 버튼·인풋, `{rounded.lg}` 카드·다이얼로그, `
     { "category": "data-display", "type": "text-list",     "reason": "card-compact가 리스트 항목 역할 수행 — 별도 정의 불필요 판단" },
     { "category": "data-display", "type": "tag",           "reason": "badge가 겸용 — 별도 정의 불필요 판단" },
     { "category": "feedback",   "type": "tooltip",         "reason": "잠긴 단계 안내 툴팁 실재하나 스타일 미정의" },
-    { "category": "feedback",   "type": "critical-alert",  "reason": "미등장" },
     { "category": "feedback",   "type": "progress-bar",    "reason": "분석 중 상단 진행 바(primary) 실재하나 높이·트랙 색 미정의" },
     { "category": "feedback",   "type": "step-indicator",  "reason": "nav-lnb가 담당 — 별도 정의 불필요 판단" },
-    { "category": "feedback",   "type": "spinner",         "reason": "스켈레톤 블록 사용 — 스피너 미정의" },
     { "category": "navigation", "type": "breadcrumb",      "reason": "미등장" },
     { "category": "navigation", "type": "pagination",      "reason": "미등장" },
     { "category": "navigation", "type": "skip-link",       "reason": "미등장 — 접근성 보완 시 필요" },

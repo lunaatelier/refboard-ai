@@ -1,4 +1,4 @@
-# 표준 디자인 MD 스키마 (design-system-schema) — v1.1.1
+# 표준 디자인 MD 스키마 (design-system-schema) — v1.1.2
 
 > **이 문서는 계약(contract)이다.**
 > RefBoard AI(제품 A)의 Phase 5 출력과 Design Canon(제품 B)의 스킬 4종
@@ -48,7 +48,7 @@
 ```yaml
 ---
 name: 프로젝트명
-schema-version: "1.1.1"      # 이 계약 문서의 버전. apply 실행 전 첫 검증 대상.
+schema-version: "1.1.2"      # 이 계약 문서의 버전. apply 실행 전 첫 검증 대상.
 instance-version: "0.1"      # 인스턴스 성장 버전. 갭이 채워질 때마다 올린다.
 mode: light                  # light | dark. 파일 1개 = 테마 1개. 다크 테마는 별도 파일.
 source: v0-screen            # v0-screen | figma | internal-md | concept
@@ -362,6 +362,17 @@ button-primary-icon-only:
 button-primary-sm: { height: 32px, padding: "0 12px" }
 ```
 
+- **`-xl`은 페이지 레벨 주 CTA 전용 고정 크기**로 명시한다 (§7 `cta-placement` must 규칙과 연결):
+
+```yaml
+button-primary-xl:
+  height: 48px
+  padding: "0 24px"
+  typography: "{typography.button-lg}"
+  use: "페이지 레벨 주 CTA 전용(하단 우측 배치). 카드/인라인 액션은
+        기존 button-primary(40px) 유지."
+```
+
 - **텍스트만**: 별도 type(`text-link`)으로 존재.
 - 상태 접미사는 구조·크기 변형 위에도 동일하게 얹힌다. diff 없으면 엔트리 생략(베이스 상태 규칙 상속).
 
@@ -396,6 +407,28 @@ rules:
       severity: must
       scope: typography
       rule: "화면 표시 텍스트 최소 14px"
+    - id: button-label-action-only
+      severity: must
+      scope: action
+      rule: "버튼 라벨은 사용자가 취할 행동을 가리키는 짧은 문구여야 한다.
+             표현 방식(다시보기/확인하기/다음으로/목록보기 등 어미·스타일)은
+             자유. 단 소요시간·조건·부연설명 등 '정보성 텍스트'는 라벨에
+             절대 포함하지 않고 버튼 옆/아래 helper text(body-sm, text-muted)로
+             분리한다."
+    - id: button-label-consistency
+      severity: should
+      scope: action
+      rule: "같은 역할을 하는 버튼(상세 이동, 목록 이동, 재조회 등)은
+             프로젝트 전체에서 하나의 표기 스타일로 통일한다. 예:
+             '다시보기/목록보기'처럼 동사+보기 형태로 갈지, '목록'처럼
+             명사형으로 갈지 초반에 정하고, 화면마다 스타일이 섞이지 않게 한다."
+    - id: cta-placement
+      severity: must
+      scope: layout
+      rule: "페이지 레벨 주 CTA는 하단 우측 배치, 크기 48px
+             (button-primary-xl). 보조 액션은 주 CTA 좌측에 나란히
+             (weak/neutral). 파괴적·역방향 액션이 함께 있으면 반대편
+             (좌측)으로 분리한다."
 ```
 
 - **constraints 필드 4개 고정**: `id` / `severity` / `scope` / `rule`(자연어 한 문장).
@@ -502,7 +535,7 @@ colors: { primary: "var(--color-primary)" }
 
 ```json
 {
-  "meta":       { "name": "...", "schema-version": "1.1.1", "instance-version": "0.1",
+  "meta":       { "name": "...", "schema-version": "1.1.2", "instance-version": "0.1",
                   "mode": "light", "source": "v0-screen", "extracted": "YYYY-MM-DD", "status": "draft" },
   "colors":     { "semantic": { }, "primitive": { } },
   "gradients":  { },
@@ -643,6 +676,12 @@ typography:
 
 ## 부록 C. 변경 이력
 
+- **v1.1.2 (2026-07-11)** — RefBoard AI 3단계(분석 결과) 화면 리뷰에서
+  반복 발견된 버튼/CTA 관례 문제를 계약으로 명문화:
+  - `button-label-action-only`(must) — 버튼 라벨 내 정보텍스트 삽입 금지
+  - `button-label-consistency`(should) — 동일 역할 버튼 표기 스타일 통일
+  - `cta-placement`(must) — 페이지 레벨 CTA 하단 우측 배치, 48px
+  - `button-primary-xl` 컴포넌트를 페이지 레벨 CTA 표준으로 명시(§6.7)
 - **v1.1.1 (2026-07-10)** — Phase 5 렌더러 mock 검증에서 발견된 문제 반영:
   - §13 신설 — `source: concept` 인스턴스의 spacing/rounded/typography 기본 스케일을
     계약으로 명문화 (기존엔 렌더러가 "계약 기본값"이라 주장했으나 실제 계약에 근거 없던 문제 해소).
