@@ -3,13 +3,18 @@
 import { Check, ChevronDown, ChevronRight, Copy, Info, Link, X } from "lucide-react";
 import { useState } from "react";
 import type { ProjectAnalysis, ProjectDirective, Section } from "@/lib/analysis/types";
-import { buildPlatformQueries, platformNameFromUrl } from "@/lib/reference/platforms";
+import {
+  buildPlatformQueries,
+  buildProfiledPlatformQueries,
+  platformNameFromUrl,
+} from "@/lib/reference/platforms";
 import type {
   MoodImage,
   ReferenceItem,
   ReferenceResult,
   SectionReference,
 } from "@/lib/reference/types";
+import { ErrorState } from "../shell/PageLayout";
 
 // [섹션별 레퍼런스] 탭 (Step 10-b, flow-spec ④)
 // 아코디언: 접힌 상태 기본, 펼친 것만 상세. 플랫폼 칩 = 자동검색(새 탭) / 키워드복사.
@@ -68,10 +73,8 @@ export default function SectionRefsTab({
         body: JSON.stringify({
           domain: analysis.domain,
           directives,
-          // 부모-자식 사이트 관계 (실사용#31) — 사용자가 확정한 경우에만 전달
-          parentSiteNote: analysis.parentSiteRelation?.confirmed
-            ? analysis.parentSiteRelation.relationNote
-            : undefined,
+          // 부모-자식 사이트 관계 (실사용#31) — 읽기 전용 근거, AI가 감지했으면 항상 전달
+          parentSiteNote: analysis.parentSiteRelation?.relationNote,
           sections: confirmedSections.map((s) => ({
             sectionId: s.sectionId,
             sectionTitle: s.sectionTitle,
@@ -91,6 +94,7 @@ export default function SectionRefsTab({
         sectionId: string;
         searchQuery: string;
         layoutCandidates: string[];
+        queriesByPlatform?: Record<string, string>;
       }[]) {
         const section = confirmedSections.find((s) => s.sectionId === q.sectionId);
         if (!section) continue;
@@ -98,7 +102,12 @@ export default function SectionRefsTab({
           sectionId: q.sectionId,
           layoutPattern: section.recommendedLayout,
           searchQuery: q.searchQuery,
-          platformQueries: buildPlatformQueries(q.searchQuery, analysis.domain),
+          // 플랫폼마다 다른 검색어(Gemini 생성) — 검증 실패 시 플랫폼별 폴백으로 대체됨
+          platformQueries: buildProfiledPlatformQueries(
+            q.queriesByPlatform ?? {},
+            analysis.domain,
+            q.searchQuery,
+          ),
         };
         candidates[q.sectionId] = [
           ...new Set([section.recommendedLayout, ...q.layoutCandidates]),
@@ -271,9 +280,11 @@ export default function SectionRefsTab({
           </button>
         )}
         {error && (
-          <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600, fontSize: 14 }}>
-            {error}
-          </p>
+          <ErrorState
+            title="검색 키워드 생성에 실패했어요"
+            detail={error}
+            onRetry={generate}
+          />
         )}
       </div>
 

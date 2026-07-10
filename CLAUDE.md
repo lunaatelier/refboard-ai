@@ -222,7 +222,7 @@ Phase 1 명세: `docs/specs/phase1-masking-spec.md` · 데이터 모델: `docs/s
 
 ## 7. 등록 레퍼런스 플랫폼
 
-20종 플랫폼의 검색링크 매칭 규칙은 `lib/references.ts`로 구현한다(원본 명세: `registered_reference_platforms.md`).
+20종 플랫폼의 검색링크 매칭 규칙은 `lib/reference/platforms.ts`로 구현한다(키워드 생성 규칙: `docs/samples/키워드생성스펙_개선판.md`).
 - 도메인 힌트(marketing-web / dashboard-ops / mobile-app / document / generic)별로 노출 플랫폼이 달라진다.
 - 연동 방식은 "자동 검색 이동"과 "키워드 복사 전용" 두 가지.
 - 분석 대상 브랜드(경쟁사·롤모델·벤치마킹 브랜드 포함) 실서비스 매칭은 크롤러를 쓰지 않는다 → **Gemini 검색 grounding**으로 실서비스 URL을 찾고, 결과는 "추천 + 출처 URL"로 표기하며 사용자가 최종 확인한다.

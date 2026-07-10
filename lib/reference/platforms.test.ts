@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildPlatformQueries,
+  buildProfiledPlatformQueries,
   PLATFORMS,
   platformNameFromUrl,
   platformsForDomain,
+  resolvePlatformQuery,
+  validateKeywordForPlatform,
 } from "./platforms";
 
 describe("platforms — 20종 등록 규칙 (Step 10-b)", () => {
@@ -35,6 +38,69 @@ describe("platforms — 20종 등록 규칙 (Step 10-b)", () => {
 
   it("빈 검색어는 빈 배열", () => {
     assert.deepEqual(buildPlatformQueries("  ", "generic"), []);
+  });
+});
+
+describe("keywordProfile — 플랫폼별 검색어 생성/검증 (docs/samples/키워드생성스펙_개선판.md v2)", () => {
+  const dribbble = PLATFORMS.find((p) => p.id === "dribbble")!;
+  const behance = PLATFORMS.find((p) => p.id === "behance")!;
+  const gdweb = PLATFORMS.find((p) => p.id === "gdweb")!;
+
+  it("Behance/Dribbble(en)은 한글이 섞이면 검증 실패 → fallback으로 교체된다", () => {
+    assert.equal(validateKeywordForPlatform("대시보드 UI", dribbble.keywordProfile), false);
+    assert.equal(
+      resolvePlatformQuery("대시보드 UI", dribbble.keywordProfile),
+      dribbble.keywordProfile.fallbackQueries[0],
+    );
+    assert.equal(validateKeywordForPlatform("브랜드 아이덴티티", behance.keywordProfile), false);
+  });
+
+  it("GDWEB(ko)은 한글이 없으면 검증 실패 → fallback으로 교체된다", () => {
+    assert.equal(validateKeywordForPlatform("corporate website", gdweb.keywordProfile), false);
+    assert.equal(
+      resolvePlatformQuery("corporate website", gdweb.keywordProfile),
+      gdweb.keywordProfile.fallbackQueries[0],
+    );
+  });
+
+  it("플랫폼별로 생성된 쿼리가 서로 다르게 반영된다", () => {
+    const queries = buildProfiledPlatformQueries(
+      {
+        dribbble: "dashboard ui",
+        behance: "tech brochure design",
+        gdweb: "기업 홈페이지",
+      },
+      "marketing-web",
+      "generic fallback",
+    );
+    const byPlatform = new Map(queries.map((q) => [q.platform, q.query]));
+    assert.equal(byPlatform.get("Dribbble"), "dashboard ui");
+    assert.equal(byPlatform.get("Behance"), "tech brochure design");
+    assert.equal(byPlatform.get("GDWEB (지디웹)"), "기업 홈페이지");
+    assert.notEqual(byPlatform.get("Dribbble"), byPlatform.get("GDWEB (지디웹)"));
+  });
+
+  it("금칙어(공용 금칙어 목록) 포함 쿼리는 fallback으로 교체된다 (strictVocabulary)", () => {
+    assert.equal(validateKeywordForPlatform("api dashboard tool", dribbble.keywordProfile), false);
+    assert.equal(
+      resolvePlatformQuery("api dashboard tool", dribbble.keywordProfile),
+      dribbble.keywordProfile.fallbackQueries[0],
+    );
+  });
+
+  it("maxWords 초과 쿼리는 fallback으로 교체된다", () => {
+    const over = "one two three four five"; // dribbble maxWords=4
+    assert.equal(validateKeywordForPlatform(over, dribbble.keywordProfile), false);
+    assert.equal(
+      resolvePlatformQuery(over, dribbble.keywordProfile),
+      dribbble.keywordProfile.fallbackQueries[0],
+    );
+  });
+
+  it("queriesByPlatform에 항목이 없으면 대표 검색어(fallbackQuery)가 검증을 거쳐 채워진다", () => {
+    const queries = buildProfiledPlatformQueries({}, "mobile-app", "onboarding");
+    const mobbin = queries.find((q) => q.platform === "Mobbin");
+    assert.equal(mobbin?.query, "onboarding");
   });
 });
 
