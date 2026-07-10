@@ -1,4 +1,5 @@
 import type { DocumentPurpose } from "../analysis/documentPurpose";
+import { normalizeBusinessDomains } from "../analysis/normalize";
 import type { ProjectAnalysis, ProjectDirective } from "../analysis/types";
 import type { ExtractedAnalysisTarget } from "../masking/types";
 import type { WorkflowState } from "./workflow";
@@ -67,14 +68,24 @@ export function parseAnalysisImport(text: string): AnalysisExport {
   if (typeof data.version !== "number" || data.version > VERSION) {
     throw new Error("지원하지 않는 분석 JSON 버전입니다.");
   }
-  const analysis = data.analysis;
+  const rawAnalysis = data.analysis;
   if (
-    !analysis ||
-    !Array.isArray(analysis.pages) ||
-    analysis.pages.length === 0
+    !rawAnalysis ||
+    !Array.isArray(rawAnalysis.pages) ||
+    rawAnalysis.pages.length === 0
   ) {
     throw new Error("분석 JSON에 페이지 데이터가 없습니다.");
   }
+  // 구버전(v1) 내보내기는 businessDomain: string 단일값이었다 — normalizeAnalysis를
+  // 거치지 않는 이 재활용 경로에서도 공유 호환 헬퍼로 businessDomains: string[]로
+  // 맞춰줘야 구버전 JSON을 불러왔을 때 화면이 깨지지 않는다 (실사용#11).
+  const businessDomains = normalizeBusinessDomains(
+    rawAnalysis as { businessDomains?: unknown; businessDomain?: unknown },
+  );
+  const analysis: ProjectAnalysis = {
+    ...rawAnalysis,
+    ...(businessDomains ? { businessDomains } : {}),
+  };
   return {
     format: FORMAT,
     version: data.version,

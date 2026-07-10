@@ -3,21 +3,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
-  BarChart3,
-  Check,
   FileText,
-  Image as ImageIcon,
   Info,
   Link as LinkIcon,
-  Mail,
-  Paperclip,
   Search,
-  TrendingUp,
-  Users,
   X,
-  type LucideIcon,
 } from "lucide-react";
-import { MAX_SELECTED_PAGES } from "@/lib/analysis/normalize";
+import { MAX_SELECTED_PAGES, humanizeSlug } from "@/lib/analysis/normalize";
 import type {
   DomainHint,
   ExclusionReason,
@@ -58,17 +50,6 @@ const ROLE_LABELS: Record<string, string> = {
   contact: "연락처",
 };
 
-const ROLE_ICONS: Record<string, LucideIcon> = {
-  cover: ImageIcon,
-  "section-divider": FileText,
-  content: FileText,
-  "case-study": BarChart3,
-  metrics: TrendingUp,
-  team: Users,
-  appendix: Paperclip,
-  contact: Mail,
-};
-
 const EXCLUSION_LABELS: Record<ExclusionReason, string> = {
   sensitive: "민감 정보",
   "out-of-scope": "범위 밖",
@@ -106,26 +87,22 @@ const card: React.CSSProperties = {
   gap: "var(--space-md)",
 };
 
-const groupLabel: React.CSSProperties = {
-  fontSize: 14,
+// 카드/구획 라벨 공통 스타일 — "분석 요약" / "문서 명시 요구사항 N건" / "이미 N개 시안
+// 변형" / "기존 사례분석 N건" / "구성 페이지" 5곳이 전부 같은 레벨로 읽히도록 통일.
+// 문서 제목(22px/700, --foreground)보다는 작고, 본문(14~16px)보다는 뚜렷해야 한다.
+const sectionHeading: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--space-sm)",
+  fontSize: 16,
   fontWeight: 700,
-  color: "var(--text-muted)",
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
+  color: "var(--text-strong)",
 };
 
 const fieldLabel: React.CSSProperties = {
   fontWeight: 600,
   fontSize: 14,
   color: "var(--text-muted)",
-};
-
-const noticeHeading: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--space-sm)",
-  fontSize: 18,
-  fontWeight: 600,
 };
 
 function isLikelyPlaceholderBlack(colors: string[]): boolean {
@@ -321,10 +298,10 @@ function SectionList({
                 }}
               />
               <span style={contentTypeTag} title="내용 성격">
-                {s.contentType}
+                {s.contentTypeLabel ?? humanizeSlug(s.contentType)}
               </span>
               <span style={layoutPatternTag} title="표현 방식">
-                {s.recommendedLayout}
+                {s.recommendedLayoutLabel ?? humanizeSlug(s.recommendedLayout)}
               </span>
               {s.unresolvedNotes && s.unresolvedNotes.length > 0 && (
                 <span style={warningPill}>미결 {s.unresolvedNotes.length}</span>
@@ -367,16 +344,31 @@ export default function AnalysisResult({
 }: AnalysisResultProps) {
   const [notice, setNotice] = useState<string>();
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
-  const [businessDomainDraft, setBusinessDomainDraft] = useState(
-    analysis.businessDomain ?? "",
+  // 프로젝트 도메인은 여러 개일 수 있다(실사용#11) — 칩 목록 초안 + 별도 입력창.
+  const [businessDomainsDraft, setBusinessDomainsDraft] = useState<string[]>(
+    analysis.businessDomains ?? [],
   );
+  const [businessDomainInput, setBusinessDomainInput] = useState("");
   const [expandedSectionPages, setExpandedSectionPages] = useState<Set<string>>(new Set());
   const selectedCount = analysis.pages.filter((p) => p.selected).length;
 
   // 다른 분석 결과가 로드되면(재활용 등) 초안도 새 값으로 맞춘다.
   useEffect(() => {
-    setBusinessDomainDraft(analysis.businessDomain ?? "");
-  }, [analysis.businessDomain]);
+    setBusinessDomainsDraft(analysis.businessDomains ?? []);
+  }, [analysis.businessDomains]);
+
+  const addBusinessDomainDraft = () => {
+    const value = businessDomainInput.trim();
+    if (!value || businessDomainsDraft.includes(value)) {
+      setBusinessDomainInput("");
+      return;
+    }
+    setBusinessDomainsDraft((prev) => [...prev, value]);
+    setBusinessDomainInput("");
+  };
+
+  const removeBusinessDomainDraft = (index: number) =>
+    setBusinessDomainsDraft((prev) => prev.filter((_, i) => i !== index));
 
   const toggleSectionPageExpanded = (pageId: string) =>
     setExpandedSectionPages((prev) => {
@@ -450,7 +442,10 @@ export default function AnalysisResult({
   const confidencePct = Math.round(analysis.domainConfidence * 100);
   const confidenceLow = analysis.domainConfidence < 0.7;
   const uniqueTags = [...new Set(analysis.tags)];
-  const businessDomainDirty = businessDomainDraft !== (analysis.businessDomain ?? "");
+  const currentBusinessDomains = analysis.businessDomains ?? [];
+  const businessDomainsDirty =
+    businessDomainsDraft.length !== currentBusinessDomains.length ||
+    businessDomainsDraft.some((d, i) => d !== currentBusinessDomains[i]);
 
   const taskBanner = (
     <div
@@ -506,15 +501,22 @@ export default function AnalysisResult({
 
       {/* 분석 요약 — 프로젝트 정보 + 분석 정보를 단일 카드로 통합 */}
       <div style={card}>
-        <span style={groupLabel}>분석 요약</span>
+        <span style={sectionHeading}>분석 요약</span>
         <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
           <input
             value={analysis.title}
             onChange={(e) => onChange({ ...analysis, title: e.target.value })}
-            style={{ ...inputStyle, fontSize: 22, fontWeight: 700, border: "none", padding: "4px 0" }}
+            style={{
+              ...inputStyle,
+              fontSize: 22,
+              fontWeight: 700,
+              color: "var(--foreground)",
+              border: "none",
+              padding: "4px 0",
+            }}
           />
         </label>
-        <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
+        <p style={{ color: "var(--text-muted)", fontSize: 16 }}>
           {analysis.description || "—"}
         </p>
         <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
@@ -538,98 +540,78 @@ export default function AnalysisResult({
             <span style={{ color: "var(--text-muted)" }}>
               {analysis.parentSiteRelation.relationNote}
             </span>
-            {analysis.parentSiteRelation.confirmed ? (
-              <>
-                <span
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    fontWeight: 700,
-                    color: "var(--success)",
-                  }}
-                >
-                  <Check size={14} color="var(--success)" />
-                  반영됨
-                </span>
-                <button
-                  onClick={() =>
-                    onChange({
-                      ...analysis,
-                      parentSiteRelation: {
-                        ...analysis.parentSiteRelation!,
-                        confirmed: false,
-                      },
-                    })
-                  }
-                  className="btn-tertiary"
-                  style={{ border: "none", fontSize: 13, fontWeight: 600 }}
-                >
-                  해제
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() =>
-                    onChange({
-                      ...analysis,
-                      parentSiteRelation: {
-                        ...analysis.parentSiteRelation!,
-                        confirmed: true,
-                      },
-                    })
-                  }
-                  className="btn-weak-primary"
-                  style={{
-                    border: "none",
-                    borderRadius: "var(--radius-md)",
-                    padding: "4px 10px",
-                    fontWeight: 600,
-                    fontSize: 13,
-                  }}
-                >
-                  맞습니다
-                </button>
-                <button
-                  onClick={() => {
-                    const { parentSiteRelation: _removed, ...rest } = analysis;
-                    onChange(rest);
-                  }}
-                  className="btn-secondary"
-                  style={{
-                    border: "none",
-                    borderRadius: "var(--radius-md)",
-                    padding: "4px 10px",
-                    fontWeight: 600,
-                    fontSize: 13,
-                  }}
-                >
-                  아닙니다
-                </button>
-              </>
-            )}
+            <button
+              onClick={() => {
+                const { parentSiteRelation: _removed, ...rest } = analysis;
+                onChange(rest);
+              }}
+              aria-label="이 판단 근거 제외"
+              title="이 판단 근거 제외"
+              className="btn-icon-neutral"
+              style={{ marginLeft: "auto", width: 24, height: 24 }}
+            >
+              <X size={12} />
+            </button>
           </div>
         )}
 
         <div style={{ display: "flex", gap: "var(--space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
           <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
             <span style={fieldLabel}>프로젝트 도메인</span>
-            <div style={{ display: "flex", gap: "var(--space-xs)", alignItems: "center" }}>
+            {/* 여러 업무 영역에 걸칠 수 있어(실사용#11) 값 개수가 가변적 — 고정폭
+                필드 대신 칩 wrap 목록 + 별도 추가 입력으로 처리한다. */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              {businessDomainsDraft.map((d, i) => (
+                <span
+                  key={`${d}-${i}`}
+                  style={{ ...hashtagPill, display: "flex", alignItems: "center", gap: 4 }}
+                >
+                  {d}
+                  <button
+                    onClick={() => removeBusinessDomainDraft(i)}
+                    aria-label={`${d} 제거`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      cursor: "pointer",
+                      color: "inherit",
+                    }}
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
               <input
-                value={businessDomainDraft}
-                onChange={(e) => setBusinessDomainDraft(e.target.value)}
-                placeholder="예: 스마트시티, 통합관제"
+                value={businessDomainInput}
+                onChange={(e) => setBusinessDomainInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addBusinessDomainDraft();
+                  }
+                }}
+                placeholder="예: 스마트시티"
                 className="input-box"
-                style={{ ...inputStyle, width: 160, border: undefined }}
+                style={{ ...inputStyle, width: 120, border: undefined }}
               />
-              {businessDomainDirty && (
+              <button
+                onClick={addBusinessDomainDraft}
+                className="btn-tertiary"
+                style={{ border: "none", fontSize: 13, fontWeight: 600 }}
+              >
+                추가
+              </button>
+              {businessDomainsDirty && (
                 <button
                   onClick={() =>
                     requestFieldChange("프로젝트 도메인", () =>
                       onChange({
                         ...analysis,
-                        businessDomain: businessDomainDraft || undefined,
+                        businessDomains:
+                          businessDomainsDraft.length > 0 ? businessDomainsDraft : undefined,
                       }),
                     )
                   }
@@ -675,46 +657,63 @@ export default function AnalysisResult({
               className="input-box"
               style={{ ...inputStyle, width: 160, border: undefined }}
             />
+            <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
+              화면 유형과 별도 기준입니다
+            </span>
           </label>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)", minWidth: 160 }}>
-            <span style={fieldLabel}>AI 분석 신뢰도</span>
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+        </div>
+
+        {/* AI 판단 결과(신뢰도) — 위 메타 필드(사람이 직접 편집)와 구분되도록
+            surface-alt 배경의 별도 서브블록으로 묶는다. */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--space-xs)",
+            alignSelf: "flex-start",
+            minWidth: 200,
+            padding: "var(--space-sm) var(--space-md)",
+            background: "var(--surface-alt)",
+            borderRadius: "var(--radius-md)",
+          }}
+        >
+          <span style={fieldLabel}>AI 분석 신뢰도</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+            <div
+              style={{
+                width: 80,
+                height: 6,
+                borderRadius: "var(--radius-full)",
+                background: "var(--border)",
+                overflow: "hidden",
+              }}
+            >
               <div
                 style={{
-                  width: 80,
-                  height: 6,
-                  borderRadius: "var(--radius-full)",
-                  background: "var(--border)",
-                  overflow: "hidden",
+                  width: `${confidencePct}%`,
+                  height: "100%",
+                  background: confidenceLow ? "var(--warning)" : "var(--success)",
                 }}
-              >
-                <div
-                  style={{
-                    width: `${confidencePct}%`,
-                    height: "100%",
-                    background: confidenceLow ? "var(--warning)" : "var(--success)",
-                  }}
-                />
-              </div>
-              <span
-                style={{
-                  fontWeight: 700,
-                  fontSize: 14,
-                  color: confidenceLow ? "var(--warning)" : "var(--success)",
-                }}
-              >
-                {confidencePct}%
-              </span>
+              />
             </div>
-            {analysis.domainConfidenceReason && (
-              <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
-                근거: {analysis.domainConfidenceReason}
-              </span>
-            )}
-            {confidenceLow && (
-              <span style={{ fontSize: 14, color: "var(--warning)" }}>낮음 — 직접 확인 필요</span>
-            )}
+            <span
+              style={{
+                fontWeight: 700,
+                fontSize: 14,
+                color: confidenceLow ? "var(--warning)" : "var(--success)",
+              }}
+            >
+              {confidencePct}%
+            </span>
           </div>
+          {analysis.domainConfidenceReason && (
+            <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
+              근거: {analysis.domainConfidenceReason}
+            </span>
+          )}
+          {confidenceLow && (
+            <span style={{ fontSize: 14, color: "var(--warning)" }}>낮음 — 직접 확인 필요</span>
+          )}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
@@ -731,20 +730,20 @@ export default function AnalysisResult({
         </div>
 
         {analysis.brandColors && analysis.brandColors.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
             <span style={fieldLabel}>브랜드 컬러</span>
             <div style={{ display: "flex", gap: "var(--space-md)", flexWrap: "wrap" }}>
               {analysis.brandColors.map((c) => (
                 <div
                   key={c}
-                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-xs)" }}
+                  style={{ display: "flex", alignItems: "center", gap: 6 }}
                 >
                   <span
                     title={c}
                     style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: "var(--radius-md)",
+                      width: 18,
+                      height: 18,
+                      borderRadius: "var(--radius-sm)",
                       background: c,
                       border: "1px solid var(--border)",
                     }}
@@ -775,7 +774,7 @@ export default function AnalysisResult({
 
       {analysis.explicitRequirements && analysis.explicitRequirements.length > 0 && (
         <div style={{ ...card, borderColor: "var(--border)", background: "var(--surface-alt)" }}>
-          <h3 style={{ ...noticeHeading, color: "var(--text-strong)" }}>
+          <h3 style={sectionHeading}>
             <FileText size={20} color="var(--text-muted)" />
             문서 명시 요구사항 {analysis.explicitRequirements.length}건
           </h3>
@@ -800,7 +799,7 @@ export default function AnalysisResult({
       {analysis.existingContentVariants &&
         analysis.existingContentVariants.length > 0 && (
           <div style={{ ...card, borderColor: "var(--warning)", background: "var(--warning-weak-bg)" }}>
-            <h3 style={{ ...noticeHeading, color: "var(--warning-weak-text)" }}>
+            <h3 style={{ ...sectionHeading, color: "var(--warning-weak-text)" }}>
               <FileText size={20} color="var(--warning-weak-text)" />
               이 문서에 이미 {analysis.existingContentVariants.length}개
               시안 변형이 있습니다
@@ -823,7 +822,7 @@ export default function AnalysisResult({
       {analysis.detectedCaseStudies &&
         analysis.detectedCaseStudies.length > 0 && (
           <div style={{ ...card, borderColor: "var(--border)", background: "var(--surface-alt)" }}>
-            <h3 style={{ ...noticeHeading, color: "var(--text-strong)" }}>
+            <h3 style={sectionHeading}>
               <Search size={20} color="var(--text-muted)" />
               문서 안에 기존 사례분석 {analysis.detectedCaseStudies.length}건
             </h3>
@@ -843,8 +842,32 @@ export default function AnalysisResult({
 
       {/* 구성 페이지 */}
       <div style={card}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-          <span style={groupLabel}>구성 페이지</span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "var(--space-sm)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+            <span style={sectionHeading}>구성 페이지</span>
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 13,
+                color: "var(--text-muted)",
+              }}
+            >
+              <span style={{ ...contentTypeTag, padding: "2px 8px", fontSize: 12 }}>Aa</span>
+              내용 성격
+              <span style={{ ...layoutPatternTag, padding: "2px 8px", fontSize: 12 }}>Aa</span>
+              표현 방식
+            </span>
+          </div>
           <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
             제외한 페이지는 이후 AI 참조가 차단됩니다
           </span>
@@ -852,7 +875,6 @@ export default function AnalysisResult({
         {notice && <p style={{ color: "var(--warning)", fontWeight: 600, fontSize: 14 }}>{notice}</p>}
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
           {analysis.pages.map((p) => {
-            const RoleIcon = ROLE_ICONS[p.pageRole] ?? FileText;
             return (
               <div
                 key={p.pageId}
@@ -872,12 +894,6 @@ export default function AnalysisResult({
                     checked={p.selected}
                     onChange={(e) => togglePage(p.pageId, e.target.checked)}
                   />
-                  <span
-                    aria-hidden
-                    style={{ display: "flex", alignItems: "center" }}
-                  >
-                    <RoleIcon size={18} color="var(--text-muted)" />
-                  </span>
                   <span style={{ fontWeight: 700, fontSize: 16 }}>{p.pageTitle}</span>
                   <span style={contentTypeTag}>{ROLE_LABELS[p.pageRole] ?? p.pageRole}</span>
                   <span style={{ flex: 1 }} />

@@ -79,6 +79,23 @@ describe("Step 13 — 분석 JSON 저장/불러오기", () => {
     assert.equal(imported.documentPurpose, "project-brief");
   });
 
+  it("businessDomains 배열은 재활용 라운드트립에서 그대로 보존된다 (실사용#11)", () => {
+    const stateWithDomains: WorkflowState = {
+      ...state,
+      analysis: { ...analysis, businessDomains: ["스마트시티", "통합관제"] },
+    };
+    const json = buildAnalysisExport(stateWithDomains, "test-export-id");
+    const imported = parseAnalysisImport(json);
+    assert.deepEqual(imported.analysis.businessDomains, ["스마트시티", "통합관제"]);
+  });
+
+  it("구버전(v1) businessDomain: string 저장 JSON을 불러와도 businessDomains 배열로 정규화된다 (실사용#11)", () => {
+    const legacyJson = JSON.parse(buildAnalysisExport(state, "legacy-test"));
+    legacyJson.analysis.businessDomain = "스마트시티"; // 구버전 필드명(단일 문자열)
+    const imported = parseAnalysisImport(JSON.stringify(legacyJson));
+    assert.deepEqual(imported.analysis.businessDomains, ["스마트시티"]);
+  });
+
   it("형식이 다른 JSON은 명확한 에러로 거부", () => {
     assert.throws(
       () => parseAnalysisImport('{"foo": 1}'),

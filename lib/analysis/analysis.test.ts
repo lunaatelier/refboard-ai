@@ -4,7 +4,12 @@ import { buildSourceMaterial } from "../ai/exclusion";
 import { buildAnalysisPrompt, buildDirectiveBlock } from "../ai/prompts";
 import { confirmSelectedSections } from "./confirm";
 import { classifyDocumentPurpose } from "./documentPurpose";
-import { filterBrandColorCandidates, normalizeAnalysis } from "./normalize";
+import {
+  filterBrandColorCandidates,
+  humanizeSlug,
+  normalizeAnalysis,
+  normalizeBusinessDomains,
+} from "./normalize";
 import type { ProjectAnalysis } from "./types";
 
 describe("normalizeAnalysis — Gemini 응답 정규화", () => {
@@ -72,7 +77,7 @@ describe("normalizeAnalysis — Gemini 응답 정규화", () => {
     assert.equal(a.detectedCaseStudies?.[0].name, "가상아웃도어");
   });
 
-  it("parentSiteRelation: AI 후보는 confirmed:false로 시작, 없으면 필드 없음 (실사용#31)", () => {
+  it("parentSiteRelation: 읽기 전용 근거로 파싱, 없으면 필드 없음 (실사용#31)", () => {
     const withRelation = normalizeAnalysis({
       pages: [{ pageTitle: "관리", pageRole: "content", sections: [] }],
       parentSiteRelation: {
@@ -83,7 +88,6 @@ describe("normalizeAnalysis — Gemini 응답 정규화", () => {
       withRelation.parentSiteRelation?.relationNote,
       "[회사A] 대민 홈페이지의 콘텐츠를 관리하는 백오피스로 추정",
     );
-    assert.equal(withRelation.parentSiteRelation?.confirmed, false);
 
     const without = normalizeAnalysis({
       pages: [{ pageTitle: "메인", pageRole: "content", sections: [] }],
@@ -164,6 +168,89 @@ describe("normalizeAnalysis — Gemini 응답 정규화", () => {
       sourceText,
     );
     assert.deepEqual(a.brandColors, ["#2563EB"]);
+  });
+
+  it("contentTypeLabel/recommendedLayoutLabel: Gemini가 준 값은 보존, 없으면 필드 자체가 없다 (실사용#14)", () => {
+    const a = normalizeAnalysis({
+      pages: [
+        {
+          pageTitle: "메인",
+          pageRole: "content",
+          sections: [
+            {
+              sectionTitle: "스펙",
+              contentType: "technical-spec",
+              recommendedLayout: "comparison-table",
+              contentTypeLabel: "기술 스펙",
+              recommendedLayoutLabel: "비교표",
+            },
+            {
+              sectionTitle: "라벨 없음",
+              contentType: "hero",
+              recommendedLayout: "hero",
+            },
+          ],
+        },
+      ],
+    });
+    assert.equal(a.pages[0].sections[0].contentTypeLabel, "기술 스펙");
+    assert.equal(a.pages[0].sections[0].recommendedLayoutLabel, "비교표");
+    assert.equal(a.pages[0].sections[1].contentTypeLabel, undefined);
+    assert.equal(a.pages[0].sections[1].recommendedLayoutLabel, undefined);
+  });
+});
+
+describe("humanizeSlug — 라벨 없는 contentType/recommendedLayout의 화면 표시 fallback (실사용#14)", () => {
+  it("kebab-case를 사람이 읽는 형태로 바꾼다", () => {
+    assert.equal(humanizeSlug("technical-spec"), "Technical Spec");
+    assert.equal(humanizeSlug("color-palette"), "Color Palette");
+    assert.equal(humanizeSlug("data-table-widget"), "Data Table Widget");
+  });
+
+  it("하이픈이 없는 단일 단어도 첫 글자만 대문자로 바꾼다", () => {
+    assert.equal(humanizeSlug("hero"), "Hero");
+  });
+
+  it("빈 문자열은 그대로 반환한다", () => {
+    assert.equal(humanizeSlug(""), "");
+  });
+});
+
+describe("normalizeBusinessDomains — businessDomain(구버전 string) ↔ businessDomains(신버전 string[]) 호환 (실사용#11)", () => {
+  it("신버전 배열 입력은 그대로(빈 문자열 제거 후) 반환한다", () => {
+    assert.deepEqual(
+      normalizeBusinessDomains({ businessDomains: ["스마트시티", "통합관제"] }),
+      ["스마트시티", "통합관제"],
+    );
+  });
+
+  it("구버전 단일 문자열(businessDomain)만 있으면 1개짜리 배열로 감싼다", () => {
+    assert.deepEqual(normalizeBusinessDomains({ businessDomain: "스마트시티" }), [
+      "스마트시티",
+    ]);
+  });
+
+  it("Gemini가 스키마를 어기고 businessDomains에 문자열을 그대로 준 경우도 방어적으로 배열화한다", () => {
+    assert.deepEqual(normalizeBusinessDomains({ businessDomains: "스마트시티" }), [
+      "스마트시티",
+    ]);
+  });
+
+  it("둘 다 없거나 빈 값이면 undefined", () => {
+    assert.equal(normalizeBusinessDomains({}), undefined);
+    assert.equal(normalizeBusinessDomains({ businessDomains: [] }), undefined);
+    assert.equal(normalizeBusinessDomains(null), undefined);
+    assert.equal(normalizeBusinessDomains(undefined), undefined);
+  });
+
+  it("신버전 배열이 있으면 구버전 필드는 무시한다", () => {
+    assert.deepEqual(
+      normalizeBusinessDomains({
+        businessDomains: ["통합관제"],
+        businessDomain: "스마트시티",
+      }),
+      ["통합관제"],
+    );
   });
 });
 

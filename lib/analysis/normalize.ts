@@ -30,6 +30,20 @@ const PAGE_ROLES: PageRole[] = [
   "contact",
 ];
 
+// contentType/recommendedLayout은 열린 유니온이라 코드 내 고정 매핑을 두지 않는다
+// (실사용#14) — Gemini가 표시 라벨(contentTypeLabel 등)을 안 주면 이 fallback으로
+// kebab-case slug를 사람이 읽는 형태로 바꾼다. normalizeAnalysis뿐 아니라 저장된
+// 분석 JSON 재활용(구버전 — 라벨 필드 자체가 없음) 렌더링에도 그대로 쓸 수 있도록
+// 렌더 시점(AnalysisResult.tsx)에서 호출한다.
+export function humanizeSlug(slug: string): string {
+  if (!slug) return slug;
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function str(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
@@ -41,6 +55,25 @@ function num(v: unknown, fallback = 0): number {
 
 function strArray(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+}
+
+// businessDomain(구버전, string 단일값) → businessDomains(신버전, string[]) 호환 레이어
+// (실사용#11). Gemini 응답 파싱(normalizeAnalysis)뿐 아니라 저장된 분석 JSON 재활용
+// 경로(lib/state/recycle.ts의 parseAnalysisImport — normalizeAnalysis를 거치지 않고
+// 저장된 analysis를 직접 캐스팅함)에서도 반드시 이 함수를 통해 읽어야 구버전 저장
+// 파일(businessDomain: string)이 재활용 시 깨지지 않는다.
+export function normalizeBusinessDomains(
+  raw: { businessDomains?: unknown; businessDomain?: unknown } | null | undefined,
+): string[] | undefined {
+  const value = raw?.businessDomains;
+  const arr = Array.isArray(value)
+    ? strArray(value)
+    : typeof value === "string" && value
+      ? [value]
+      : [];
+  if (arr.length > 0) return arr;
+  const legacy = str(raw?.businessDomain);
+  return legacy ? [legacy] : undefined;
 }
 
 function numArray(v: unknown): number[] | undefined {
@@ -123,6 +156,10 @@ export function normalizeAnalysis(raw: any, sourceText = ""): ProjectAnalysis {
       contentSummary: str(s?.contentSummary),
       contentType: str(s?.contentType, "content"),
       recommendedLayout: str(s?.recommendedLayout, "card-grid"),
+      ...(str(s?.contentTypeLabel) ? { contentTypeLabel: str(s.contentTypeLabel) } : {}),
+      ...(str(s?.recommendedLayoutLabel)
+        ? { recommendedLayoutLabel: str(s.recommendedLayoutLabel) }
+        : {}),
       sourceSlides: numArray(s?.sourceSlides),
       ...(str(s?.sourceDocumentId) ? { sourceDocumentId: str(s.sourceDocumentId) } : {}),
       confidence: Math.min(1, Math.max(0, num(s?.confidence, 0.5))),
@@ -145,6 +182,7 @@ export function normalizeAnalysis(raw: any, sourceText = ""): ProjectAnalysis {
   });
 
   const domain = str(raw?.domain) as DomainHint;
+  const businessDomains = normalizeBusinessDomains(raw);
 
   // brandColors: 배경/테마 라벨로만 등장한 hex는 여전히 제외한다(순수 브랜드/로고 컬러만).
   // 단, 제외된 색은 "버리지" 않고 explicitRequirements(background-color)로 옮긴다 (게이트 1 정정).
@@ -177,7 +215,7 @@ export function normalizeAnalysis(raw: any, sourceText = ""): ProjectAnalysis {
     domain: DOMAINS.includes(domain) ? domain : "generic",
     domainConfidence: Math.min(1, Math.max(0, num(raw?.domainConfidence, 0.5))),
     ...(str(raw?.domainConfidenceReason) ? { domainConfidenceReason: str(raw.domainConfidenceReason) } : {}),
-    ...(str(raw?.businessDomain) ? { businessDomain: str(raw.businessDomain) } : {}),
+    ...(businessDomains ? { businessDomains } : {}),
     targetUser: str(raw?.targetUser),
     tags: strArray(raw?.tags),
     projectType: str(raw?.projectType, "미분류"),
@@ -202,13 +240,11 @@ export function normalizeAnalysis(raw: any, sourceText = ""): ProjectAnalysis {
       extractedNote: str(c?.extractedNote),
       sourceUrls: strArray(c?.sourceUrls),
     })),
-    // 부모-자식 사이트 관계 (실사용#31) — AI 후보는 항상 confirmed: false로 시작.
-    // 사용자가 분석 결과 화면에서 확정해야만 레퍼런스 검색에 반영된다.
+    // 부모-자식 사이트 관계 (실사용#31) — 읽기 전용 근거로 표시, 사용자가 제외할 수만 있다.
     ...(str(raw?.parentSiteRelation?.relationNote)
       ? {
           parentSiteRelation: {
             relationNote: str(raw.parentSiteRelation.relationNote),
-            confirmed: false,
           },
         }
       : {}),

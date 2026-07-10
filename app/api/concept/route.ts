@@ -64,7 +64,7 @@ ${variants.map((v) => `- ${v.label}: ${v.contentSummary}`).join("\n")}\n`
 ${buildDirectiveBlock(directives, "concept")}${forcedModeBlock}
 ## 프로젝트
 ${analysis.title} — ${analysis.description}
-화면 유형: ${analysis.domain}${analysis.businessDomain ? ` / 프로젝트 도메인: ${analysis.businessDomain}` : ""} / 산출물 형식: ${analysis.projectType} / 타겟: ${analysis.targetUser}
+화면 유형: ${analysis.domain}${analysis.businessDomains && analysis.businessDomains.length > 0 ? ` / 프로젝트 도메인: ${analysis.businessDomains.join(", ")}` : ""} / 산출물 형식: ${analysis.projectType} / 타겟: ${analysis.targetUser}
 ${DIFFERENTIATION[analysis.domain] ?? DIFFERENTIATION.generic}
 
 ## 확정된 디자인 결정 (반드시 반영)

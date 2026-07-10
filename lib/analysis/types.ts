@@ -38,6 +38,8 @@ export interface Section {
   contentSummary: string; // 마스킹된 본문 요약 (토큰 유지)
   contentType: ContentType;
   recommendedLayout: LayoutPattern;
+  contentTypeLabel?: string; // contentType 표시용 한글 라벨 (없으면 UI에서 slug로 fallback)
+  recommendedLayoutLabel?: string; // recommendedLayout 표시용 한글 라벨
   sourceSlides?: number[]; // PPT 계보: 어느 슬라이드에서 왔나
   sourceDocumentId?: string; // 문서 자체 화면ID/요구사항ID (실사용#4/#8)
   confidence?: number;
@@ -79,7 +81,6 @@ export interface DetectedCaseStudy {
 export interface ParentSiteRelation {
   relatedProjectId?: string; // 향후 프로젝트 저장소 도입 시 연결 (현재는 미사용)
   relationNote: string; // 예: "[회사A] 대민 홈페이지의 콘텐츠를 관리하는 백오피스로 추정"
-  confirmed: boolean; // AI 후보(false) → 사용자 확정(true)일 때만 레퍼런스에 반영
 }
 
 // 문서에 "명시적으로" 적힌 요구사항 — AI가 스스로 제안하는 값(recommendedLayout 등)과
@@ -119,7 +120,7 @@ export interface ProjectAnalysis {
   domain: DomainHint; // 화면 유형(행위 성격) — UI 라벨 "화면 유형", enum 값은 유지
   domainConfidence: number; // 낮으면 사용자 선택 우선
   domainConfidenceReason?: string; // 신뢰도 판정 근거 (키워드 중심 짧은 문장)
-  businessDomain?: string; // 프로젝트 도메인(업무 영역) — 예: "스마트시티", "통합관제"
+  businessDomains?: string[]; // 프로젝트 도메인(업무 영역) — 여러 개일 수 있음(예: ["스마트시티", "통합관제"])
   targetUser: string;
   tags: string[];
   projectType: string; // 산출물 형식 — 예: 브로셔/제안서/피치덱/랜딩페이지/이벤트페이지
