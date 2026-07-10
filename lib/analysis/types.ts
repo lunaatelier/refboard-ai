@@ -82,6 +82,22 @@ export interface ParentSiteRelation {
   confirmed: boolean; // AI 후보(false) → 사용자 확정(true)일 때만 레퍼런스에 반영
 }
 
+// 문서에 "명시적으로" 적힌 요구사항 — AI가 스스로 제안하는 값(recommendedLayout 등)과
+// 구분한다. 컨셉 3안의 변주 대상이 아니라 모든 안이 지켜야 할 제약으로 취급된다.
+// (게이트 1 정정 — 배경/테마 색을 "버리기"가 아니라 "분류"로 다룬다.)
+export type ExplicitRequirementKind =
+  | "background-color" // 예: "배경은 다크네이비(#0f172a) 계열로"
+  | "mode" // 예: "다크모드로 만들어주세요"
+  | "layout" // 예: "GNB는 좌측 고정으로"
+  | "other";
+
+export interface ExplicitRequirement {
+  kind: ExplicitRequirementKind;
+  text: string; // 원문 발췌/요약 (마스킹 토큰 유지)
+  value?: string; // 정규화값: background-color→hex, mode→"dark"|"light"
+  sourceSlides?: number[];
+}
+
 // 전역 지시 (Step 8) — "ESG 강조"가 레퍼런스 검색어·컨셉 방향까지 관통한다.
 // Step 15: scope 미지정(또는 빈 배열) = 전체 적용. 지정 시 해당 단계 프롬프트에만 주입.
 export type DirectiveScope =
@@ -100,12 +116,15 @@ export interface ProjectDirective {
 export interface ProjectAnalysis {
   title: string;
   description: string;
-  domain: DomainHint;
+  domain: DomainHint; // 화면 유형(행위 성격) — UI 라벨 "화면 유형", enum 값은 유지
   domainConfidence: number; // 낮으면 사용자 선택 우선
+  domainConfidenceReason?: string; // 신뢰도 판정 근거 (키워드 중심 짧은 문장)
+  businessDomain?: string; // 프로젝트 도메인(업무 영역) — 예: "스마트시티", "통합관제"
   targetUser: string;
   tags: string[];
-  projectType: string;
+  projectType: string; // 산출물 형식 — 예: 브로셔/제안서/피치덱/랜딩페이지/이벤트페이지
   brandColors?: string[];
+  explicitRequirements?: ExplicitRequirement[]; // 문서 명시 요구사항 (배경색/모드/레이아웃)
   pages: Page[];
   existingContentVariants?: ExistingContentVariant[];
   detectedCaseStudies?: DetectedCaseStudy[];

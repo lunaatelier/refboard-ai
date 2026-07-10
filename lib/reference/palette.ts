@@ -87,6 +87,9 @@ function isUsableBrandColor(hex: string): boolean {
 const MIN_PRIMARY_SATURATION = 0.35;
 const MIN_PRIMARY_LIGHTNESS = 0.3; // 이보다 어두우면 배경과 무관하게 "검정"처럼 보임
 const MIN_PRIMARY_CONTRAST = 2.5; // 배경과 실질적으로 구분되는지의 안전망(WCAG 3:1보다 약간 관대 — 채도 있는 중간톤 색까지 통과시키기 위함)
+// 문서가 명시한 실제 배경색(예: #0f172a) 위에 얹는 primary는 텍스트로도 쓰일 수 있어
+// WCAG AA 텍스트 기준(4.5:1)까지 확보한다 — 합성 기본 배경(DARK_BG)에는 적용하지 않는다.
+const MIN_PRIMARY_CONTRAST_EXPLICIT_BG = 4.5;
 
 function hexToRgb(hex: string): [number, number, number] | null {
   const m = hex.trim().match(/^#?([0-9a-f]{6})$/i);
@@ -118,13 +121,17 @@ export function contrastRatio(hexA: string, hexB: string): number {
 // 막는다. 채도·명도를 하한까지 끌어올리고, 그래도 대비비가 부족하면 배경 반대
 // 방향으로 명도를 조금씩 밀며 재시도한다. 이미 기준을 만족하면 원본 hex를
 // 그대로 반환(불필요한 HSL 왕복 변환으로 인한 반올림 오차 방지).
-function ensureVividPrimary(hex: string, backgroundHex: string): string {
+function ensureVividPrimary(
+  hex: string,
+  backgroundHex: string,
+  minContrast: number = MIN_PRIMARY_CONTRAST,
+): string {
   const hsl = hexToHsl(hex);
   if (!hsl) return hex;
   if (
     hsl.s >= MIN_PRIMARY_SATURATION &&
     hsl.l >= MIN_PRIMARY_LIGHTNESS &&
-    contrastRatio(hex, backgroundHex) >= MIN_PRIMARY_CONTRAST
+    contrastRatio(hex, backgroundHex) >= minContrast
   ) {
     return hex;
   }
@@ -136,7 +143,7 @@ function ensureVividPrimary(hex: string, backgroundHex: string): string {
   const bgIsDark = relativeLuminance(backgroundHex) < 0.5;
   let attempts = 0;
   while (
-    contrastRatio(candidate, backgroundHex) < MIN_PRIMARY_CONTRAST &&
+    contrastRatio(candidate, backgroundHex) < minContrast &&
     attempts < 12
   ) {
     l = bgIsDark ? Math.min(0.92, l + 0.03) : Math.max(0.08, l - 0.03);
@@ -158,7 +165,14 @@ function buildPair(
   // "미니멀형" 계열은 primary를 의도적으로 저채도로 설계한다(포인트는
   // accent가 담당) — 그런 경우엔 채도 강제 보정을 건너뛴다.
   enforceVividPrimary = true,
+  // 문서가 명시한 배경색(explicitRequirements) — 있으면 다크 배경 앵커로 쓰고,
+  // 합성 기본값(DARK_BG)이 아니라 "실제 이 배경 위에서" 대비를 확보한다 (게이트 1 정정).
+  darkBg: string = DARK_BG,
 ): PaletteOption {
+  const isExplicitBg = darkBg !== DARK_BG;
+  const darkContrastFloor = isExplicitBg
+    ? MIN_PRIMARY_CONTRAST_EXPLICIT_BG
+    : MIN_PRIMARY_CONTRAST;
   const darkPrimaryRaw = adjust(primary, { l: 0.12 }); // 다크에서 시인성 확보
   const light: Palette = {
     mode: "light",
@@ -173,14 +187,14 @@ function buildPair(
   const dark: Palette = {
     mode: "dark",
     primary: enforceVividPrimary
-      ? ensureVividPrimary(darkPrimaryRaw, DARK_BG)
+      ? ensureVividPrimary(darkPrimaryRaw, darkBg, darkContrastFloor)
       : darkPrimaryRaw,
     secondary: adjust(secondary, { l: 0.12 }),
     accent: adjust(accent, { l: 0.08 }),
-    background: DARK_BG,
-    surface: "#171A21",
+    background: darkBg,
+    surface: adjust(darkBg, { l: 0.04 }),
     text: "#E8EAED",
-    navigation: "#12151B",
+    navigation: adjust(darkBg, { l: 0.015 }),
   };
   return { optionId, label, light, dark };
 }
@@ -194,6 +208,7 @@ function buildBrandOption(
   optionId: BrandOptionId,
   brand: string,
   jitter: boolean,
+  darkBg: string = DARK_BG,
 ): PaletteOption {
   const j = (range: number) => (jitter ? (Math.random() * 2 - 1) * range : 0);
   switch (optionId) {
@@ -204,6 +219,8 @@ function buildBrandOption(
         brand,
         adjust(brand, { l: 0.18 + j(0.05), s: -0.1 + j(0.05) }),
         adjust(brand, { h: 30 + j(20), s: 0.1 + j(0.05) }),
+        true,
+        darkBg,
       );
     case "brand-contrast":
       return buildPair(
@@ -212,6 +229,8 @@ function buildBrandOption(
         brand,
         adjust(brand, { h: -20 + j(20), l: 0.1 + j(0.05) }),
         adjust(brand, { h: 180 + j(20), s: 0.05 + j(0.05) }), // 보색 포인트
+        true,
+        darkBg,
       );
     case "brand-minimal":
       return buildPair(
@@ -221,26 +240,30 @@ function buildBrandOption(
         "#6B7280",
         brand,
         false, // 저채도 primary가 의도된 디자인 — accent가 브랜드색을 담당
+        darkBg,
       );
   }
 }
 
 export function generatePaletteOptions(
   brandColors: string[] = [],
+  // 문서 명시 배경색(explicitRequirements의 background-color) — 있으면 dark 배경 앵커로 사용.
+  backgroundOverride?: string,
 ): PaletteOption[] {
+  const darkBg = normalizeHex(backgroundOverride ?? "") ?? DARK_BG;
   const brand = brandColors
     .map(normalizeHex)
     .find((c): c is string => Boolean(c && isUsableBrandColor(c)));
 
   if (brand) {
     // 브랜드컬러 기반 3변주: 원색 충실 / 보색 포인트 / 저채도 미니멀
-    return BRAND_OPTION_IDS.map((id) => buildBrandOption(id, brand, false));
+    return BRAND_OPTION_IDS.map((id) => buildBrandOption(id, brand, false, darkBg));
   }
 
   return [
-    buildPair("trust", "신뢰형", "#2563EB", "#64748B", "#0EA5E9"),
-    buildPair("innovation", "혁신형", "#7C3AED", "#14B8A6", "#F59E0B"),
-    buildPair("minimal", "미니멀형", "#1C1F24", "#6B7280", "#2563EB", false),
+    buildPair("trust", "신뢰형", "#2563EB", "#64748B", "#0EA5E9", true, darkBg),
+    buildPair("innovation", "혁신형", "#7C3AED", "#14B8A6", "#F59E0B", true, darkBg),
+    buildPair("minimal", "미니멀형", "#1C1F24", "#6B7280", "#2563EB", false, darkBg),
   ];
 }
 
@@ -249,10 +272,12 @@ export function generatePaletteOptions(
 export function regenerateBrandOption(
   brand: string,
   optionId: string,
+  backgroundOverride?: string,
 ): PaletteOption | null {
   if (!hexToHsl(brand)) return null;
   if (!(BRAND_OPTION_IDS as readonly string[]).includes(optionId)) return null;
-  return buildBrandOption(optionId as BrandOptionId, brand, true);
+  const darkBg = normalizeHex(backgroundOverride ?? "") ?? DARK_BG;
+  return buildBrandOption(optionId as BrandOptionId, brand, true, darkBg);
 }
 
 // 선택 옵션에서 역할에 배치할 수 있는 색 풀 (중복 제거)

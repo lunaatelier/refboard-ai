@@ -48,8 +48,12 @@ ${buildDirectiveBlock(directives, "analysis")}${imageBlock}
 - domain: "marketing-web" | "dashboard-ops" | "mobile-app" | "document" | "generic"
   (화면 생김새가 아니라 메뉴·기능의 "행위 성격" 기준으로 판정: 게시판·배너·회원 관리 등 CRUD 행위 → dashboard-ops(관리자), 통계·차트·모니터링 행위 → dashboard-ops(분석형), 브랜드 소개·전환 유도 → marketing-web, 제안서·소개서 문서 → document)
 - domainConfidence: 0~1
-- targetUser, projectType(브로셔/홈페이지/관리자/대시보드/앱 등), tags(3~8개)
-- brandColors: 문서에 "브랜드/로고/CI 컬러"로 명시된 hex만 포함하라. 배경·테마·다크모드·UI 컬러 시스템 설명(예: "배경은 #0f172a 계열")에만 등장하는 hex는 브랜드 컬러가 아니므로 절대 포함하지 마라.
+- domainConfidenceReason: domain 판정 근거를 키워드 중심 짧은 문장으로 (예: "대시보드·통계·모니터링 키워드 다수 탐지")
+- businessDomain: 이 프로젝트의 업무 영역/산업 도메인 (예: "스마트시티", "통합관제", "이커머스", "헬스케어", "금융"). domain(화면 유형=화면의 행위 성격)과는 다른 축이다 — 겹치는 말을 반복하지 마라.
+- targetUser, tags(3~8개)
+- projectType: 산출물 형식 (예: 브로셔/제안서/피치덱/랜딩페이지/이벤트페이지/상세페이지/사용설명서). domain·businessDomain과 겹치지 않는, "이게 어떤 형태의 결과물인가" 축이다.
+- brandColors: 문서에 "브랜드/로고/CI 컬러"로 명시된 hex만 포함하라. 배경·테마·다크모드·UI 컬러 시스템 설명(예: "배경은 #0f172a 계열")에만 등장하는 hex는 브랜드 컬러가 아니므로 포함하지 마라 — 대신 아래 explicitRequirements로 분류하라.
+- explicitRequirements: 문서에 "명시적으로" 적힌 요구사항만 추출한다 (AI가 스스로 제안하는 recommendedLayout 등과는 다르다 — 오직 문서에 실제로 적힌 지시·설명만). 배경색 지정, "다크모드로 만들어주세요" 같은 모드 지정, "GNB는 좌측 고정" 같은 레이아웃 고정 요구를 감지하라. 각 항목 { "kind": "background-color"|"mode"|"layout"|"other", "text": string(원문 발췌/요약, 마스킹 토큰 유지), "value": string|null(background-color→hex, mode→"dark"|"light", 그 외는 null), "sourceSlides": number[] }. 없으면 빈 배열.
 
 2. 구성 페이지 재구성 (중요)
 - 슬라이드·장 구분과 1:1로 만들지 마라. 내용 기준으로 페이지를 재구성한다 (여러 슬라이드가 1페이지일 수도, 1슬라이드에 여러 섹션이 있을 수도 있다).
@@ -71,9 +75,11 @@ ${buildDirectiveBlock(directives, "analysis")}${imageBlock}
 반드시 아래 형태의 JSON만 출력하라 (설명·마크다운 금지):
 {
   "title": string, "description": string,
-  "domain": string, "domainConfidence": number,
+  "domain": string, "domainConfidence": number, "domainConfidenceReason": string,
+  "businessDomain": string,
   "targetUser": string, "projectType": string, "tags": string[],
   "brandColors": string[],
+  "explicitRequirements": [{ "kind": string, "text": string, "value": string|null, "sourceSlides": number[] }],
   "pages": [{ "pageTitle": string, "pageRole": string, "sourceSlides": number[], "sourceDocumentId": string|null,
     "sections": [{ "sectionTitle": string, "contentSummary": string, "contentType": string, "recommendedLayout": string, "sourceSlides": number[], "sourceDocumentId": string|null, "confidence": number, "unresolvedNotes": string[] }] }],
   "existingContentVariants": [{ "label": string, "sourceSlides": number[], "contentSummary": string }],

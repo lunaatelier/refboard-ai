@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -21,8 +21,11 @@ import { MAX_SELECTED_PAGES } from "@/lib/analysis/normalize";
 import type {
   DomainHint,
   ExclusionReason,
+  ExplicitRequirementKind,
   ProjectAnalysis,
+  ProjectDirective,
 } from "@/lib/analysis/types";
+import DirectiveEditor from "./DirectiveEditor";
 import PageLayout, { PageCta } from "./shell/PageLayout";
 
 // 분석 결과 (Step 7) — 자동 도출하되 셀렉트/편집으로 수정 가능 (UI 원칙).
@@ -34,6 +37,13 @@ const DOMAIN_LABELS: Record<DomainHint, string> = {
   "mobile-app": "모바일 앱",
   document: "문서형",
   generic: "일반",
+};
+
+const REQUIREMENT_KIND_LABELS: Record<ExplicitRequirementKind, string> = {
+  "background-color": "배경색",
+  mode: "모드",
+  layout: "레이아웃",
+  other: "기타",
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -74,6 +84,8 @@ interface AnalysisResultProps {
   analysis: ProjectAnalysis;
   onChange: (next: ProjectAnalysis) => void;
   onConfirm: () => void;
+  directives: ProjectDirective[];
+  onDirectivesChange: (next: ProjectDirective[]) => void;
 }
 
 const card: React.CSSProperties = {
@@ -94,6 +106,12 @@ const groupLabel: React.CSSProperties = {
   letterSpacing: "0.04em",
 };
 
+const fieldLabel: React.CSSProperties = {
+  fontWeight: 600,
+  fontSize: 14,
+  color: "var(--text-muted)",
+};
+
 const noticeHeading: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -109,23 +127,166 @@ function isLikelyPlaceholderBlack(colors: string[]): boolean {
   return /^#0{3,6}$/.test(only) || only === "black";
 }
 
+// 실제 렌더링된 한 줄 폭을 넘길 때만 "펼쳐보기"를 노출 (게이트 2 해소).
+// 글자수 휴리스틱 대신 scrollWidth/clientWidth 실측 — 카드 폭·폰트에 따라 정확히 판정된다.
+function ContentSummaryText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) {
+      setOverflowing(false);
+      return;
+    }
+    setOverflowing(el.scrollWidth > el.clientWidth + 1);
+  }, [text]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <span
+        ref={ref}
+        style={{
+          color: "var(--text-muted)",
+          fontSize: 14,
+          ...(expanded
+            ? {}
+            : {
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }),
+        }}
+      >
+        {text}
+      </span>
+      {overflowing && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="btn-tertiary"
+          style={{
+            alignSelf: "flex-start",
+            border: "none",
+            padding: "2px 4px",
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          {expanded ? "접기" : "펼쳐보기"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+interface PendingConfirm {
+  title: string;
+  message: string;
+  onConfirm: () => void;
+}
+
+// 파괴적이진 않지만 하류(레퍼런스·무드·컨셉) 추천 방향이 바뀌는 변경 — 사전 고지 후 확정.
+function ConfirmDialog({
+  pending,
+  onCancel,
+}: {
+  pending: PendingConfirm;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "var(--scrim)",
+        zIndex: 40,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "var(--space-md)",
+      }}
+    >
+      <div
+        style={{
+          background: "var(--canvas)",
+          borderRadius: "var(--radius-lg)",
+          padding: "var(--space-lg)",
+          maxWidth: 420,
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--space-md)",
+          boxShadow: "var(--shadow-modal)",
+        }}
+      >
+        <h3 style={{ fontSize: 16, fontWeight: 700 }}>{pending.title}</h3>
+        <p style={{ fontSize: 14, color: "var(--text-muted)" }}>{pending.message}</p>
+        <div style={{ display: "flex", gap: "var(--space-sm)", justifyContent: "flex-end" }}>
+          <button
+            onClick={onCancel}
+            className="btn-secondary"
+            style={{
+              border: "none",
+              borderRadius: "var(--radius-md)",
+              padding: "8px var(--space-base)",
+              fontWeight: 600,
+              fontSize: 14,
+            }}
+          >
+            취소
+          </button>
+          <button
+            onClick={pending.onConfirm}
+            className="btn-primary"
+            style={{
+              border: "none",
+              borderRadius: "var(--radius-md)",
+              padding: "8px var(--space-base)",
+              fontWeight: 600,
+              fontSize: 14,
+            }}
+          >
+            변경 적용
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AnalysisResult({
   analysis,
   onChange,
   onConfirm,
+  directives,
+  onDirectivesChange,
 }: AnalysisResultProps) {
   const [notice, setNotice] = useState<string>();
   const [tagsExpanded, setTagsExpanded] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [businessDomainDraft, setBusinessDomainDraft] = useState(
+    analysis.businessDomain ?? "",
+  );
   const selectedCount = analysis.pages.filter((p) => p.selected).length;
 
-  const toggleSectionExpanded = (sectionId: string) =>
-    setExpandedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(sectionId)) next.delete(sectionId);
-      else next.add(sectionId);
-      return next;
+  // 다른 분석 결과가 로드되면(재활용 등) 초안도 새 값으로 맞춘다.
+  useEffect(() => {
+    setBusinessDomainDraft(analysis.businessDomain ?? "");
+  }, [analysis.businessDomain]);
+
+  // 화면 유형·프로젝트 도메인 변경 = 자동 반영 금지 (Step 6). 값만 바뀔 뿐 구성
+  // 페이지·섹션 자체는 건드리지 않지만, 이후 레퍼런스·무드·컨셉 추천이 새 값
+  // 기준으로 달라지므로 사전 고지 후 확정한다.
+  const requestFieldChange = (label: string, apply: () => void) => {
+    setPendingConfirm({
+      title: `${label} 변경`,
+      message: `${label} 변경은 이후 레퍼런스·컨셉 추천에 반영됩니다. 현재 선택한 페이지·섹션은 그대로 유지됩니다.`,
+      onConfirm: () => {
+        apply();
+        setPendingConfirm(null);
+      },
     });
+  };
 
   const patchPage = (pageId: string, patch: Partial<ProjectAnalysis["pages"][number]>) =>
     onChange({
@@ -181,6 +342,7 @@ export default function AnalysisResult({
     ? uniqueTags
     : uniqueTags.slice(0, TAGS_PREVIEW_COUNT);
   const hiddenTagCount = uniqueTags.length - visibleTags.length;
+  const businessDomainDirty = businessDomainDraft !== (analysis.businessDomain ?? "");
 
   const taskBanner = (
     <div
@@ -230,9 +392,13 @@ export default function AnalysisResult({
       description="AI가 도출한 구성 페이지·섹션·도메인을 확인하고 필요하면 수정하세요."
       banner={taskBanner}
     >
-      {/* 프로젝트 정보 */}
+      {pendingConfirm && (
+        <ConfirmDialog pending={pendingConfirm} onCancel={() => setPendingConfirm(null)} />
+      )}
+
+      {/* 분석 요약 — 프로젝트 정보 + 분석 정보를 단일 카드로 통합 */}
       <div style={card}>
-        <span style={groupLabel}>프로젝트 정보</span>
+        <span style={groupLabel}>분석 요약</span>
         <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
           <input
             value={analysis.title}
@@ -241,14 +407,250 @@ export default function AnalysisResult({
           />
         </label>
         <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
-          {analysis.description}
+          {analysis.description || "—"}
         </p>
         <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
           타겟: {analysis.targetUser || "—"}
         </p>
+
+        {analysis.parentSiteRelation && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-sm)",
+              flexWrap: "wrap",
+              fontSize: 14,
+              padding: "8px var(--space-md)",
+              background: "var(--surface-alt)",
+              borderRadius: "var(--radius-md)",
+            }}
+          >
+            <LinkIcon size={16} color="var(--text-muted)" />
+            <span style={{ color: "var(--text-muted)" }}>
+              {analysis.parentSiteRelation.relationNote}
+            </span>
+            {analysis.parentSiteRelation.confirmed ? (
+              <>
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontWeight: 700,
+                    color: "var(--success)",
+                  }}
+                >
+                  <Check size={14} color="var(--success)" />
+                  반영됨
+                </span>
+                <button
+                  onClick={() =>
+                    onChange({
+                      ...analysis,
+                      parentSiteRelation: {
+                        ...analysis.parentSiteRelation!,
+                        confirmed: false,
+                      },
+                    })
+                  }
+                  className="btn-tertiary"
+                  style={{ border: "none", fontSize: 13, fontWeight: 600 }}
+                >
+                  해제
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() =>
+                    onChange({
+                      ...analysis,
+                      parentSiteRelation: {
+                        ...analysis.parentSiteRelation!,
+                        confirmed: true,
+                      },
+                    })
+                  }
+                  className="btn-weak-primary"
+                  style={{
+                    border: "none",
+                    borderRadius: "var(--radius-md)",
+                    padding: "4px 10px",
+                    fontWeight: 600,
+                    fontSize: 13,
+                  }}
+                >
+                  맞습니다
+                </button>
+                <button
+                  onClick={() => {
+                    const { parentSiteRelation: _removed, ...rest } = analysis;
+                    onChange(rest);
+                  }}
+                  className="btn-secondary"
+                  style={{
+                    border: "none",
+                    borderRadius: "var(--radius-md)",
+                    padding: "4px 10px",
+                    fontWeight: 600,
+                    fontSize: 13,
+                  }}
+                >
+                  아닙니다
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: "var(--space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+            <span style={fieldLabel}>프로젝트 도메인</span>
+            <div style={{ display: "flex", gap: "var(--space-xs)", alignItems: "center" }}>
+              <input
+                value={businessDomainDraft}
+                onChange={(e) => setBusinessDomainDraft(e.target.value)}
+                placeholder="예: 스마트시티, 통합관제"
+                className="input-box"
+                style={{ ...inputStyle, width: 160, border: undefined }}
+              />
+              {businessDomainDirty && (
+                <button
+                  onClick={() =>
+                    requestFieldChange("프로젝트 도메인", () =>
+                      onChange({
+                        ...analysis,
+                        businessDomain: businessDomainDraft || undefined,
+                      }),
+                    )
+                  }
+                  className="btn-weak-primary"
+                  style={{
+                    border: "none",
+                    borderRadius: "var(--radius-md)",
+                    padding: "8px 10px",
+                    fontWeight: 600,
+                    fontSize: 13,
+                  }}
+                >
+                  적용
+                </button>
+              )}
+            </div>
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+            <span style={fieldLabel}>화면 유형</span>
+            <select
+              value={analysis.domain}
+              onChange={(e) => {
+                const next = e.target.value as DomainHint;
+                if (next === analysis.domain) return;
+                requestFieldChange("화면 유형", () => onChange({ ...analysis, domain: next }));
+              }}
+              className="select-box"
+            >
+              {(Object.keys(DOMAIN_LABELS) as DomainHint[]).map((d) => (
+                <option key={d} value={d}>
+                  {DOMAIN_LABELS[d]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+            <span style={fieldLabel}>산출물 형식</span>
+            <input
+              value={analysis.projectType}
+              onChange={(e) =>
+                onChange({ ...analysis, projectType: e.target.value })
+              }
+              className="input-box"
+              style={{ ...inputStyle, width: 160, border: undefined }}
+            />
+          </label>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)", minWidth: 160 }}>
+            <span style={fieldLabel}>AI 분석 신뢰도</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+              <div
+                style={{
+                  width: 80,
+                  height: 6,
+                  borderRadius: "var(--radius-full)",
+                  background: "var(--border)",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${confidencePct}%`,
+                    height: "100%",
+                    background: confidenceLow ? "var(--warning)" : "var(--success)",
+                  }}
+                />
+              </div>
+              <span
+                style={{
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: confidenceLow ? "var(--warning)" : "var(--success)",
+                }}
+              >
+                {confidencePct}%
+              </span>
+            </div>
+            {analysis.domainConfidenceReason && (
+              <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
+                근거: {analysis.domainConfidenceReason}
+              </span>
+            )}
+            {confidenceLow && (
+              <span style={{ fontSize: 14, color: "var(--warning)" }}>낮음 — 직접 확인 필요</span>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+          <span style={fieldLabel}>핵심 키워드</span>
+          <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap", alignItems: "center" }}>
+            {visibleTags.map((t) => (
+              <span
+                key={t}
+                style={{
+                  background: "var(--primary-soft)",
+                  color: "var(--primary)",
+                  borderRadius: "var(--radius-full)",
+                  padding: "4px 12px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                #{t}
+              </span>
+            ))}
+            {hiddenTagCount > 0 && (
+              <button
+                onClick={() => setTagsExpanded(true)}
+                className="btn-tertiary"
+                style={{ border: "none", fontSize: 14, fontWeight: 600 }}
+              >
+                +{hiddenTagCount}
+              </button>
+            )}
+            {tagsExpanded && uniqueTags.length > TAGS_PREVIEW_COUNT && (
+              <button
+                onClick={() => setTagsExpanded(false)}
+                className="btn-tertiary"
+                style={{ border: "none", fontSize: 14, fontWeight: 600 }}
+              >
+                접기
+              </button>
+            )}
+          </div>
+        </div>
+
         {analysis.brandColors && analysis.brandColors.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
-            <span style={{ fontWeight: 600, fontSize: 16 }}>브랜드 컬러</span>
+            <span style={fieldLabel}>브랜드 컬러</span>
             <div style={{ display: "flex", gap: "var(--space-md)", flexWrap: "wrap" }}>
               {analysis.brandColors.map((c) => (
                 <div
@@ -289,122 +691,29 @@ export default function AnalysisResult({
         )}
       </div>
 
-      {/* 분석 정보 */}
-      <div style={card}>
-        <span style={groupLabel}>분석 정보</span>
-        <div style={{ display: "flex", gap: "var(--space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
-            <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-muted)" }}>
-              도메인
-            </span>
-            <select
-              value={analysis.domain}
-              onChange={(e) =>
-                onChange({ ...analysis, domain: e.target.value as DomainHint })
-              }
-              className="select-box"
-            >
-              {(Object.keys(DOMAIN_LABELS) as DomainHint[]).map((d) => (
-                <option key={d} value={d}>
-                  {DOMAIN_LABELS[d]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
-            <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-muted)" }}>
-              종류
-            </span>
-            <input
-              value={analysis.projectType}
-              onChange={(e) =>
-                onChange({ ...analysis, projectType: e.target.value })
-              }
-              className="input-box"
-              style={{ ...inputStyle, width: 160, border: undefined }}
-            />
-          </label>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)", minWidth: 140 }}>
-            <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-muted)" }}>
-              신뢰도
-            </span>
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
-              <div
-                style={{
-                  width: 80,
-                  height: 6,
-                  borderRadius: "var(--radius-full)",
-                  background: "var(--border)",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${confidencePct}%`,
-                    height: "100%",
-                    background: confidenceLow ? "var(--warning)" : "var(--success)",
-                  }}
-                />
-              </div>
-              <span
-                style={{
-                  fontWeight: 700,
-                  fontSize: 14,
-                  color: confidenceLow ? "var(--warning)" : "var(--success)",
-                }}
-              >
-                {confidencePct}%
-              </span>
-            </div>
-            {confidenceLow && (
-              <span style={{ fontSize: 14, color: "var(--warning)" }}>낮음 — 직접 확인 필요</span>
-            )}
-          </div>
+      {analysis.explicitRequirements && analysis.explicitRequirements.length > 0 && (
+        <div style={{ ...card, borderColor: "var(--border)", background: "var(--surface-alt)" }}>
+          <h3 style={{ ...noticeHeading, color: "var(--text-strong)" }}>
+            <FileText size={20} color="var(--text-muted)" />
+            문서 명시 요구사항 {analysis.explicitRequirements.length}건
+          </h3>
+          <ul style={{ paddingLeft: 20, fontSize: 14, display: "flex", flexDirection: "column", gap: 4 }}>
+            {analysis.explicitRequirements.map((r, i) => (
+              <li key={i}>
+                <span style={{ ...neutralPill, marginRight: 8 }}>
+                  {REQUIREMENT_KIND_LABELS[r.kind]}
+                </span>
+                {r.text}
+                {r.value && <code style={{ marginLeft: 6 }}>({r.value})</code>}
+              </li>
+            ))}
+          </ul>
+          <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
+            컨셉 3안 생성 시 변주 대상이 아니라 모든 안이 지켜야 할 제약으로
+            반영됩니다.
+          </p>
         </div>
-        <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap", alignItems: "center" }}>
-          {visibleTags.map((t) => (
-            <span
-              key={t}
-              style={{
-                background: "var(--primary-soft)",
-                color: "var(--primary)",
-                borderRadius: "var(--radius-full)",
-                padding: "4px 12px",
-                fontSize: 14,
-                fontWeight: 600,
-              }}
-            >
-              #{t}
-            </span>
-          ))}
-          {hiddenTagCount > 0 && (
-            <button
-              onClick={() => setTagsExpanded(true)}
-              className="btn-tertiary"
-              style={{
-                border: "none",
-                fontSize: 14,
-                fontWeight: 600,
-              }}
-            >
-              +{hiddenTagCount}
-            </button>
-          )}
-          {tagsExpanded && uniqueTags.length > TAGS_PREVIEW_COUNT && (
-            <button
-              onClick={() => setTagsExpanded(false)}
-              className="btn-tertiary"
-              style={{
-                border: "none",
-                fontSize: 14,
-                fontWeight: 600,
-              }}
-            >
-              접기
-            </button>
-          )}
-        </div>
-      </div>
+      )}
 
       {analysis.existingContentVariants &&
         analysis.existingContentVariants.length > 0 && (
@@ -428,98 +737,6 @@ export default function AnalysisResult({
             </p>
           </div>
         )}
-
-      {analysis.parentSiteRelation && (
-        <div style={{ ...card, borderColor: "var(--border)", background: "var(--surface-alt)" }}>
-          <h3 style={{ ...noticeHeading, color: "var(--text-strong)" }}>
-            <LinkIcon size={20} color="var(--text-muted)" />
-            이 문서는 다른 사이트의 관리자 화면으로 보입니다
-          </h3>
-          <p style={{ fontSize: 14 }}>{analysis.parentSiteRelation.relationNote}</p>
-          {analysis.parentSiteRelation.confirmed ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
-              <span
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--space-xs)",
-                  fontWeight: 700,
-                  fontSize: 14,
-                  color: "var(--success)",
-                }}
-              >
-                <Check size={16} color="var(--success)" />
-                확정됨 — 레퍼런스가 &ldquo;부모 사이트를 관리하는 CMS
-                백오피스&rdquo;로 좁혀집니다
-              </span>
-              <button
-                onClick={() =>
-                  onChange({
-                    ...analysis,
-                    parentSiteRelation: {
-                      ...analysis.parentSiteRelation!,
-                      confirmed: false,
-                    },
-                  })
-                }
-                className="btn-secondary"
-                style={{
-                  border: "none",
-                  borderRadius: "var(--radius-md)",
-                  padding: "4px var(--space-md)",
-                  fontSize: 14,
-                }}
-              >
-                해제
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
-              <button
-                onClick={() =>
-                  onChange({
-                    ...analysis,
-                    parentSiteRelation: {
-                      ...analysis.parentSiteRelation!,
-                      confirmed: true,
-                    },
-                  })
-                }
-                className="btn-weak-primary"
-                style={{
-                  border: "none",
-                  borderRadius: "var(--radius-md)",
-                  padding: "10px var(--space-base)",
-                  fontWeight: 600,
-                  fontSize: 14,
-                }}
-              >
-                맞습니다 — 레퍼런스에 반영
-              </button>
-              <button
-                onClick={() => {
-                  const { parentSiteRelation: _removed, ...rest } = analysis;
-                  onChange(rest);
-                }}
-                className="btn-secondary"
-                style={{
-                  border: "none",
-                  borderRadius: "var(--radius-md)",
-                  padding: "10px var(--space-base)",
-                  fontWeight: 600,
-                  fontSize: 14,
-                }}
-              >
-                아닙니다 — 무시
-              </button>
-              <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
-                확정하면 레퍼런스 검색이 일반 관리자 대시보드 대신 CMS
-                백오피스 쪽으로 좁혀집니다
-              </span>
-            </div>
-          )}
-        </div>
-      )}
 
       {analysis.detectedCaseStudies &&
         analysis.detectedCaseStudies.length > 0 && (
@@ -680,44 +897,7 @@ export default function AnalysisResult({
                               <X size={14} />
                             </button>
                           </div>
-                          {(() => {
-                            const expanded = expandedSections.has(s.sectionId);
-                            const isLong = s.contentSummary.length > 50;
-                            return (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                <span
-                                  style={{
-                                    color: "var(--text-muted)",
-                                    fontSize: 14,
-                                    ...(expanded || !isLong
-                                      ? {}
-                                      : {
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                          whiteSpace: "nowrap",
-                                        }),
-                                  }}
-                                >
-                                  {s.contentSummary}
-                                </span>
-                                {isLong && (
-                                  <button
-                                    onClick={() => toggleSectionExpanded(s.sectionId)}
-                                    className="btn-tertiary"
-                                    style={{
-                                      alignSelf: "flex-start",
-                                      border: "none",
-                                      padding: "2px 4px",
-                                      fontSize: 14,
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {expanded ? "접기" : "펼쳐보기"}
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })()}
+                          <ContentSummaryText text={s.contentSummary} />
                         </li>
                       ))}
                     </ul>
@@ -727,6 +907,10 @@ export default function AnalysisResult({
             );
           })}
         </div>
+      </div>
+
+      <div style={card}>
+        <DirectiveEditor directives={directives} onChange={onDirectivesChange} />
       </div>
 
       <PageCta onClick={onConfirm} disabled={selectedCount === 0} locked={selectedCount === 0}>

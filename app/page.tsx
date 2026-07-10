@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { Key, Save } from "lucide-react";
 import AnalysisResult from "@/components/AnalysisResult";
-import DirectiveEditor, { describeScope } from "@/components/DirectiveEditor";
+import { describeScope } from "@/components/DirectiveEditor";
 import ImageConsentPanel, {
   type ConsentImage,
   type ImageInsight,
@@ -638,6 +638,13 @@ export default function Home() {
                 setWorkflow((prev) => ({ ...prev, analysis: next }))
               }
               onConfirm={handleConfirmAnalysis}
+              directives={workflow.projectDirective ?? []}
+              onDirectivesChange={(next) =>
+                setWorkflow((prev) => ({
+                  ...prev,
+                  projectDirective: next.length > 0 ? next : undefined,
+                }))
+              }
             />
             {workflow.completedSteps.includes("analysis") && (
               <div style={{ display: "flex", gap: "var(--space-md)", flexWrap: "wrap" }}>
@@ -697,15 +704,6 @@ export default function Home() {
                     .join(", ")}
                 </p>
               )}
-            <DirectiveEditor
-              directives={workflow.projectDirective ?? []}
-              onChange={(next) =>
-                setWorkflow((prev) => ({
-                  ...prev,
-                  projectDirective: next.length > 0 ? next : undefined,
-                }))
-              }
-            />
             {workflow.maskedText === IMAGE_ONLY_PLACEHOLDER &&
               imageInsights.length === 0 && (
                 <Alert tone="warn">

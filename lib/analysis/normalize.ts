@@ -1,5 +1,7 @@
 import type {
   DomainHint,
+  ExplicitRequirement,
+  ExplicitRequirementKind,
   Page,
   PageRole,
   ProjectAnalysis,
@@ -90,6 +92,26 @@ export function filterBrandColorCandidates(
   return colors.filter((c) => !isBackgroundOnlyMention(c, sourceText));
 }
 
+const REQUIREMENT_KINDS: ExplicitRequirementKind[] = [
+  "background-color",
+  "mode",
+  "layout",
+  "other",
+];
+
+// Gemini가 반환한 explicitRequirements 원본을 정규화.
+function normalizeExplicitRequirements(raw: unknown): ExplicitRequirement[] {
+  const list: any[] = Array.isArray(raw) ? raw : [];
+  return list
+    .map((r) => ({
+      kind: REQUIREMENT_KINDS.includes(r?.kind) ? (r.kind as ExplicitRequirementKind) : "other",
+      text: str(r?.text),
+      ...(str(r?.value) ? { value: str(r.value) } : {}),
+      ...(numArray(r?.sourceSlides) ? { sourceSlides: numArray(r.sourceSlides) } : {}),
+    }))
+    .filter((r) => r.text);
+}
+
 export function normalizeAnalysis(raw: any, sourceText = ""): ProjectAnalysis {
   const rawPages: any[] = Array.isArray(raw?.pages) ? raw.pages : [];
 
@@ -124,21 +146,43 @@ export function normalizeAnalysis(raw: any, sourceText = ""): ProjectAnalysis {
 
   const domain = str(raw?.domain) as DomainHint;
 
+  // brandColors: 배경/테마 라벨로만 등장한 hex는 여전히 제외한다(순수 브랜드/로고 컬러만).
+  // 단, 제외된 색은 "버리지" 않고 explicitRequirements(background-color)로 옮긴다 (게이트 1 정정).
+  const rawBrandColors = strArray(raw?.brandColors);
+  const keptBrandColors = filterBrandColorCandidates(rawBrandColors, sourceText);
+  const droppedBackgroundColors = rawBrandColors.filter(
+    (c) => !keptBrandColors.includes(c),
+  );
+
+  const explicitRequirements = normalizeExplicitRequirements(raw?.explicitRequirements);
+  // 2차 방어선: Gemini가 explicitRequirements로 이미 보고하지 않았다면, brandColors에서
+  // 걸러낸 배경색을 자동으로 채워 넣는다 (색 정보 유실 방지).
+  const alreadyReported = new Set(
+    explicitRequirements
+      .filter((r) => r.kind === "background-color" && r.value)
+      .map((r) => r.value!.toLowerCase()),
+  );
+  for (const c of droppedBackgroundColors) {
+    if (alreadyReported.has(c.toLowerCase())) continue;
+    explicitRequirements.push({
+      kind: "background-color",
+      text: `배경 색상으로 언급됨 (자동 감지): ${c}`,
+      value: c,
+    });
+  }
+
   return {
     title: str(raw?.title, "제목 없음"),
     description: str(raw?.description),
     domain: DOMAINS.includes(domain) ? domain : "generic",
     domainConfidence: Math.min(1, Math.max(0, num(raw?.domainConfidence, 0.5))),
+    ...(str(raw?.domainConfidenceReason) ? { domainConfidenceReason: str(raw.domainConfidenceReason) } : {}),
+    ...(str(raw?.businessDomain) ? { businessDomain: str(raw.businessDomain) } : {}),
     targetUser: str(raw?.targetUser),
     tags: strArray(raw?.tags),
     projectType: str(raw?.projectType, "미분류"),
-    ...(() => {
-      const brandColors = filterBrandColorCandidates(
-        strArray(raw?.brandColors),
-        sourceText,
-      );
-      return brandColors.length > 0 ? { brandColors } : {};
-    })(),
+    ...(keptBrandColors.length > 0 ? { brandColors: keptBrandColors } : {}),
+    ...(explicitRequirements.length > 0 ? { explicitRequirements } : {}),
     pages,
     existingContentVariants: (Array.isArray(raw?.existingContentVariants)
       ? raw.existingContentVariants

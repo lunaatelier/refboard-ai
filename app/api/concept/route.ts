@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { generateJson } from "@/lib/ai/client";
 import { buildSourceMaterial } from "@/lib/ai/exclusion";
 import { buildDirectiveBlock } from "@/lib/ai/prompts";
+import { deriveForcedMode } from "@/lib/analysis/requirements";
 import { normalizeConcept } from "@/lib/concept/normalize";
 import type { ProjectAnalysis } from "@/lib/analysis/types";
 
@@ -53,12 +54,17 @@ export async function POST(req: Request) {
 ${variants.map((v) => `- ${v.label}: ${v.contentSummary}`).join("\n")}\n`
       : "";
 
+  const forcedMode = deriveForcedMode(analysis.explicitRequirements);
+  const forcedModeBlock = forcedMode
+    ? `\n## 문서 명시 제약 (반드시 지킬 것 — 3안 전부 동일 적용, 변주 대상 아님)\n- 문서가 배경/모드를 명시적으로 요구했다. uiStructure.mode는 3안 모두 "${forcedMode}"로 고정하라. mode 축으로는 3안을 차별화하지 마라 (다른 축으로 차별화할 것).\n`
+    : "";
+
   const prompt = `당신은 시니어 프로덕트 디자이너다. 아래 자료로 프로젝트 전체를 관통하는 디자인 컨셉 3안을 만들어라.
 ([회사A] 같은 대괄호 토큰은 마스킹된 실명이다 — 그대로 유지하고 복원하지 마라.)
-${buildDirectiveBlock(directives, "concept")}
+${buildDirectiveBlock(directives, "concept")}${forcedModeBlock}
 ## 프로젝트
 ${analysis.title} — ${analysis.description}
-도메인: ${analysis.domain} / 종류: ${analysis.projectType} / 타겟: ${analysis.targetUser}
+화면 유형: ${analysis.domain}${analysis.businessDomain ? ` / 프로젝트 도메인: ${analysis.businessDomain}` : ""} / 산출물 형식: ${analysis.projectType} / 타겟: ${analysis.targetUser}
 ${DIFFERENTIATION[analysis.domain] ?? DIFFERENTIATION.generic}
 
 ## 확정된 디자인 결정 (반드시 반영)

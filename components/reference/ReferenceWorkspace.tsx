@@ -7,6 +7,7 @@ import PaletteMoodTab from "./PaletteMoodTab";
 import SectionRefsTab from "./SectionRefsTab";
 import TargetsTab from "./TargetsTab";
 import type { DocumentPurpose } from "@/lib/analysis/documentPurpose";
+import { pickBackgroundColorRequirement } from "@/lib/analysis/requirements";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
 import type { ExtractedAnalysisTarget } from "@/lib/masking/types";
 import { generatePaletteOptions } from "@/lib/reference/palette";
@@ -51,7 +52,10 @@ export default function ReferenceWorkspace({
     if (!references.paletteOptions) {
       onChange({
         ...references,
-        paletteOptions: generatePaletteOptions(analysis.brandColors),
+        paletteOptions: generatePaletteOptions(
+          analysis.brandColors,
+          pickBackgroundColorRequirement(analysis.explicitRequirements),
+        ),
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

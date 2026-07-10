@@ -105,6 +105,54 @@ describe("normalizeAnalysis — Gemini 응답 정규화", () => {
     assert.equal(a.brandColors, undefined);
   });
 
+  it("brandColors에서 제외된 배경색은 explicitRequirements(background-color)로 자동 승격된다 (게이트 1 정정 — 버리지 않고 분류)", () => {
+    const sourceText =
+      "배경은 깊은 네이비(#0f172a) 계열을 사용해 장시간 관제 시 눈의 피로를 낮추세요.";
+    const a = normalizeAnalysis(
+      {
+        pages: [{ pageTitle: "메인", pageRole: "content", sections: [] }],
+        brandColors: ["#0f172a"],
+      },
+      sourceText,
+    );
+    assert.equal(a.brandColors, undefined);
+    assert.equal(a.explicitRequirements?.length, 1);
+    assert.equal(a.explicitRequirements?.[0].kind, "background-color");
+    assert.equal(a.explicitRequirements?.[0].value, "#0f172a");
+  });
+
+  it("Gemini가 이미 explicitRequirements로 같은 색을 보고했으면 중복 추가하지 않는다", () => {
+    const sourceText = "배경은 #0f172a 계열을 사용하세요.";
+    const a = normalizeAnalysis(
+      {
+        pages: [{ pageTitle: "메인", pageRole: "content", sections: [] }],
+        brandColors: ["#0f172a"],
+        explicitRequirements: [
+          { kind: "background-color", text: "배경은 #0f172a 계열", value: "#0f172a" },
+        ],
+      },
+      sourceText,
+    );
+    assert.equal(a.explicitRequirements?.length, 1);
+  });
+
+  it("explicitRequirements: mode·layout 지시를 정규화하고 알 수 없는 kind는 other로 보정한다", () => {
+    const a = normalizeAnalysis({
+      pages: [{ pageTitle: "메인", pageRole: "content", sections: [] }],
+      explicitRequirements: [
+        { kind: "mode", text: "다크모드로 만들어주세요", value: "dark" },
+        { kind: "layout", text: "GNB는 좌측 고정으로" },
+        { kind: "이상한값", text: "알 수 없는 지시" },
+        { kind: "other", text: "" }, // 빈 text는 제외
+      ],
+    });
+    assert.equal(a.explicitRequirements?.length, 3);
+    assert.equal(a.explicitRequirements?.[0].kind, "mode");
+    assert.equal(a.explicitRequirements?.[0].value, "dark");
+    assert.equal(a.explicitRequirements?.[1].kind, "layout");
+    assert.equal(a.explicitRequirements?.[2].kind, "other");
+  });
+
   it("브랜드/로고 라벨이 붙은 hex는 배경 언급이 섞여 있어도 유지한다", () => {
     const sourceText =
       "배경은 흰색을 사용합니다. 브랜드 로고 컬러는 #2563EB 입니다.";
