@@ -68,6 +68,9 @@ export default function ConceptWorkspace({
     setError(undefined);
     try {
       const mood = references.globalMood;
+      const selectedMood = references.moodOptions?.find(
+        (m) => m.id === references.selectedMoodId,
+      );
       const adopted = (references.analysisTargetList ?? []).filter(
         (t) => t.adopted,
       );
@@ -78,8 +81,10 @@ export default function ConceptWorkspace({
           analysis,
           directives,
           representative,
-          palette:
-            references.editedPaletteOption?.[references.paletteMode ?? "light"],
+          paletteOption: references.editedPaletteOption,
+          moodKeywords: mood?.keywords ?? selectedMood?.keywords ?? [],
+          typographyDirection:
+            selectedMood?.styleAttributes.typographyNote ?? "",
           moodSummary: mood
             ? `${mood.keywords.join(", ")} — ${mood.description}`
             : "",

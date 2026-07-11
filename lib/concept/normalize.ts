@@ -1,10 +1,11 @@
 import type { ProjectAnalysis } from "../analysis/types";
-import type { RepresentativePages } from "../reference/types";
+import type { PaletteOption, RepresentativePages } from "../reference/types";
 import type {
   ConceptJson,
   ConceptOption,
   ConceptPage,
   ConceptSection,
+  DesignBasis,
 } from "./types";
 
 // Gemini 컨셉 응답 정규화 (Step 12-a) — isomorphic 순수 함수.
@@ -19,6 +20,11 @@ export function normalizeConcept(
   raw: any,
   analysis: ProjectAnalysis,
   representative: RepresentativePages,
+  designInput: {
+    paletteOption: PaletteOption;
+    moodKeywords: string[];
+    typographyDirection: string;
+  },
 ): ConceptJson {
   const validSectionIds = new Set(
     analysis.pages.flatMap((p) => p.sections.map((s) => s.sectionId)),
@@ -82,6 +88,12 @@ export function normalizeConcept(
         category: str(a?.category),
         description: str(a?.description),
       }));
+    const mode = o?.uiStructure?.mode === "dark" ? "dark" : "light";
+    const designBasis: DesignBasis = {
+      palette: designInput.paletteOption[mode],
+      moodKeywords: designInput.moodKeywords,
+      typographyDirection: designInput.typographyDirection,
+    };
 
     return {
       optionId: str(o?.optionId, `option-${oi + 1}`),
@@ -89,9 +101,10 @@ export function normalizeConcept(
       ...(str(o?.basedOnVariantLabel)
         ? { basedOnVariantLabel: str(o.basedOnVariantLabel) }
         : {}),
+      designBasis,
       conceptKeywords: axes,
       uiStructure: {
-        mode: o?.uiStructure?.mode === "dark" ? "dark" : "light",
+        mode,
         navPosition: o?.uiStructure?.navPosition === "left" ? "left" : "top",
         infoStructure: str(o?.uiStructure?.infoStructure),
         layoutConcept: str(o?.uiStructure?.layoutConcept),

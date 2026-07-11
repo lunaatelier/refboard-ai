@@ -1,9 +1,6 @@
 // Phase 5(디자인 MD 렌더러) 개발·테스트용 목업 데이터.
-// Phase 4(컨셉 3안 생성, app/api/concept/route.ts + normalize.ts)는 이미 동작한다 —
-// 다만 그 실제 생성 흐름은 아직 designBasis 스냅샷(§12 액션 항목)을 채우지 않는다.
-// route.ts는 body.palette/body.moodSummary를 프롬프트 텍스트에는 반영하지만
-// ConceptOption.designBasis 필드로 옮겨 담는 배선은 아직 없다. 그 배선이 붙기 전까지
-// Phase 5 렌더러를 개발·테스트할 수 있도록, 여기서 designBasis를 채운 샘플을 제공한다.
+// 실제 Phase 4 컨셉 생성도 ConceptOption.designBasis를 채운다. 이 파일은
+// 외부 AI 호출 없이 Phase 5 렌더러를 검증하기 위한 고정 fixture다.
 //
 // ⚠️ 이 파일은 프로덕션 경로에서 import되지 않는다. Phase 5 렌더러 작업 시 fixture로만 사용할 것.
 

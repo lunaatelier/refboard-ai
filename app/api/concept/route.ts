@@ -5,6 +5,7 @@ import { buildDirectiveBlock } from "@/lib/ai/prompts";
 import { deriveForcedMode } from "@/lib/analysis/requirements";
 import { normalizeConcept } from "@/lib/concept/normalize";
 import type { ProjectAnalysis } from "@/lib/analysis/types";
+import type { Palette, PaletteOption } from "@/lib/reference/types";
 
 // 컨셉 3안 생성 (Step 12-a) — Concept JSON(SSoT).
 // 입력은 전부 마스킹된 분석/레퍼런스 결정뿐. 제외 페이지는 buildSourceMaterial이 차단.
@@ -23,6 +24,31 @@ const DIFFERENTIATION: Record<string, string> = {
   generic: "3안 차별화 축: 무드, 레이아웃, 이미지 타입",
 };
 
+const PALETTE_ROLES: Array<keyof Omit<Palette, "mode">> = [
+  "primary",
+  "secondary",
+  "accent",
+  "background",
+  "surface",
+  "text",
+  "navigation",
+];
+
+function isPalette(value: unknown, mode: "light" | "dark"): value is Palette {
+  if (!value || typeof value !== "object") return false;
+  const p = value as Partial<Palette>;
+  return (
+    p.mode === mode &&
+    PALETTE_ROLES.every((role) => typeof p[role] === "string" && !!p[role])
+  );
+}
+
+function isPaletteOption(value: unknown): value is PaletteOption {
+  if (!value || typeof value !== "object") return false;
+  const p = value as Partial<PaletteOption>;
+  return isPalette(p.light, "light") && isPalette(p.dark, "dark");
+}
+
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const analysis: ProjectAnalysis | undefined = body?.analysis;
@@ -31,7 +57,20 @@ export async function POST(req: Request) {
   }
   const directives = Array.isArray(body?.directives) ? body.directives : [];
   const representative = body?.representative ?? {};
-  const palette = body?.palette; // 확정 팔레트 (현재 모드)
+  const paletteOption = body?.paletteOption; // 확정 팔레트 light/dark 쌍
+  if (!isPaletteOption(paletteOption)) {
+    return NextResponse.json(
+      { error: "확정된 팔레트 세트가 필요합니다." },
+      { status: 400 },
+    );
+  }
+  const moodKeywords: string[] = Array.isArray(body?.moodKeywords)
+    ? body.moodKeywords.filter((x: unknown): x is string => typeof x === "string")
+    : [];
+  const typographyDirection =
+    typeof body?.typographyDirection === "string"
+      ? body.typographyDirection.trim()
+      : "";
   const moodSummary = typeof body?.moodSummary === "string" ? body.moodSummary : "";
   const layoutBySection: Record<string, string> =
     body?.layoutBySection && typeof body.layoutBySection === "object"
@@ -68,7 +107,7 @@ ${analysis.title} — ${analysis.description}
 ${DIFFERENTIATION[analysis.domain] ?? DIFFERENTIATION.generic}
 
 ## 확정된 디자인 결정 (반드시 반영)
-- 팔레트: ${palette ? JSON.stringify(palette) : "미확정"}
+- 팔레트: ${JSON.stringify(paletteOption)}
 - 무드: ${moodSummary || "미확정"}
 ${layoutLines ? `- 섹션별 표현 방식:\n${layoutLines}` : ""}
 ${targetImplications.length > 0 ? `- 벤치마킹 시사점:\n${targetImplications.map((t) => `  - ${t}`).join("\n")}` : ""}
@@ -94,7 +133,11 @@ ${buildSourceMaterial(analysis)}
 
   try {
     const raw = await generateJson(prompt);
-    const concept = normalizeConcept(raw, analysis, representative);
+    const concept = normalizeConcept(raw, analysis, representative, {
+      paletteOption,
+      moodKeywords,
+      typographyDirection,
+    });
     if (concept.options.length === 0) {
       throw new Error("컨셉 생성 결과가 비어 있습니다.");
     }

@@ -12,6 +12,20 @@ const concept: ConceptJson = {
       optionId: "opt-1",
       label: "A안 — 신뢰의 블루",
       basedOnVariantLabel: "Main1",
+      designBasis: {
+        palette: {
+          mode: "light",
+          primary: "#2563EB",
+          secondary: "#64748B",
+          accent: "#0EA5E9",
+          background: "#FFFFFF",
+          surface: "#F7F8FA",
+          text: "#1C1F24",
+          navigation: "#FFFFFF",
+        },
+        moodKeywords: ["신뢰감 있는"],
+        typographyDirection: "중립 산세리프",
+      },
       conceptKeywords: [
         { no: "01", title: "사용성", category: "UX", description: "설명" },
       ],

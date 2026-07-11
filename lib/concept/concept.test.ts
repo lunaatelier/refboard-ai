@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { normalizeAnalysis } from "../analysis/normalize";
 import { normalizeConcept } from "./normalize";
+import type { PaletteOption } from "../reference/types";
 
 const analysis = normalizeAnalysis({
   title: "[고객사A] 리뉴얼",
@@ -29,6 +30,35 @@ const analysis = normalizeAnalysis({
 });
 
 const rep = { visualPageId: "p1", contentPageId: "p2" };
+const paletteOption: PaletteOption = {
+  optionId: "test",
+  label: "테스트",
+  light: {
+    mode: "light",
+    primary: "#2563EB",
+    secondary: "#64748B",
+    accent: "#0EA5E9",
+    background: "#FFFFFF",
+    surface: "#F7F8FA",
+    text: "#1C1F24",
+    navigation: "#FFFFFF",
+  },
+  dark: {
+    mode: "dark",
+    primary: "#60A5FA",
+    secondary: "#94A3B8",
+    accent: "#38BDF8",
+    background: "#0F172A",
+    surface: "#172033",
+    text: "#E8EAED",
+    navigation: "#111827",
+  },
+};
+const designInput = {
+  paletteOption,
+  moodKeywords: ["신뢰감 있는", "정돈된"],
+  typographyDirection: "중립 산세리프",
+};
 
 describe("Step 12-a — normalizeConcept (SSoT 정규화)", () => {
   it("sectionId 계보가 유지되고 위조 ID는 걸러진다", () => {
@@ -57,6 +87,7 @@ describe("Step 12-a — normalizeConcept (SSoT 정규화)", () => {
       },
       analysis,
       rep,
+      designInput,
     );
     const page = c.options[0].pages[0];
     assert.equal(c.options[0].pages.length, 1); // 위조 페이지 제거
@@ -66,7 +97,7 @@ describe("Step 12-a — normalizeConcept (SSoT 정규화)", () => {
   });
 
   it("outputSelection: 대표 2종 분리 + 나머지는 서브 후보", () => {
-    const c = normalizeConcept({ options: [] }, analysis, rep);
+    const c = normalizeConcept({ options: [] }, analysis, rep, designInput);
     assert.equal(c.outputSelection.visualRepresentativePageId, "p1");
     assert.equal(c.outputSelection.contentRepresentativePageId, "p2");
     assert.deepEqual(c.outputSelection.includedSubPageIds, ["p3"]);
@@ -102,6 +133,7 @@ describe("Step 12-a — normalizeConcept (SSoT 정규화)", () => {
       },
       analysis,
       rep,
+      designInput,
     );
     const opt = c.options[0];
     assert.ok(opt.platforms);
@@ -118,6 +150,7 @@ describe("Step 12-a — normalizeConcept (SSoT 정규화)", () => {
       { options: [{ optionId: "opt-1", label: "A안", pages: [] }] },
       analysis,
       rep,
+      designInput,
     );
     assert.equal(c.options[0].platforms, undefined);
   });
@@ -134,8 +167,33 @@ describe("Step 12-a — normalizeConcept (SSoT 정규화)", () => {
       },
       analysis,
       rep,
+      designInput,
     );
     assert.equal(c.options[0].uiStructure.mode, "light");
     assert.equal(c.options[0].uiStructure.navPosition, "top");
+  });
+
+  it("designBasis는 옵션 mode에 맞는 확정 팔레트와 무드·타이포 방향을 스냅샷한다", () => {
+    const c = normalizeConcept(
+      {
+        options: [
+          {
+            optionId: "dark",
+            uiStructure: { mode: "dark" },
+            pages: [],
+          },
+        ],
+      },
+      analysis,
+      rep,
+      designInput,
+    );
+    assert.equal(c.options[0].designBasis.palette.mode, "dark");
+    assert.equal(c.options[0].designBasis.palette.background, "#0F172A");
+    assert.deepEqual(c.options[0].designBasis.moodKeywords, [
+      "신뢰감 있는",
+      "정돈된",
+    ]);
+    assert.equal(c.options[0].designBasis.typographyDirection, "중립 산세리프");
   });
 });
