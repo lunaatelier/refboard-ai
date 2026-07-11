@@ -93,6 +93,8 @@ export default function Home() {
   const [imageError, setImageError] = useState<string>();
 
   const [uploadError, setUploadError] = useState<string>();
+  // 분석 JSON 재활용 경로 오류 — 문서 업로드 오류와 표시 위치가 다르다(JSON 행 아래).
+  const [jsonImportError, setJsonImportError] = useState<string>();
   const [parsing, setParsing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string>();
@@ -104,6 +106,7 @@ export default function Home() {
 
   const handleFile = async (file: File) => {
     setUploadError(undefined);
+    setJsonImportError(undefined);
 
     // ── 재활용 모드 (Step 13): 분석 JSON → 마스킹·분석 건너뛰고 ④ 직행 ──
     if (isAnalysisJsonFile(file.name)) {
@@ -134,7 +137,7 @@ export default function Home() {
           documentPurpose: data.documentPurpose,
         });
       } catch (e) {
-        setUploadError(
+        setJsonImportError(
           e instanceof Error ? e.message : "분석 JSON을 읽지 못했습니다.",
         );
       }
@@ -545,6 +548,7 @@ export default function Home() {
             onFile={handleFile}
             onLink={handleLink}
             error={uploadError}
+            jsonError={jsonImportError}
             parsing={parsing}
           />
         ))}

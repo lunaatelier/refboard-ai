@@ -5,7 +5,7 @@ import { Clipboard, Link, Lock, RefreshCw, Zap } from "lucide-react";
 import { clipboardFileName } from "@/lib/parse/image";
 import AnalysisJsonUpload from "../AnalysisJsonUpload";
 import FileUpload from "../FileUpload";
-import PageLayout, { pageCardStyle } from "./PageLayout";
+import PageLayout, { InlineErrorText, pageCardStyle } from "./PageLayout";
 
 // 업로드 단계 (phase1-masking-spec §8.1) — 워크스페이스 셸(LNB 포함) 안에서
 // 다른 단계 패널과 동일한 카드 골격으로 렌더링된다.
@@ -16,6 +16,8 @@ interface LandingUploadProps {
   onFile: (file: File) => void;
   onLink: (url: string) => void;
   error?: string;
+  /** 분석 JSON 재활용 경로의 오류 — 문서 업로드 오류와 분리해 JSON 행 아래에 표시 */
+  jsonError?: string;
   parsing?: boolean;
 }
 
@@ -51,6 +53,7 @@ export default function LandingUpload({
   onFile,
   onLink,
   error,
+  jsonError,
   parsing,
 }: LandingUploadProps) {
   const [linkInput, setLinkInput] = useState("");
@@ -94,11 +97,7 @@ export default function LandingUpload({
             텍스트 추출 중…
           </p>
         )}
-        {error && (
-          <p role="alert" style={{ fontSize: 14, color: "var(--error-weak-text)", fontWeight: 600, textAlign: "center" }}>
-            {error}
-          </p>
-        )}
+        {error && <InlineErrorText>{error}</InlineErrorText>}
 
         {/* 링크 입력 (Step 17) — 공개 링크의 정적 텍스트만. 렌더링형 페이지는 캡처 붙여넣기로. */}
         <div style={{ display: "flex", gap: "var(--space-sm)" }}>
@@ -118,25 +117,29 @@ export default function LandingUpload({
               font: "inherit",
             }}
           />
+          {/* 2순위 위계(btn-weak-primary) — "이전 작업 파일 선택"과 동급.
+              주소를 넣기 전엔 disabled 상태(locked 톤)로 표시. */}
           <button
             onClick={submitLink}
             disabled={parsing || !linkInput.trim()}
-            className={linkInput.trim() ? "btn-weak-primary" : undefined}
+            className={linkInput.trim() && !parsing ? "btn-weak-primary" : undefined}
             style={{
               padding: "10px var(--space-base)",
               borderRadius: "var(--radius-md)",
               border: "none",
-              background: linkInput.trim() ? undefined : "var(--surface-alt)",
-              color: linkInput.trim() ? undefined : "var(--text-body)",
+              background:
+                linkInput.trim() && !parsing ? undefined : "var(--surface-alt)",
+              color: linkInput.trim() && !parsing ? undefined : "var(--locked)",
               fontSize: 14,
               fontWeight: 600,
+              whiteSpace: "nowrap",
             }}
           >
             가져오기
           </button>
         </div>
 
-        <AnalysisJsonUpload onFile={onFile} />
+        <AnalysisJsonUpload onFile={onFile} error={jsonError} />
 
         <div
           style={{

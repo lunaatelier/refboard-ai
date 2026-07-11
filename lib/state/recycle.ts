@@ -62,7 +62,7 @@ export function parseAnalysisImport(text: string): AnalysisExport {
   }
   if (data?.format !== FORMAT) {
     throw new Error(
-      "이 앱에서 저장한 분석 JSON이 아닙니다. (기획서 문서는 txt/md/pdf/pptx로 올려주세요)",
+      "이 앱에서 저장한 분석 JSON이 아닙니다.",
     );
   }
   if (typeof data.version !== "number" || data.version > VERSION) {

@@ -141,6 +141,26 @@ export function LoadingState({ label, caption, securityNote }: LoadingStateProps
   );
 }
 
+// 폼 검증 오류용 helper text (input-default-error 패턴) — error 색 텍스트만,
+// 박스·아이콘 없음, 해당 입력 요소 바로 아래 좌측 정렬. 잘못된 파일 선택,
+// 형식 불일치 같은 "사용자 입력 문제"는 전부 이걸 쓴다.
+export function InlineErrorText({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      role="alert"
+      style={{
+        fontSize: 14,
+        color: "var(--error-weak-text)",
+        margin: 0,
+        textAlign: "left",
+        alignSelf: "flex-start",
+      }}
+    >
+      {children}
+    </p>
+  );
+}
+
 interface ErrorStateProps {
   title: string; // 예: "분석에 실패했어요"
   description?: string; // 일반 안내 문구 (고정)
@@ -151,6 +171,9 @@ interface ErrorStateProps {
 // 공통 에러 상태 (실사용#16, known-gaps의 critical-alert 항목 해소). 카드 내부
 // 복구 액션이라 button-primary(40px)를 쓰고 좌측 정렬 — 페이지 레벨 CTA(PageCta,
 // 48px·우측 정렬) 규칙과는 별개 컨텍스트다(혼동 방지).
+// ⚠️ 사용 기준: critical-alert(이 컴포넌트)는 실제 시스템 장애(AI 호출 실패,
+// 네트워크 오류 등)에만 사용한다. 폼 검증 오류(잘못된 파일/형식/입력)에는 쓰지
+// 않는다 — 그건 InlineErrorText(input-default-error 패턴)로.
 export function ErrorState({
   title,
   description = "일시적인 문제일 수 있습니다. 다시 시도해주세요.",

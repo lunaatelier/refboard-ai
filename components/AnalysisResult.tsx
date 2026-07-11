@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   FileText,
   Info,
   Link as LinkIcon,
+  Pencil,
   Search,
   X,
 } from "lucide-react";
@@ -112,56 +113,73 @@ function isLikelyPlaceholderBlack(colors: string[]): boolean {
   return /^#0{3,6}$/.test(only) || only === "black";
 }
 
-// 실제 렌더링된 한 줄 폭을 넘길 때만 "펼쳐보기"를 노출 (게이트 2 해소).
-// 글자수 휴리스틱 대신 scrollWidth/clientWidth 실측 — 카드 폭·폰트에 따라 정확히 판정된다.
-function ContentSummaryText({ text }: { text: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const [overflowing, setOverflowing] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
+// 자동 도출값을 input 박스 없이 텍스트로 보여주되, 호버 시 연필 아이콘으로
+// 인라인 편집을 여는 공통 처리 — "자동 도출하되 수정 가능" 원칙(CLAUDE.md §9)을
+// 항상 떠 있는 input 없이 유지한다. 문서 제목·섹션명에 사용.
+function InlineEditableText({
+  value,
+  onCommit,
+  ariaLabel,
+  textStyle,
+  editInputStyle,
+}: {
+  value: string;
+  onCommit: (next: string) => void;
+  ariaLabel: string;
+  textStyle?: React.CSSProperties;
+  editInputStyle?: React.CSSProperties;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
 
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) {
-      setOverflowing(false);
-      return;
-    }
-    setOverflowing(el.scrollWidth > el.clientWidth + 1);
-  }, [text]);
+  const commit = () => {
+    const next = draft.trim();
+    setEditing(false);
+    if (next && next !== value) onCommit(next);
+  };
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <span
-        ref={ref}
-        style={{
-          color: "var(--text-muted)",
-          fontSize: 14,
-          ...(expanded
-            ? {}
-            : {
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }),
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setEditing(false);
         }}
+        aria-label={ariaLabel}
+        className="input-box"
+        style={{ ...inputStyle, ...textStyle, padding: "4px 8px", ...editInputStyle }}
+      />
+    );
+  }
+  // 연필 아이콘은 항상 노출(옅은 톤) — 편집이 이 화면의 핵심 동선이므로
+  // 호버 전에도 "수정 가능"이 보여야 한다. 호버 숨김은 발견성·터치 접근성 문제.
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "var(--space-xs)",
+        minWidth: 0,
+      }}
+    >
+      <span style={textStyle}>{value}</span>
+      <button
+        onClick={() => {
+          setDraft(value);
+          setEditing(true);
+        }}
+        aria-label={`${ariaLabel} 편집`}
+        title="편집"
+        className="btn-icon-neutral"
+        style={{ width: 24, height: 24 }}
       >
-        {text}
-      </span>
-      {overflowing && (
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="btn-tertiary"
-          style={{
-            alignSelf: "flex-start",
-            border: "none",
-            padding: "2px 4px",
-            fontSize: 14,
-            fontWeight: 600,
-          }}
-        >
-          {expanded ? "접기" : "펼쳐보기"}
-        </button>
-      )}
-    </div>
+        <Pencil size={13} />
+      </button>
+    </span>
   );
 }
 
@@ -240,16 +258,12 @@ function ConfirmDialog({
 }
 
 // 페이지 3가지 상태(선택됨 / 사용자 직접 제외 / AI 자동 미선택)를 한눈에 구분.
-function pageContainerStyle(p: Page): React.CSSProperties {
-  if (p.selected) {
-    return { border: "1px solid var(--border)", opacity: 1 };
-  }
-  if (p.excludedReason) {
-    // 사용자가 의도적으로 뺀 페이지 — 사유 셀렉트가 함께 노출된다.
-    return { border: "1px solid var(--border)", opacity: 0.82 };
-  }
-  // AI가 상위 N개 자동 선택에서 밀린 것뿐 — 점선으로 "확정 아님"을 표시.
-  return { border: "1px dashed var(--border)", opacity: 0.55 };
+// 페이지별 박스를 걷어내고(박스 깊이 = 카드 > 섹션 두 단계로 제한) 페이지 사이는
+// 구분선으로 나누므로, 상태는 투명도(+제외 UI·안내 문구)로만 표현한다.
+function pageOpacity(p: Page): number {
+  if (p.selected) return 1;
+  if (p.excludedReason) return 0.82; // 사용자가 의도적으로 뺀 페이지 — 사유 셀렉트 노출
+  return 0.55; // AI 자동 미선택 — 체크만 하면 바로 복귀
 }
 
 function SectionList({
@@ -270,57 +284,55 @@ function SectionList({
 
   return (
     <>
-      <div style={{ borderTop: "1px solid var(--border)" }} />
       <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
-        {visible.map((s) => (
-          <li
-            key={s.sectionId}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--space-xs)",
-              padding: "10px var(--space-md)",
-              background: "var(--surface)",
-              borderRadius: "var(--radius-md)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
-              <input
-                value={s.sectionTitle}
-                onChange={(e) => onRenameSection(s.sectionId, e.target.value)}
-                className="input-box"
-                style={{
-                  ...inputStyle,
-                  border: undefined,
-                  fontWeight: 600,
-                  width: 180,
-                  padding: "4px var(--space-sm)",
-                }}
-              />
-              <span style={contentTypeTag} title="내용 성격">
-                {s.contentTypeLabel ?? humanizeSlug(s.contentType)}
+        {visible.map((s) => {
+          return (
+            <li
+              key={s.sectionId}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-xs)",
+                padding: "10px var(--space-md)",
+                background: "var(--surface)",
+                borderRadius: "var(--radius-md)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+                <InlineEditableText
+                  value={s.sectionTitle}
+                  onCommit={(title) => onRenameSection(s.sectionId, title)}
+                  ariaLabel="섹션명"
+                  textStyle={{ fontWeight: 600, fontSize: 14, color: "var(--text-strong)" }}
+                  editInputStyle={{ width: 240 }}
+                />
+                <span style={contentTypeTag} title="내용 성격">
+                  {s.contentTypeLabel ?? humanizeSlug(s.contentType)}
+                </span>
+                <span style={layoutPatternTag} title="표현 방식">
+                  {s.recommendedLayoutLabel ?? humanizeSlug(s.recommendedLayout)}
+                </span>
+                {s.unresolvedNotes && s.unresolvedNotes.length > 0 && (
+                  <span style={warningPill}>미결 {s.unresolvedNotes.length}</span>
+                )}
+                {!PAGE_STRUCTURE_LAYOUTS.has(s.recommendedLayout) && (
+                  <button
+                    onClick={() => onDeleteSection(s.sectionId)}
+                    aria-label="이 섹션 제외"
+                    title="이 섹션 제외"
+                    className="btn-icon-neutral"
+                    style={{ marginLeft: "auto", width: 28, height: 28 }}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
+                {s.contentSummary}
               </span>
-              <span style={layoutPatternTag} title="표현 방식">
-                {s.recommendedLayoutLabel ?? humanizeSlug(s.recommendedLayout)}
-              </span>
-              {s.unresolvedNotes && s.unresolvedNotes.length > 0 && (
-                <span style={warningPill}>미결 {s.unresolvedNotes.length}</span>
-              )}
-              {!PAGE_STRUCTURE_LAYOUTS.has(s.recommendedLayout) && (
-                <button
-                  onClick={() => onDeleteSection(s.sectionId)}
-                  aria-label="이 섹션 제외"
-                  title="이 섹션 제외"
-                  className="btn-icon-neutral"
-                  style={{ marginLeft: "auto", width: 28, height: 28 }}
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-            <ContentSummaryText text={s.contentSummary} />
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
       {page.sections.length > SECTIONS_PREVIEW_COUNT && (
         <button
@@ -484,7 +496,7 @@ export default function AnalysisResult({
           padding: "4px 14px",
         }}
       >
-        {selectedCount}/{MAX_SELECTED_PAGES}개 선택됨
+        {selectedCount}/{analysis.pages.length}개 선택됨
       </span>
     </div>
   );
@@ -499,137 +511,40 @@ export default function AnalysisResult({
         <ConfirmDialog pending={pendingConfirm} onCancel={() => setPendingConfirm(null)} />
       )}
 
-      {/* 분석 요약 — 프로젝트 정보 + 분석 정보를 단일 카드로 통합 */}
-      <div style={card}>
+      {/* 분석 요약 — 문서 제목/설명 → 메타 그리드 → AI 판단 → 프로젝트 도메인 →
+          키워드·컬러 순. 블록 간 space-lg + 구분선으로 그룹 경계를 표시. */}
+      <div style={{ ...card, gap: "var(--space-lg)" }}>
         <span style={sectionHeading}>분석 요약</span>
-        <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
-          <input
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+          <InlineEditableText
             value={analysis.title}
-            onChange={(e) => onChange({ ...analysis, title: e.target.value })}
-            style={{
-              ...inputStyle,
-              fontSize: 22,
-              fontWeight: 700,
-              color: "var(--foreground)",
-              border: "none",
-              padding: "4px 0",
-            }}
+            onCommit={(title) => onChange({ ...analysis, title })}
+            ariaLabel="문서 제목"
+            textStyle={{ fontSize: 22, fontWeight: 700, color: "var(--foreground)" }}
+            editInputStyle={{ width: "100%" }}
           />
-        </label>
-        <p style={{ color: "var(--text-muted)", fontSize: 16 }}>
-          {analysis.description || "—"}
-        </p>
-        <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
-          타겟: {analysis.targetUser || "—"}
-        </p>
+          <p style={{ color: "var(--text-muted)", fontSize: 16 }}>
+            {analysis.description || "—"}
+          </p>
+        </div>
 
-        {analysis.parentSiteRelation && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-sm)",
-              flexWrap: "wrap",
-              fontSize: 14,
-              padding: "8px var(--space-md)",
-              background: "var(--surface-alt)",
-              borderRadius: "var(--radius-md)",
-            }}
-          >
-            <LinkIcon size={16} color="var(--text-muted)" />
-            <span style={{ color: "var(--text-muted)" }}>
-              {analysis.parentSiteRelation.relationNote}
+        {/* 메타 그리드 — 타겟·화면 유형·산출물 형식·AI 신뢰도를 같은 라벨 위계로 한 행에 */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+          }}
+        >
+          <div style={metaCell}>
+            <span style={fieldLabel}>타겟</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-strong)" }}>
+              {analysis.targetUser || "—"}
             </span>
-            <button
-              onClick={() => {
-                const { parentSiteRelation: _removed, ...rest } = analysis;
-                onChange(rest);
-              }}
-              aria-label="이 판단 근거 제외"
-              title="이 판단 근거 제외"
-              className="btn-icon-neutral"
-              style={{ marginLeft: "auto", width: 24, height: 24 }}
-            >
-              <X size={12} />
-            </button>
           </div>
-        )}
-
-        <div style={{ display: "flex", gap: "var(--space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
-            <span style={fieldLabel}>프로젝트 도메인</span>
-            {/* 여러 업무 영역에 걸칠 수 있어(실사용#11) 값 개수가 가변적 — 고정폭
-                필드 대신 칩 wrap 목록 + 별도 추가 입력으로 처리한다. */}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-              {businessDomainsDraft.map((d, i) => (
-                <span
-                  key={`${d}-${i}`}
-                  style={{ ...hashtagPill, display: "flex", alignItems: "center", gap: 4 }}
-                >
-                  {d}
-                  <button
-                    onClick={() => removeBusinessDomainDraft(i)}
-                    aria-label={`${d} 제거`}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      background: "none",
-                      border: "none",
-                      padding: 0,
-                      cursor: "pointer",
-                      color: "inherit",
-                    }}
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              ))}
-              <input
-                value={businessDomainInput}
-                onChange={(e) => setBusinessDomainInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addBusinessDomainDraft();
-                  }
-                }}
-                placeholder="예: 스마트시티"
-                className="input-box"
-                style={{ ...inputStyle, width: 120, border: undefined }}
-              />
-              <button
-                onClick={addBusinessDomainDraft}
-                className="btn-tertiary"
-                style={{ border: "none", fontSize: 13, fontWeight: 600 }}
-              >
-                추가
-              </button>
-              {businessDomainsDirty && (
-                <button
-                  onClick={() =>
-                    requestFieldChange("프로젝트 도메인", () =>
-                      onChange({
-                        ...analysis,
-                        businessDomains:
-                          businessDomainsDraft.length > 0 ? businessDomainsDraft : undefined,
-                      }),
-                    )
-                  }
-                  className="btn-weak-primary"
-                  style={{
-                    border: "none",
-                    borderRadius: "var(--radius-md)",
-                    padding: "8px 10px",
-                    fontWeight: 600,
-                    fontSize: 13,
-                  }}
-                >
-                  적용
-                </button>
-              )}
-            </div>
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+          <label style={{ ...metaCell, borderLeft: "1px solid var(--border)" }}>
             <span style={fieldLabel}>화면 유형</span>
             <select
               value={analysis.domain}
@@ -647,7 +562,10 @@ export default function AnalysisResult({
               ))}
             </select>
           </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+          <label
+            style={{ ...metaCell, borderLeft: "1px solid var(--border)" }}
+            title="화면 유형과 별도 기준입니다"
+          >
             <span style={fieldLabel}>산출물 형식</span>
             <input
               value={analysis.projectType}
@@ -655,66 +573,164 @@ export default function AnalysisResult({
                 onChange({ ...analysis, projectType: e.target.value })
               }
               className="input-box"
-              style={{ ...inputStyle, width: 160, border: undefined }}
+              style={{ ...inputStyle, width: "100%", border: undefined }}
             />
-            <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
-              화면 유형과 별도 기준입니다
-            </span>
           </label>
-        </div>
-
-        {/* AI 판단 결과(신뢰도) — 위 메타 필드(사람이 직접 편집)와 구분되도록
-            surface-alt 배경의 별도 서브블록으로 묶는다. */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "var(--space-xs)",
-            alignSelf: "flex-start",
-            minWidth: 200,
-            padding: "var(--space-sm) var(--space-md)",
-            background: "var(--surface-alt)",
-            borderRadius: "var(--radius-md)",
-          }}
-        >
-          <span style={fieldLabel}>AI 분석 신뢰도</span>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
-            <div
-              style={{
-                width: 80,
-                height: 6,
-                borderRadius: "var(--radius-full)",
-                background: "var(--border)",
-                overflow: "hidden",
-              }}
-            >
+          {/* AI 판단 결과 — 메타 그리드의 마지막 칸. 편집 필드들과 같은 행에 있지만
+              라벨+게이지로 "판단 결과"임이 구분된다. */}
+          <div style={{ ...metaCell, borderLeft: "1px solid var(--border)" }}>
+            <span style={fieldLabel}>AI 분석 신뢰도</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
               <div
                 style={{
-                  width: `${confidencePct}%`,
-                  height: "100%",
-                  background: confidenceLow ? "var(--warning)" : "var(--success)",
+                  width: 80,
+                  height: 6,
+                  borderRadius: "var(--radius-full)",
+                  background: "var(--border)",
+                  overflow: "hidden",
                 }}
-              />
+              >
+                <div
+                  style={{
+                    width: `${confidencePct}%`,
+                    height: "100%",
+                    background: confidenceLow ? "var(--warning)" : "var(--success)",
+                  }}
+                />
+              </div>
+              <span
+                style={{
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: confidenceLow ? "var(--warning)" : "var(--success)",
+                }}
+              >
+                {confidencePct}%
+              </span>
             </div>
-            <span
+            {analysis.domainConfidenceReason && (
+              <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
+                근거: {analysis.domainConfidenceReason}
+              </span>
+            )}
+            {confidenceLow && (
+              <span style={{ fontSize: 14, color: "var(--warning)" }}>
+                낮음 — 직접 확인 필요
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* 관리자 화면 판단 근거 — 프로젝트 설명이 아니라 AI 판단 보조 정보라서
+            제목 밑이 아닌 메타 그리드 아래에 낮은 위계로 붙인다. */}
+        {analysis.parentSiteRelation && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-sm)",
+              fontSize: 14,
+              color: "var(--text-muted)",
+            }}
+          >
+            <LinkIcon size={14} color="var(--text-muted)" />
+            <span>AI 판단: {analysis.parentSiteRelation.relationNote}</span>
+            <button
+              onClick={() => {
+                const { parentSiteRelation: _removed, ...rest } = analysis;
+                onChange(rest);
+              }}
+              aria-label="이 판단 근거 제외"
+              title="이 판단 근거 제외"
+              className="btn-icon-neutral"
+              style={{ width: 24, height: 24 }}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
+
+        {/* 프로젝트 도메인 — 값 개수가 가변(실사용#11)이라 고정폭 그리드가 아닌
+            전용 full-width 행으로 분리. 칩 wrap + 추가 입력. */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+          <span style={fieldLabel}>프로젝트 도메인</span>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            {businessDomainsDraft.map((d, i) => (
+              <span
+                key={`${d}-${i}`}
+                style={{ ...hashtagPill, display: "flex", alignItems: "center", gap: 4 }}
+              >
+                {d}
+                <button
+                  onClick={() => removeBusinessDomainDraft(i)}
+                  aria-label={`${d} 제거`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    color: "inherit",
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+            <input
+              value={businessDomainInput}
+              onChange={(e) => setBusinessDomainInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addBusinessDomainDraft();
+                }
+              }}
+              placeholder="예: 스마트시티"
+              className="input-box"
+              style={{ ...inputStyle, width: 120, border: undefined }}
+            />
+            <button
+              onClick={addBusinessDomainDraft}
+              className="btn-weak-primary"
               style={{
-                fontWeight: 700,
-                fontSize: 14,
-                color: confidenceLow ? "var(--warning)" : "var(--success)",
+                border: "none",
+                borderRadius: "var(--radius-md)",
+                padding: "6px 12px",
+                fontWeight: 600,
+                fontSize: 13,
               }}
             >
-              {confidencePct}%
-            </span>
+              추가
+            </button>
+            {businessDomainsDirty && (
+              <button
+                onClick={() =>
+                  requestFieldChange("프로젝트 도메인", () =>
+                    onChange({
+                      ...analysis,
+                      businessDomains:
+                        businessDomainsDraft.length > 0 ? businessDomainsDraft : undefined,
+                    }),
+                  )
+                }
+                className="btn-weak-primary"
+                style={{
+                  border: "none",
+                  borderRadius: "var(--radius-md)",
+                  padding: "6px 12px",
+                  fontWeight: 600,
+                  fontSize: 13,
+                }}
+              >
+                적용
+              </button>
+            )}
           </div>
-          {analysis.domainConfidenceReason && (
-            <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
-              근거: {analysis.domainConfidenceReason}
-            </span>
-          )}
-          {confidenceLow && (
-            <span style={{ fontSize: 14, color: "var(--warning)" }}>낮음 — 직접 확인 필요</span>
-          )}
         </div>
+
+        <div style={{ borderTop: "1px solid var(--border)" }} />
 
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
           <span style={fieldLabel}>핵심 키워드</span>
@@ -772,10 +788,11 @@ export default function AnalysisResult({
         )}
       </div>
 
+      {/* 분석요약·구성페이지와 동일 레벨의 표준 카드 — 배경·아이콘으로 다르게
+          표현하지 않는다(같은 구획 라벨 위계). */}
       {analysis.explicitRequirements && analysis.explicitRequirements.length > 0 && (
-        <div style={{ ...card, borderColor: "var(--border)", background: "var(--surface-alt)" }}>
+        <div style={card}>
           <h3 style={sectionHeading}>
-            <FileText size={20} color="var(--text-muted)" />
             문서 명시 요구사항 {analysis.explicitRequirements.length}건
           </h3>
           <ul style={{ paddingLeft: 20, fontSize: 14, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -862,9 +879,9 @@ export default function AnalysisResult({
                 color: "var(--text-muted)",
               }}
             >
-              <span style={{ ...contentTypeTag, padding: "2px 8px", fontSize: 12 }}>Aa</span>
+              <span style={contentTypeTag}>Aa</span>
               내용 성격
-              <span style={{ ...layoutPatternTag, padding: "2px 8px", fontSize: 12 }}>Aa</span>
+              <span style={layoutPatternTag}>Aa</span>
               표현 방식
             </span>
           </div>
@@ -873,30 +890,42 @@ export default function AnalysisResult({
           </span>
         </div>
         {notice && <p style={{ color: "var(--warning)", fontWeight: 600, fontSize: 14 }}>{notice}</p>}
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
-          {analysis.pages.map((p) => {
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {analysis.pages.map((p, pageIndex) => {
             return (
               <div
                 key={p.pageId}
                 style={{
-                  ...pageContainerStyle(p),
-                  borderRadius: "var(--radius-lg)",
-                  padding: "var(--space-base)",
+                  // 페이지별 박스 대신 페이지 사이 구분선 — 박스 깊이를 카드 > 섹션
+                  // 두 단계로 제한한다. 상태(선택/제외/자동미선택)는 투명도로 표현.
+                  ...(pageIndex > 0 ? { borderTop: "1px solid var(--border)" } : {}),
+                  opacity: pageOpacity(p),
+                  padding: "var(--space-base) 0",
                   display: "flex",
                   flexDirection: "column",
                   gap: "var(--space-sm)",
                 }}
               >
-                {/* 1행 — 강한 위계: 체크박스 + 페이지명(헤더) + 역할 뱃지 */}
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+                {/* 한 줄 구성 — 좌측: 체크박스+페이지명 / 우측: 역할 뱃지+출처(보조 정보) */}
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
                   <input
                     type="checkbox"
                     checked={p.selected}
                     onChange={(e) => togglePage(p.pageId, e.target.checked)}
                   />
                   <span style={{ fontWeight: 700, fontSize: 16 }}>{p.pageTitle}</span>
-                  <span style={contentTypeTag}>{ROLE_LABELS[p.pageRole] ?? p.pageRole}</span>
                   <span style={{ flex: 1 }} />
+                  <span style={pageRoleTag}>{ROLE_LABELS[p.pageRole] ?? p.pageRole}</span>
+                  {p.sourceSlides && (
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      슬라이드 {p.sourceSlides.join(", ")}
+                    </span>
+                  )}
+                  {p.sourceDocumentId && (
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      ID: {p.sourceDocumentId}
+                    </span>
+                  )}
                   {!p.selected && p.excludedReason && (
                     <>
                       <span style={{ ...warningPill, fontSize: 13 }}>제외됨</span>
@@ -935,22 +964,6 @@ export default function AnalysisResult({
                     </span>
                   )}
                 </div>
-                {/* 2행 — 보조 정보(낮은 위계): 출처 슬라이드·문서ID */}
-                {(p.sourceSlides || p.sourceDocumentId) && (
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "var(--space-sm)",
-                      flexWrap: "wrap",
-                      fontSize: 12,
-                      color: "var(--text-muted)",
-                      paddingLeft: 28,
-                    }}
-                  >
-                    {p.sourceSlides && <span>슬라이드 {p.sourceSlides.join(", ")}</span>}
-                    {p.sourceDocumentId && <span>ID: {p.sourceDocumentId}</span>}
-                  </div>
-                )}
                 {p.selected && (
                   <SectionList
                     page={p}
@@ -985,28 +998,46 @@ const inputStyle: React.CSSProperties = {
   font: "inherit",
 };
 
+// 태그 공통 — 13px 예외(최소 14px 원칙의 명시적 예외), 타이트한 패딩, radius full.
 const tagBase: React.CSSProperties = {
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 600,
-  padding: "4px 10px",
-};
-
-// 내용 성격(contentType) — 채워진 중립톤 pill. 인터랙티브 요소가 아니므로 primary 금지.
-const contentTypeTag: React.CSSProperties = {
-  ...tagBase,
-  color: "var(--text-muted)",
-  background: "var(--surface-alt)",
+  padding: "2px 10px",
   borderRadius: "var(--radius-full)",
 };
 
-// 표현 방식(layoutPattern) — contentType과 다른 축임을 "모양"으로 구분(테두리만, 사각).
-// 같은 중립톤(text-muted)이지만 locked(#94a3b8)와는 다른 토큰이라 "비활성"으로 안 읽힌다.
+// 비인터랙티브 칩이므로 진한 primary 채움은 금지(must) — soft/outline 톤만 사용.
+
+// 페이지 유형(pageRole) — primary-soft 배경 + primary 텍스트.
+const pageRoleTag: React.CSSProperties = {
+  ...tagBase,
+  color: "var(--primary-hover)",
+  background: "var(--primary-soft)",
+};
+
+// 내용 성격·표현 방식 — "문서 명시/확인 필요"형 아웃라인 칩(테두리+컬러 텍스트,
+// 배경 투명). 축은 primary(인디고)와 어울리는 보조 2색으로 구분: teal / fuchsia.
+const contentTypeTag: React.CSSProperties = {
+  ...tagBase,
+  color: "var(--chip-teal-text)",
+  background: "transparent",
+  border: "1px solid var(--chip-teal-border)",
+};
+
 const layoutPatternTag: React.CSSProperties = {
   ...tagBase,
-  color: "var(--text-muted)",
+  color: "var(--chip-fuchsia-text)",
   background: "transparent",
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius-md)",
+  border: "1px solid var(--chip-fuchsia-border)",
+};
+
+// 분석 요약 메타 그리드 셀 — 타겟/화면유형/산출물형식/AI신뢰도를 같은 라벨 위계로.
+const metaCell: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--space-xs)",
+  padding: "var(--space-md) var(--space-base)",
+  minWidth: 0,
 };
 
 // 프로젝트 전역 해시태그(핵심 키워드) — contentType/layoutPattern(섹션 축)과 구분되도록
@@ -1022,5 +1053,4 @@ const warningPill: React.CSSProperties = {
   ...tagBase,
   color: "var(--warning-weak-text)",
   background: "var(--warning-weak-bg)",
-  borderRadius: "var(--radius-full)",
 };

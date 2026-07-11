@@ -52,6 +52,13 @@
   --warning-weak-text: #b45309;
   --info: #0ea5e9;
   --info-weak-bg: rgba(14, 165, 233, 0.12);
+  --info-weak-text: #0369a1; /* sky-700 - info-weak-bg 위 텍스트 (warning-weak-text와 동형) */
+
+  /* Outline chip accents — primary(인디고)와 어울리는 보조 2색 (비인터랙티브 태그용) */
+  --chip-teal-text: #0f766e; /* teal-700 */
+  --chip-teal-border: rgba(13, 148, 136, 0.45);
+  --chip-fuchsia-text: #a21caf; /* fuchsia-700 */
+  --chip-fuchsia-border: rgba(192, 38, 211, 0.4);
   --locked: #94a3b8;
 
   /* Spacing (8px base unit) */
@@ -155,15 +162,19 @@ button:disabled {
   color: var(--text-strong); /* slate-800 */
 }
 
-/* 4. Tertiary — low-frequency utility (e.g. "분석 결과 JSON 업로드"의 "파일 선택") */
+/* 4. Tertiary — low-frequency utility (e.g. "펼쳐보기", "제외 이유 보기").
+   텍스트형 버튼: 상하좌우 여백 없이 글자 그대로 앉힌다(여백이 있으면 주변 텍스트와
+   베이스라인이 틀어져 보임). 인접 요소와 붙어 보이면 버튼에 패딩을 주지 말고
+   부모의 gap으로 간격을 확보할 것. 호버는 배경 없이 텍스트 컬러만 primary로. */
 .btn-tertiary {
   background: transparent;
   color: var(--text-muted); /* slate-500 */
-  transition: background-color 150ms ease, color 150ms ease;
+  padding: 0;
+  border: none;
+  transition: color 150ms ease;
 }
 .btn-tertiary:hover:not(:disabled) {
-  background: var(--surface-alt); /* slate-100 */
-  color: var(--text-tertiary-hover); /* slate-700 */
+  color: var(--primary);
 }
 
 /* 5. Danger — destructive confirmation (delete, discard original text).

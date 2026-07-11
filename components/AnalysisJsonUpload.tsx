@@ -2,72 +2,52 @@
 
 import { useRef, useState } from "react";
 import { isAnalysisJsonFile } from "@/lib/state/recycle";
+import { InlineErrorText } from "./shell/PageLayout";
 
 interface AnalysisJsonUploadProps {
   onFile: (file: File) => void;
+  /** JSON 파싱/형식 오류 (page.tsx에서 판정) — 이 행 바로 아래에 표시한다. */
+  error?: string;
 }
 
-export default function AnalysisJsonUpload({ onFile }: AnalysisJsonUploadProps) {
+// 타이틀 없이 한 행(안내문구 좌 / 버튼 우 — 마스킹 확정 행과 동일 패턴).
+// 버튼은 업로드 페이지 2순위 위계(링크 "가져오기"와 동급, btn-weak-primary).
+export default function AnalysisJsonUpload({ onFile, error }: AnalysisJsonUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
-  const [error, setError] = useState<string>();
+  const [localError, setLocalError] = useState<string>();
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
     if (!isAnalysisJsonFile(file.name)) {
-      setError("분석 결과 JSON 파일(.json)만 올릴 수 있습니다.");
+      setLocalError("분석 결과 JSON 파일(.json)만 올릴 수 있습니다.");
       return;
     }
-    setError(undefined);
+    setLocalError(undefined);
     onFile(file);
   };
+
+  const shownError = localError ?? error;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)", width: "100%" }}>
       <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          handleFile(e.dataTransfer.files[0]);
-        }}
-        onClick={() => inputRef.current?.click()}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
-        }}
         style={{
-          border: `1px dashed var(--border)`,
-          background: dragging ? "var(--primary-soft)" : "transparent",
-          borderRadius: "var(--radius-lg)",
-          padding: "var(--space-base) var(--space-lg)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: "var(--space-md)",
-          cursor: "pointer",
         }}
       >
-        <div>
-          <p style={{ fontWeight: 600, fontSize: 14 }}>이전 작업 불러오기</p>
-          <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
-            이전에 저장한 분석 결과 JSON을 다시 불러옵니다
-          </p>
-        </div>
+        <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
+          분석 결과 화면에서 저장한 JSON을 업로드하면 레퍼런스 단계부터
+          시작합니다.
+        </p>
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            inputRef.current?.click();
-          }}
-          className="btn-tertiary"
+          onClick={() => inputRef.current?.click()}
+          className="btn-weak-primary"
           style={{
-            padding: "6px var(--space-base)",
+            padding: "10px var(--space-base)",
             borderRadius: "var(--radius-md)",
             border: "none",
             fontWeight: 600,
@@ -75,7 +55,7 @@ export default function AnalysisJsonUpload({ onFile }: AnalysisJsonUploadProps) 
             whiteSpace: "nowrap",
           }}
         >
-          파일 선택
+          불러오기
         </button>
         <input
           ref={inputRef}
@@ -88,11 +68,7 @@ export default function AnalysisJsonUpload({ onFile }: AnalysisJsonUploadProps) 
           }}
         />
       </div>
-      {error && (
-        <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600, fontSize: 14 }}>
-          {error}
-        </p>
-      )}
+      {shownError && <InlineErrorText>{shownError}</InlineErrorText>}
     </div>
   );
 }
