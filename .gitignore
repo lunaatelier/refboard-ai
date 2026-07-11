@@ -12,6 +12,7 @@
 .DS_Store
 *.pem
 npm-debug.log*
+.next-dev.*.log
 
 # env — 절대 커밋 금지 (CLAUDE.md §3)
 .env
