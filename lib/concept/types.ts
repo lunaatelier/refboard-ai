@@ -7,7 +7,11 @@ import type {
   ProjectAnalysis,
   ProjectDirective,
 } from "../analysis/types";
-import type { ConfirmedReferenceBrief, Palette } from "../reference/types";
+import type {
+  ConfirmedReferenceBrief,
+  MoodImage,
+  Palette,
+} from "../reference/types";
 import type { RepresentativePages } from "../reference/types";
 
 export type OutputPreset = "summary" | "proposal" | "detailed";
@@ -152,6 +156,10 @@ export interface DesignBasis {
   palette: Palette;
   moodKeywords: string[];
   typographyDirection: string;
+  // 아래 둘은 P9-B에서 추가됐다. optional인 이유: 이전에 생성된 ConceptJson(구버전
+  // 픽스처·저장 데이터)에는 없다 — 렌더러는 없으면 빈 배열로 취급한다.
+  moodImages?: MoodImage[]; // 확정 브리프에서 선택한 무드 이미지 (프리뷰 히어로에 사용)
+  avoidDirections?: string[]; // 확정 브리프의 금지 방향
 }
 
 // 구버전 테스트/렌더러 import 호환용 별칭. 이제 ConceptOption 자체가 designBasis를 가진다.

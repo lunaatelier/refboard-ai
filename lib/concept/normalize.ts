@@ -1,5 +1,9 @@
 import type { ProjectAnalysis } from "../analysis/types";
-import type { PaletteOption, RepresentativePages } from "../reference/types";
+import type {
+  MoodImage,
+  PaletteOption,
+  RepresentativePages,
+} from "../reference/types";
 import type {
   ConceptJson,
   ConceptOption,
@@ -24,6 +28,8 @@ export function normalizeConcept(
     paletteOption: PaletteOption;
     moodKeywords: string[];
     typographyDirection: string;
+    moodImages?: MoodImage[];
+    avoidDirections?: string[];
   },
 ): ConceptJson {
   const validSectionIds = new Set(
@@ -93,6 +99,8 @@ export function normalizeConcept(
       palette: designInput.paletteOption[mode],
       moodKeywords: designInput.moodKeywords,
       typographyDirection: designInput.typographyDirection,
+      moodImages: designInput.moodImages ?? [],
+      avoidDirections: designInput.avoidDirections ?? [],
     };
 
     return {

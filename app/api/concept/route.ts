@@ -143,6 +143,8 @@ ${buildSourceMaterial(analysis)}
       paletteOption,
       moodKeywords,
       typographyDirection,
+      moodImages: direction.selectedMoodImages,
+      avoidDirections: direction.avoidDirections,
     });
     if (concept.options.length === 0) {
       throw new Error("컨셉 생성 결과가 비어 있습니다.");
