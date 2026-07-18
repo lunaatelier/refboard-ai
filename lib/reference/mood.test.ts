@@ -78,6 +78,8 @@ describe("parseMoodResponse — 응답 정규화", () => {
           contrast: "soft",
           typographyNote: "굵은 산세리프",
         },
+        recommendedDirections: ["넓은 여백"],
+        avoidDirections: ["화려한 그라디언트"],
       },
       {
         id: "m2",
@@ -123,6 +125,25 @@ describe("parseMoodResponse — 응답 정규화", () => {
       ["trust", "innovation", "minimal"],
     );
     assert.equal(moods[0].typography.title.sampleText, "제목1");
+    assert.deepEqual(moods[0].recommendedDirections, ["넓은 여백"]);
+    assert.deepEqual(moods[0].avoidDirections, ["화려한 그라디언트"]);
+  });
+
+  it("recommendedDirections/avoidDirections이 누락되면 빈 배열, 3개 넘으면 잘린다", () => {
+    const raw = [
+      {
+        id: "m1",
+        label: "A",
+        keywords: [],
+        description: "",
+        imageQuery: "x",
+        paletteOptionId: "trust",
+        recommendedDirections: ["a", "b", "c", "d"],
+      },
+    ];
+    const moods = parseMoodResponse(raw, paletteOptions);
+    assert.deepEqual(moods[0].recommendedDirections, ["a", "b", "c"]);
+    assert.deepEqual(moods[0].avoidDirections, []);
   });
 
   it("paletteOptionId가 없거나 유효하지 않으면 첫 후보로 대체된다", () => {
@@ -191,6 +212,8 @@ describe("normalizeMoodPaletteAssignment — 서로 다른 팔레트 후보로 �
         body: { sampleText: "", note: "" },
       },
       styleAttributes: { radius: "soft", density: "airy", contrast: "soft", typographyNote: "" },
+      recommendedDirections: [],
+      avoidDirections: [],
     };
   }
 

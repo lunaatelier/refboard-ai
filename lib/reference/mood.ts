@@ -52,7 +52,9 @@ ${paletteBlock}
     "density": "compact"|"airy",
     "contrast": "high"|"soft",
     "typographyNote": string(타이포 방향 한 줄 — title.note와 같은 내용이어도 됨)
-  }
+  },
+  "recommendedDirections": string[0~3](이 무드와 어울리는 요소 — 예: "넓은 여백", "사진 위주 히어로"),
+  "avoidDirections": string[0~3](이 무드와 어울리지 않는 요소 — 예: "화려한 그라디언트", "장식적 아이콘")
 }] (정확히 3개)`;
 }
 
@@ -123,6 +125,12 @@ export function parseMoodResponse(
             m?.styleAttributes?.contrast === "high" ? "high" : "soft",
           typographyNote,
         },
+        recommendedDirections: Array.isArray(m?.recommendedDirections)
+          ? m.recommendedDirections.filter((k: unknown) => typeof k === "string").slice(0, 3)
+          : [],
+        avoidDirections: Array.isArray(m?.avoidDirections)
+          ? m.avoidDirections.filter((k: unknown) => typeof k === "string").slice(0, 3)
+          : [],
       };
     });
 

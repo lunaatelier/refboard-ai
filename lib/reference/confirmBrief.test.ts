@@ -54,6 +54,8 @@ function makeMoodOption(id = "mood-1"): MoodOption {
       contrast: "soft",
       typographyNote: "본문은 굵기 대비를 최소화",
     },
+    recommendedDirections: [],
+    avoidDirections: [],
   };
 }
 

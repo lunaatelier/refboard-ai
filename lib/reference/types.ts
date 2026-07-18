@@ -62,6 +62,8 @@ export interface MoodOption {
   styleAttributes: DirectionStyleAttributes & {
     typographyNote: string; // 하위 호환 — DesignBasis.typographyDirection이 이 필드를 그대로 씀
   };
+  recommendedDirections: string[]; // P3 — 이 무드와 어울리는 방향 조언 (최대 3개)
+  avoidDirections: string[]; // P3 — 이 무드와 어울리지 않는 방향 조언 (최대 3개)
 }
 
 export interface MoodBoard {

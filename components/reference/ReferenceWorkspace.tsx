@@ -144,7 +144,7 @@ export default function ReferenceWorkspace({
             locked={disabled}
             title={
               !selectionComplete
-                ? "컬러·무드 탭에서 팔레트 1세트와 무드 1종을 먼저 선택하세요"
+                ? "컬러·무드 탭에서 방향 1안을 먼저 선택하세요"
                 : undefined
             }
           >

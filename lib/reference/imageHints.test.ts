@@ -25,6 +25,8 @@ const mood = (label: string, keywords: string[]): MoodOption => ({
     contrast: "soft",
     typographyNote: "",
   },
+  recommendedDirections: [],
+  avoidDirections: [],
 });
 
 const docAnalysis = normalizeAnalysis({
