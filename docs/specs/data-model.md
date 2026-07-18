@@ -457,13 +457,111 @@ interface ImageHint {
 
 ---
 
+## 5.1 확정 결정 계약 (P0 개정 — `docs/refboard-ai-phase2-4-improvement-final.md` §6 반영)
+
+> 아직 미구현. 실제 추가는 P1에서 진행하며, 여기서는 타입 계약만 이 문서(단일 기준)에 먼저 반영한다.
+
+§5의 `ReferenceResult`/`SectionReference`는 **편집 중인 작업 상태**다. 사용자가 실제로 채택한 결정만 남긴 **불변 스냅샷**이 별도로 필요하다 — 그래야 미선택 검색 결과·미채택 분석이 컨셉 생성에 섞이지 않는다.
+
+```typescript
+type AdoptionStatus = "applied" | "reference-only" | "excluded";
+type AdoptionAspect = "layout" | "color" | "typography" | "image-tone" | "interaction" | "content-density";
+type SectionReferencePriority = "high-impact" | "inherited" | "optional";
+type DecisionSource = "user" | "inherited" | "ai";
+type Freshness = "current" | "stale";
+
+interface ReferenceAdoption {
+  adoptionId: string;
+  pageId: string;
+  sectionId: string;
+  reference: ReferenceCandidate;  // provider: "inspo" | "manual", usage: "inspiration-only" 고정
+  status: AdoptionStatus;
+  aspects: AdoptionAspect[];
+  note: string;
+  decision: { source: DecisionSource; freshness: Freshness; basedOnHash: string };
+}
+
+interface PageReferenceDecision {
+  pageId: string;
+  pageTitle: string;
+  purposeSummary: string;
+  sections: Array<{
+    sectionId: string;
+    sectionTitle: string;
+    priority: SectionReferencePriority;
+    layoutPattern: string;
+    decision: { source: DecisionSource; freshness: Freshness; basedOnHash: string };
+    adoptions: ReferenceAdoption[];
+    imageNeed?: ImageNeedDecision;
+  }>;
+}
+
+interface VerifiedSource {  // 모델이 JSON에 쓴 sourceUrl 문자열을 그대로 신뢰하지 않는다 — P6
+  url: string;
+  status: "official" | "supporting" | "unverified";
+  groundingCited: boolean;
+  domainVerified: boolean;
+  fetchedAt: string;
+}
+
+interface BrandDecision {
+  targetId: string;
+  name: string;
+  adoptedPatterns: string[];
+  avoidedPatterns: string[];
+  verifiedSources: VerifiedSource[];
+}
+
+interface ImageNeedDecision {  // data URL을 워크플로 JSON에 직접 넣지 않는다 — Blob store id만 보유
+  required: boolean;
+  role: "hero" | "section" | "icon";
+  prompt?: string;
+  generatedImageAssetId?: string;
+}
+
+interface WorkflowRevision {
+  analysisHash: string;
+  directionHash?: string;
+  briefHash?: string;
+  promptVersion: string;
+}
+
+interface ConfirmedReferenceBrief {
+  version: "2.0";
+  confirmedAt: string;
+  revision: WorkflowRevision;
+  direction: {
+    paletteOptionId: string;
+    editedPaletteOption: PaletteOption;   // 역할 재배치 편집 결과
+    paletteMode: "light" | "dark";
+    moodId: string;
+    moodKeywords: string[];
+    typographyDirection: string;
+    selectedMoodImages: MoodImage[];
+    styleAttributes: MoodOption["styleAttributes"];
+    avoidDirections: string[];
+  };
+  pages: PageReferenceDecision[];
+  brandDecisions: BrandDecision[];
+}
+```
+
+**적용 팔레트 계산 규칙:** 컨셉에 전달하는 최종 팔레트는 항상 `editedPaletteOption[paletteMode]`. `paletteOptionId`만으로는 사용자의 역할 재배치 편집이 사라진다.
+
+**무효화 규칙:** 상위 결정(글로벌 방향, 선택 페이지/섹션)이 바뀌면 하위 결과를 삭제하지 않고 `freshness: "stale"`로만 표시한다. hash는 정렬된 안전 DTO의 canonical JSON에서 계산하며 `confirmedAt`·`briefHash` 자신은 입력에서 제외한다. 상세 무효화 매트릭스는 개선 지시서 §6.5를 단일 기준으로 참조한다(중복 기술하지 않음).
+
+---
+
 ## 6. 컨셉 타입 (Phase 4) — Concept JSON (SSoT)
 
 ```typescript
 interface ConceptJson {
   projectTitle: string;
+  version?: "2.0";                 // (P0 개정, 미구현) 없으면 구버전(sourceBasis 없음) — 타입 분리 대신 필드+builder 강제
+  sourceBasis?: ConfirmedReferenceBrief;  // (P0 개정, 미구현) §5.1 — 컨셉 생성에 쓴 확정 브리프 스냅샷
   options: ConceptOption[];       // 3안
   outputSelection: ConceptOutputSelection;  // 대표 페이지·출력 구성
+  baseContentVariantId?: string;  // (P0 개정, 미구현) §5.1 — 기존 콘텐츠 변형이 있을 때 구조 3안 생성에 쓴 기준 변형
 }
 
 // 표지(비주얼 대표)와 내용 대표를 분리 (Step 11). "표지 ≠ 대표".
@@ -493,6 +591,8 @@ interface ConceptOption {
   uiStructure: UiStructure;       // 전체 UI 방향
   keyVisual: KeyVisual;           // 전체 비주얼 방향
   pages: ConceptPage[];           // 페이지별 구성
+  basedOnVariantLabel?: string;   // (P0 개정, 미구현) 구조 3안 생성에 쓴 "기준" 콘텐츠 변형 라벨
+  contentVariantMappings?: Record<string, ConceptPage[]>;  // (P0 개정, 미구현) key: contentVariantId — 온디맨드로 생성한 비기준 변형만 누적. §개선 지시서 §6.7
 }
 
 // Phase 3에서 확정한 디자인 결정을 줄글이 아니라 구조화된 데이터로 계승한다.
