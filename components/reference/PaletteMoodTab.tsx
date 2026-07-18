@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Check, Info } from "lucide-react";
 import SkinPreview from "./SkinPreview";
 import { pickBackgroundColorRequirement } from "@/lib/analysis/requirements";
@@ -166,14 +166,23 @@ export default function PaletteMoodTab({
     }
   };
 
+  // 진행 중인 무드 이미지 요청 — 다른 무드를 선택하면 이전 요청은 취소한다
+  // (§P1 item 8). hash 비교로 응답을 버리는 것과 별개로, 어차피 버려질 요청을
+  // 굳이 끝까지 기다리지 않는다.
+  const moodImagesAbortRef = useRef<AbortController | null>(null);
+
   const selectMood = async (mood: MoodOption) => {
     onChange((prev) => ({ ...prev, selectedMoodId: mood.id }));
+    moodImagesAbortRef.current?.abort();
+    const controller = new AbortController();
+    moodImagesAbortRef.current = controller;
     setImagesBusy(true);
     try {
       const res = await fetch("/api/mood-images", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ query: mood.imageQuery }),
+        signal: controller.signal,
       });
       const body = await res.json().catch(() => null);
       onChange((prev) => {
@@ -189,8 +198,12 @@ export default function PaletteMoodTab({
           },
         };
       });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
     } finally {
-      setImagesBusy(false);
+      if (moodImagesAbortRef.current === controller) {
+        setImagesBusy(false);
+      }
     }
   };
 

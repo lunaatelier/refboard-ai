@@ -13,6 +13,10 @@ import type {
   ReferenceResult,
   ReferenceResultUpdater,
 } from "@/lib/reference/types";
+import {
+  loadImageAssetBlob,
+  saveImageAssetFromDataUrl,
+} from "@/lib/state/imageAssetStore";
 import { ErrorState } from "../shell/PageLayout";
 
 // [이미지 힌트] 탭 (Step 11 + Step 19) — scale + 방향 + 프롬프트 표출.
@@ -178,7 +182,10 @@ export default function ImageHintsTab({
       if (!res.ok || typeof body?.dataUrl !== "string") {
         throw new Error(body?.error ?? "이미지 생성에 실패했습니다.");
       }
-      patchHint(index, { generatedImageUrl: body.dataUrl });
+      // data URL을 워크플로 상태에 직접 넣지 않는다(§6.6) — Blob store에 저장하고
+      // assetId만 보관한다.
+      const assetId = await saveImageAssetFromDataUrl(body.dataUrl);
+      patchHint(index, { generatedImageAssetId: assetId });
     } catch (e) {
       setGenError(
         e instanceof Error ? e.message : "이미지 생성에 실패했습니다.",
@@ -399,22 +406,15 @@ export default function ImageHintsTab({
               <Sparkles size={16} color={genEnabled ? "var(--primary-hover)" : "var(--text-muted)"} />
               {generating === i
                 ? "생성 중…"
-                : h.generatedImageUrl
+                : h.generatedImageAssetId
                   ? "다시 생성"
                   : "이미지 생성"}
             </button>
           </div>
-          {h.generatedImageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={h.generatedImageUrl}
+          {h.generatedImageAssetId && (
+            <GeneratedImagePreview
+              assetId={h.generatedImageAssetId}
               alt={`${h.area} 생성 이미지`}
-              style={{
-                maxWidth: 480,
-                width: "100%",
-                borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border)",
-              }}
             />
           )}
         </div>
@@ -433,5 +433,63 @@ export default function ImageHintsTab({
           />
         )}
     </div>
+  );
+}
+
+// Blob store(assetId)를 브라우저에서만 유효한 object URL로 비동기 해석해 렌더링한다.
+// 언마운트/assetId 변경 시 이전 object URL은 반드시 해제한다(메모리 누수 방지).
+function GeneratedImagePreview({ assetId, alt }: { assetId: string; alt: string }) {
+  const [url, setUrl] = useState<string>();
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let objectUrl: string | undefined;
+    let cancelled = false;
+    setFailed(false);
+    loadImageAssetBlob(assetId)
+      .then((blob) => {
+        if (cancelled) return;
+        if (!blob) {
+          setFailed(true);
+          return;
+        }
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [assetId]);
+
+  if (failed) {
+    return (
+      <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
+        생성 이미지를 불러오지 못했습니다. 다시 생성해 주세요.
+      </p>
+    );
+  }
+  if (!url) {
+    return (
+      <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
+        이미지 불러오는 중…
+      </p>
+    );
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return (
+    <img
+      src={url}
+      alt={alt}
+      style={{
+        maxWidth: 480,
+        width: "100%",
+        borderRadius: "var(--radius-md)",
+        border: "1px solid var(--border)",
+      }}
+    />
   );
 }

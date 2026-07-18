@@ -44,7 +44,7 @@ describe("persistence — toSafeSnapshot", () => {
     assert.equal(snap.conceptJson?.projectTitle, "t");
   });
 
-  it("ImageHint.generatedImageUrl(data URL)은 제거하고 나머지 필드는 보존한다", () => {
+  it("ImageHint.generatedImageAssetId(Blob store 참조)는 그대로 보존한다 — data URL이 아니라 id 문자열이라 안전하다", () => {
     const state = baseState({
       references: {
         imageHints: [
@@ -54,7 +54,7 @@ describe("persistence — toSafeSnapshot", () => {
             prompt: "prompt text",
             direction: "사진형",
             sourceReferenceMode: "use-source-image",
-            generatedImageUrl: "data:image/png;base64,AAAA",
+            generatedImageAssetId: "asset-123",
           },
         ],
       },
@@ -62,7 +62,7 @@ describe("persistence — toSafeSnapshot", () => {
     const snap = toSafeSnapshot(state);
     const hint = snap.references?.imageHints?.[0];
     assert.ok(hint);
-    assert.equal("generatedImageUrl" in hint!, false);
+    assert.equal(hint!.generatedImageAssetId, "asset-123");
     assert.equal(hint!.prompt, "prompt text");
   });
 

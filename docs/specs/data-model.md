@@ -449,7 +449,9 @@ interface ImageHint {
   prompt: string;                 // 이미지 생성 프롬프트 (텍스트 제공)
   direction: string;              // 일러스트/3D/사진 방향
   aspectRatio?: string;           // "16:9", "1:1" 등
-  generatedImageUrl?: string;     // NVIDIA 생성 이미지 (후순위 — 없으면 프롬프트만)
+  // NVIDIA 생성 이미지 참조 (후순위 — 없으면 프롬프트만). data URL을 워크플로 상태에
+  // 직접 넣지 않고(§6.6) lib/state/imageAssetStore.ts의 Blob store id만 보관한다.
+  generatedImageAssetId?: string;
 }
 ```
 

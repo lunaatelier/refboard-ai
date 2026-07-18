@@ -120,7 +120,9 @@ export interface ImageHint {
   aspectRatio?: string;
   // 원본 이미지 참고 금지 플래그 (실사용#20 — 제안서 템플릿 케이스)
   sourceReferenceMode: "use-source-image" | "text-only-ignore-source";
-  generatedImageUrl?: string; // Step 19 — NVIDIA NIM 생성 결과 (data URL)
+  // Step 19 — NVIDIA NIM 생성 결과. data URL을 워크플로 상태에 직접 넣지 않고
+  // (§6.6) lib/state/imageAssetStore.ts의 Blob store를 가리키는 id만 보관한다.
+  generatedImageAssetId?: string;
 }
 
 // 대표 페이지 추천 (Step 11) — "표지 ≠ 대표" 2종 분리. Phase 4 ConceptOutputSelection의 씨앗.

@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, Info, MoreHorizontal } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   DetectedCaseStudy,
   ProjectAnalysis,
@@ -78,6 +78,8 @@ export default function TargetsTab({
   const [manualName, setManualName] = useState("");
   const [manualUrl, setManualUrl] = useState("");
   const [showAllTargets, setShowAllTargets] = useState(false);
+  // 같은 대상을 "새로 분석"으로 다시 누르면 이전 요청은 취소한다(§P1 item 8).
+  const analyzeAbortRef = useRef<Record<string, AbortController>>({});
 
   const list = references.analysisTargetList ?? [];
   const analyses = references.targetAnalyses ?? {};
@@ -213,6 +215,9 @@ export default function TargetsTab({
         return;
       }
     }
+    analyzeAbortRef.current[item.id]?.abort();
+    const controller = new AbortController();
+    analyzeAbortRef.current[item.id] = controller;
     setBusyIds((prev) => new Set(prev).add(item.id));
     patchItem(item.id, { analysisStatus: "analyzing" });
     try {
@@ -225,6 +230,7 @@ export default function TargetsTab({
           projectSummary: `${analysis.title} — ${analysis.description} (${analysis.domain})`,
           directives,
         }),
+        signal: controller.signal,
       });
       const body = await res.json().catch(() => null);
       if (!res.ok || !body?.analysis) {
@@ -248,14 +254,17 @@ export default function TargetsTab({
       }));
       setOpenId(item.id);
     } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
       setError(e instanceof Error ? e.message : "분석에 실패했습니다.");
       patchItem(item.id, { analysisStatus: "listed" });
     } finally {
-      setBusyIds((prev) => {
-        const next = new Set(prev);
-        next.delete(item.id);
-        return next;
-      });
+      if (analyzeAbortRef.current[item.id] === controller) {
+        setBusyIds((prev) => {
+          const next = new Set(prev);
+          next.delete(item.id);
+          return next;
+        });
+      }
     }
   };
 

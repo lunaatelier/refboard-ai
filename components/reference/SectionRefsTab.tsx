@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, ChevronRight, Copy, Info, Link, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ProjectAnalysis, ProjectDirective, Section } from "@/lib/analysis/types";
 import {
   buildPlatformQueries,
@@ -52,6 +52,9 @@ export default function SectionRefsTab({
   const [imagesBusy, setImagesBusy] = useState<Record<string, boolean>>({});
   const [platformsOpen, setPlatformsOpen] = useState<Record<string, boolean>>({});
   const [copiedMain, setCopiedMain] = useState<string>();
+  // 섹션별 이미지 요청 취소 — 같은 섹션에서 검색어를 바꿔 다시 요청하면 이전 요청은
+  // 취소한다(§P1 item 8).
+  const sectionImagesAbortRef = useRef<Record<string, AbortController>>({});
 
   const confirmedSections: (Section & { pageTitle: string })[] =
     analysis.pages
@@ -173,19 +176,27 @@ export default function SectionRefsTab({
   // 이 섹션의 검색어(예: 로고 방향)로 직접 이미지를 가져온다.
   const fetchSectionImages = async (sectionId: string, query: string) => {
     if (!query.trim()) return;
+    sectionImagesAbortRef.current[sectionId]?.abort();
+    const controller = new AbortController();
+    sectionImagesAbortRef.current[sectionId] = controller;
     setImagesBusy((b) => ({ ...b, [sectionId]: true }));
     try {
       const res = await fetch("/api/mood-images", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ query }),
+        signal: controller.signal,
       });
       const body = await res.json().catch(() => null);
       patchRef(sectionId, {
         images: Array.isArray(body?.images) ? (body.images as MoodImage[]) : [],
       });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
     } finally {
-      setImagesBusy((b) => ({ ...b, [sectionId]: false }));
+      if (sectionImagesAbortRef.current[sectionId] === controller) {
+        setImagesBusy((b) => ({ ...b, [sectionId]: false }));
+      }
     }
   };
 
