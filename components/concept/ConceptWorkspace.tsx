@@ -64,6 +64,11 @@ export default function ConceptWorkspace({
   const [selectedOptionId, setSelectedOptionId] = useState<string>();
   const [previewPageId, setPreviewPageId] = useState<string>();
   const [previewPlatform, setPreviewPlatform] = useState<"web" | "mobile">("web");
+  // 미리보기에서 확인할 콘텐츠 변형 — 기준 변형이 아닌 걸 고르면 온디맨드로
+  // contentMapping만 다시 받아온다(§6.7, P1 item 12).
+  const [previewContentVariantId, setPreviewContentVariantId] = useState<string>();
+  const [variantMappingBusy, setVariantMappingBusy] = useState(false);
+  const [variantMappingError, setVariantMappingError] = useState<string>();
 
   const representative =
     references.representative ?? recommendRepresentativePages(analysis);
@@ -110,17 +115,78 @@ export default function ConceptWorkspace({
   const selected =
     concept?.options.find((o) => o.optionId === selectedOptionId) ??
     concept?.options[0];
-  // 웹+모바일 세트가 있으면 토글로 전환, 없으면 pages 단일 세트
+
+  const activeVariantId = previewContentVariantId ?? concept?.baseContentVariantId;
+  const isNonBaseVariant = Boolean(
+    activeVariantId && activeVariantId !== concept?.baseContentVariantId,
+  );
+  const variantPages = isNonBaseVariant
+    ? selected?.contentVariantMappings?.[activeVariantId!]
+    : undefined;
+  // 웹+모바일 세트가 있으면 토글로 전환, 없으면 pages 단일 세트. 비기준 변형을
+  // 고르고 온디맨드 매핑이 이미 받아져 있으면 그걸 우선한다(§6.7).
   const previewPages =
+    variantPages ??
     (previewPlatform === "mobile"
       ? selected?.platforms?.mobile
-      : selected?.platforms?.web) ?? selected?.pages;
+      : selected?.platforms?.web) ??
+    selected?.pages;
   const previewPage =
     previewPages?.find((p) => p.pageId === previewPageId) ??
     previewPages?.find(
       (p) => p.pageId === concept?.outputSelection.contentRepresentativePageId,
     ) ??
     previewPages?.[0];
+
+  const selectPreviewVariant = async (variantId: string) => {
+    setPreviewContentVariantId(variantId);
+    setVariantMappingError(undefined);
+    if (!selected || !concept) return;
+    // 기준 변형으로 되돌아가면 이미 있는 pages를 그대로 쓰면 되니 호출하지 않는다.
+    if (!variantId || variantId === concept.baseContentVariantId) return;
+    // 이미 이 옵션에 이 변형의 매핑이 있으면(캐시) 다시 부르지 않는다 — 캐시 키는
+    // conceptOptionId(옵션에 스코프됨) + contentVariantId(맵 키)이고, briefHash는
+    // 컨셉 전체가 재생성될 때 sourceBasis와 함께 자연히 무효화된다(§6.7).
+    if (selected.contentVariantMappings?.[variantId]) return;
+    setVariantMappingBusy(true);
+    try {
+      const res = await fetch("/api/concept/content-variant", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          analysis,
+          directives,
+          contentVariantId: variantId,
+          pages: selected.pages,
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !Array.isArray(body?.pages)) {
+        throw new Error(body?.error ?? "콘텐츠 매핑 생성에 실패했습니다.");
+      }
+      const optionId = selected.optionId;
+      onChange({
+        ...concept,
+        options: concept.options.map((o) =>
+          o.optionId === optionId
+            ? {
+                ...o,
+                contentVariantMappings: {
+                  ...(o.contentVariantMappings ?? {}),
+                  [variantId]: body.pages,
+                },
+              }
+            : o,
+        ),
+      });
+    } catch (e) {
+      setVariantMappingError(
+        e instanceof Error ? e.message : "콘텐츠 매핑 생성에 실패했습니다.",
+      );
+    } finally {
+      setVariantMappingBusy(false);
+    }
+  };
 
   return (
     <PageLayout
@@ -282,7 +348,38 @@ export default function ConceptWorkspace({
                 <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
                   {selected.uiStructure.infoStructure}
                 </span>
+                {variants.length >= 2 && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
+                    원고
+                    <select
+                      value={activeVariantId ?? ""}
+                      onChange={(e) => void selectPreviewVariant(e.target.value)}
+                      className="select-box"
+                    >
+                      {variants.map((v) => (
+                        <option key={v.variantId} value={v.variantId}>
+                          {v.label}
+                          {v.variantId === concept.baseContentVariantId ? " (기준)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {variantMappingBusy && (
+                  <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
+                    다른 원고 적용 중…
+                  </span>
+                )}
               </div>
+              {variantMappingError && (
+                <ErrorState
+                  title="다른 원고 적용에 실패했어요"
+                  detail={variantMappingError}
+                  onRetry={() =>
+                    activeVariantId && void selectPreviewVariant(activeVariantId)
+                  }
+                />
+              )}
               <ConceptPreview
                 option={selected}
                 page={previewPage}

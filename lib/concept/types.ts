@@ -65,11 +65,20 @@ export interface ConceptRequest {
 }
 
 // 온디맨드 콘텐츠 매핑 전용 — 구조 3안 생성 API와 별도 경량 요청(§6.7).
+// uiStructure/keyVisual/designBasis/layoutPattern은 이미 확정된 pages로 넘겨
+// "재사용"하고, 서버는 contentMapping.maskedContent만 다시 쓴다.
 export interface ContentVariantMappingRequest {
-  conceptOptionId: string;
+  analysis: ProjectAnalysis;
+  directives?: ProjectDirective[];
   contentVariantId: string;
-  briefHash: string; // 캐시 키의 일부 — 동일 조합 재요청 시 API를 재호출하지 않는다
+  pages: ConceptPage[];
 }
+
+// 캐시 키 개념: conceptOptionId + contentVariantId + briefHash. 실제로는 결과를
+// ConceptOption.contentVariantMappings[contentVariantId]에 저장하므로(옵션으로
+// 이미 스코프됨), 브리프가 바뀌어 컨셉 전체가 재생성되면 sourceBasis와 함께
+// contentVariantMappings도 통째로 교체돼 자연히 무효화된다 — 별도 캐시 저장소를
+// 두지 않는다.
 
 // 표지(비주얼 대표)와 내용 대표를 분리 — "표지 ≠ 대표" (Step 11 계승)
 export interface ConceptOutputSelection {
