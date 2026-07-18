@@ -20,6 +20,10 @@ import PageLayout, {
 import Workspace from "@/components/shell/Workspace";
 import { classifyDocumentPurpose } from "@/lib/analysis/documentPurpose";
 import { addDictionaryEntry, listDictionary } from "@/lib/dictionary/store";
+import {
+  loadWorkflowSnapshot,
+  saveWorkflowSnapshot,
+} from "@/lib/state/persistence";
 import { finalizeMask, summarizeMasking } from "@/lib/masking/apply";
 import { detect } from "@/lib/masking/detect";
 import { maskFileName } from "@/lib/masking/filename";
@@ -85,6 +89,13 @@ export default function Home() {
     tone: "info" | "warn";
     text: string;
   }>();
+
+  // 안전한 워크플로 상태 자동 저장/복구 (§6.6) — maskedText는 대상이 아니라 재분석·
+  // 마스킹 재편집이 필요하면 원본을 다시 업로드해야 한다. 마운트 시 한 번만 복구를
+  // 시도하고, 그 시도가 끝나기 전까지는 자동 저장을 보류해 초기 빈 상태로 기존
+  // 저장분을 덮어쓰지 않는다.
+  const hasAttemptedRestoreRef = useRef(false);
+  const [restoreNotice, setRestoreNotice] = useState<string>();
 
   // 문서 속 이미지 원본 (Step 9) — 원문급 민감. 메모리에만, opt-in 동의분만 외부 전송.
   const imagesRef = useRef<(PptxImage & { sensitivityHint: "none" | "possible" })[]>([]);
@@ -515,6 +526,55 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workflow.currentStep, workflow.analysis, workflow.maskedText, imageInsights.length, analyzing]);
 
+  // 마운트 시 1회 — 아직 아무것도 업로드하지 않은 상태일 때만 복구한다. 사용자가
+  // 그 사이 새 파일을 올렸다면(같은 tick 경합) 복구로 덮어쓰지 않는다.
+  useEffect(() => {
+    let cancelled = false;
+    loadWorkflowSnapshot()
+      .then((snapshot) => {
+        if (cancelled || !snapshot) return;
+        setWorkflow((prev) => {
+          if (prev.currentStep !== "upload" || prev.analysis) return prev;
+          return {
+            ...prev,
+            sourceType: snapshot.sourceType,
+            documentPurpose: snapshot.documentPurpose,
+            projectDirective: snapshot.projectDirective,
+            extractedAnalysisTargets: snapshot.extractedAnalysisTargets,
+            analysis: snapshot.analysis,
+            references: snapshot.references,
+            conceptJson: snapshot.conceptJson,
+            currentStep: snapshot.currentStep,
+            completedSteps: snapshot.completedSteps,
+          };
+        });
+        if (snapshot.analysis) {
+          setRestoreNotice(
+            `이전 세션(${new Date(snapshot.savedAt).toLocaleString("ko-KR")})의 프로젝트를 복구했습니다. 원문·마스킹 검수 단계는 복구되지 않습니다 — 재분석이나 마스킹 재편집이 필요하면 원본을 다시 업로드하세요.`,
+          );
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) hasAttemptedRestoreRef.current = true;
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 워크플로가 바뀔 때마다 안전한 상태만 자동 저장한다(디바운스). 복구 시도가
+  // 끝나기 전이거나 아직 아무것도 시작하지 않았으면 저장하지 않는다.
+  useEffect(() => {
+    if (!hasAttemptedRestoreRef.current) return;
+    if (workflow.currentStep === "upload" && !workflow.analysis) return;
+    const timer = setTimeout(() => {
+      void saveWorkflowSnapshot(workflow).catch(() => {});
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [workflow]);
+
   const handleConfirmAnalysis = () => {
     setWorkflow((prev) => {
       if (!prev.analysis) return prev;
@@ -532,6 +592,7 @@ export default function Home() {
 
   return (
     <Workspace state={workflow} onNavigate={handleNavigate}>
+      {restoreNotice && <Alert tone="info">{restoreNotice}</Alert>}
       {workflow.currentStep === "upload" &&
         (workflow.completedSteps.includes("upload") ? (
           <Panel title="업로드 (완료)">
@@ -539,8 +600,9 @@ export default function Home() {
               업로드된 파일: <b>{fileDisplayName ?? "(알 수 없음)"}</b>
             </p>
             <p style={{ color: "var(--text-muted)" }}>
-              다른 문서로 시작하려면 새로고침하세요. (메모리의 원문·복원키가
-              모두 소멸됩니다)
+              새로고침해도 분석·레퍼런스·컨셉 진행 상태는 복구됩니다. 다만
+              원문·복원키는 메모리에서만 유지되므로 새로고침 시 소멸합니다 —
+              실명 복원이 다시 필요하면 원본을 재업로드하세요.
             </p>
           </Panel>
         ) : (
