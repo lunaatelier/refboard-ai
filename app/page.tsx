@@ -20,6 +20,7 @@ import PageLayout, {
 import Workspace from "@/components/shell/Workspace";
 import { classifyDocumentPurpose } from "@/lib/analysis/documentPurpose";
 import { addDictionaryEntry, listDictionary } from "@/lib/dictionary/store";
+import { buildConfirmedBrief } from "@/lib/reference/confirmBrief";
 import {
   loadWorkflowSnapshot,
   saveWorkflowSnapshot,
@@ -109,6 +110,8 @@ export default function Home() {
   const [parsing, setParsing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string>();
+  // 레퍼런스 확정 시 ConfirmedReferenceBrief 스냅샷 생성 실패 안내 (P9-A 배선)
+  const [confirmBriefError, setConfirmBriefError] = useState<string>();
 
   // 편집 중 빈 행은 상태에 남되, 프롬프트·하위 컴포넌트로는 내용 있는 지시만 전달
   const activeDirectives = (workflow.projectDirective ?? []).filter((d) =>
@@ -857,6 +860,9 @@ export default function Home() {
             {recoveryNotice && (
               <Alert tone={recoveryNotice.tone}>{recoveryNotice.text}</Alert>
             )}
+            {confirmBriefError && (
+              <Alert tone="warn">{confirmBriefError}</Alert>
+            )}
             <ReferenceWorkspace
             analysis={workflow.analysis}
             directives={activeDirectives}
@@ -872,16 +878,36 @@ export default function Home() {
                     : next,
               }))
             }
-            onConfirm={() =>
-              setWorkflow((prev) => ({
-                ...prev,
-                references: { ...prev.references, referenceConfirmed: true },
-                completedSteps: prev.completedSteps.includes("reference")
-                  ? prev.completedSteps
-                  : [...prev.completedSteps, "reference"],
-                currentStep: "concept",
-              }))
-            }
+            onConfirm={() => {
+              if (!workflow.analysis) return;
+              // ConfirmedReferenceBrief 스냅샷 생성 (P9-A) — 편집 중 상태에서 사용자가
+              // 실제로 채택한 결정만 남긴 불변 스냅샷을 여기서 확정한다(§6.4).
+              try {
+                const confirmedBrief = buildConfirmedBrief(
+                  workflow.analysis,
+                  workflow.references ?? {},
+                );
+                setConfirmBriefError(undefined);
+                setWorkflow((prev) => ({
+                  ...prev,
+                  references: {
+                    ...prev.references,
+                    referenceConfirmed: true,
+                    confirmedBrief,
+                  },
+                  completedSteps: prev.completedSteps.includes("reference")
+                    ? prev.completedSteps
+                    : [...prev.completedSteps, "reference"],
+                  currentStep: "concept",
+                }));
+              } catch (e) {
+                setConfirmBriefError(
+                  e instanceof Error
+                    ? e.message
+                    : "레퍼런스 결정을 확정하지 못했습니다.",
+                );
+              }
+            }}
             />
           </div>
         ) : (

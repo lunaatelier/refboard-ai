@@ -4,50 +4,30 @@ import { buildSourceMaterial } from "@/lib/ai/exclusion";
 import { buildDirectiveBlock } from "@/lib/ai/prompts";
 import { deriveForcedMode } from "@/lib/analysis/requirements";
 import { normalizeConcept } from "@/lib/concept/normalize";
+import { assertConceptJsonInvariant } from "@/lib/concept/versionGuard";
+import { assertBriefMatchesAnalysis, ConfirmBriefError } from "@/lib/reference/confirmBrief";
 import type { ProjectAnalysis } from "@/lib/analysis/types";
-import type { Palette, PaletteOption } from "@/lib/reference/types";
+import type { ConfirmedReferenceBrief } from "@/lib/reference/types";
 
-// 컨셉 3안 생성 (Step 12-a) — Concept JSON(SSoT).
-// 입력은 전부 마스킹된 분석/레퍼런스 결정뿐. 제외 페이지는 buildSourceMaterial이 차단.
+// 컨셉 3안 생성 (Step 12-a, P9-A) — Concept JSON(SSoT).
+// 입력은 확정 브리프(ConfirmedReferenceBrief)와 분석 결과뿐. 제외 페이지는
+// buildSourceMaterial이 차단하고, 브리프의 pageId/sectionId는 분석 결과와
+// 교차 검증한다(§P9-A). 클라이언트→서버는 같은 신뢰 경계이므로 analysis는
+// 전체 ProjectAnalysis를 받는다 — "외부 전송 금지"(§3.6)는 이 프롬프트가
+// Gemini로 나갈 때 buildSourceMaterial이 걸러내는 지점에 적용된다.
 
 export const runtime = "nodejs";
 
-const DIFFERENTIATION: Record<string, string> = {
-  "dashboard-ops":
-    "3안 차별화 축: 다크/라이트 모드, GNB 위치(상단 top vs 좌측 left), 정보밀도(집약 vs 여백)",
-  "mobile-app":
-    "3안 차별화 축: 다크/라이트, 내비게이션 방식, 정보밀도(집약 vs 여백)",
-  document:
-    "3안 차별화 축: 표지 톤(다크/라이트), 이미지 타입(일러스트/사진/3D), 그리드 구조",
-  "marketing-web":
-    "3안 차별화 축: 무드(신뢰/혁신/미니멀), 레이아웃 대담함, 이미지 타입",
-  generic: "3안 차별화 축: 무드, 레이아웃, 이미지 타입",
-};
-
-const PALETTE_ROLES: Array<keyof Omit<Palette, "mode">> = [
-  "primary",
-  "secondary",
-  "accent",
-  "background",
-  "surface",
-  "text",
-  "navigation",
-];
-
-function isPalette(value: unknown, mode: "light" | "dark"): value is Palette {
-  if (!value || typeof value !== "object") return false;
-  const p = value as Partial<Palette>;
-  return (
-    p.mode === mode &&
-    PALETTE_ROLES.every((role) => typeof p[role] === "string" && !!p[role])
-  );
-}
-
-function isPaletteOption(value: unknown): value is PaletteOption {
-  if (!value || typeof value !== "object") return false;
-  const p = value as Partial<PaletteOption>;
-  return isPalette(p.light, "light") && isPalette(p.dark, "dark");
-}
+// 3안의 차별화 축은 도메인이 아니라 항상 이 세 가지로 고정한다(P9-A 확정 —
+// 이전에는 도메인별로 다크/라이트·GNB 위치 등을 축으로 썼으나, 팔레트·무드는
+// 이미 확정 브리프로 고정돼 있으므로 남은 변주는 구조·비주얼·균형 축뿐이다).
+const STRUCTURE_AXIS_BLOCK = `## 3안 차별화 축 (고정)
+- \`구조·신뢰형\`: 정보 위계, 설명 가능성, 안정적인 구조를 우선한다.
+- \`비주얼·몰입형\`: 대표 이미지, 공간감, 인터랙션 인상을 우선한다.
+- \`균형형\`: 정보 전달과 시각적 몰입을 균형 있게 적용한다.
+세 안 모두 확정된 팔레트·무드·타이포·금지 방향은 동일하게 유지한다. 차이는
+정보 밀도, 레이아웃 대담함, 이미지 사용 방식, 인터랙션 강조도에서만 만든다.
+label은 "A안 — 구조·신뢰형"처럼 축 이름을 포함해 작성한다.`;
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -55,43 +35,67 @@ export async function POST(req: Request) {
   if (!analysis || !Array.isArray(analysis.pages)) {
     return NextResponse.json({ error: "analysis가 필요합니다." }, { status: 400 });
   }
-  const directives = Array.isArray(body?.directives) ? body.directives : [];
-  const representative = body?.representative ?? {};
-  const paletteOption = body?.paletteOption; // 확정 팔레트 light/dark 쌍
-  if (!isPaletteOption(paletteOption)) {
+  const referenceBrief: ConfirmedReferenceBrief | undefined = body?.referenceBrief;
+  if (!referenceBrief?.direction?.editedPaletteOption || !referenceBrief.direction.paletteMode) {
     return NextResponse.json(
-      { error: "확정된 팔레트 세트가 필요합니다." },
+      { error: "확정된 레퍼런스 브리프가 필요합니다." },
       { status: 400 },
     );
   }
-  const moodKeywords: string[] = Array.isArray(body?.moodKeywords)
-    ? body.moodKeywords.filter((x: unknown): x is string => typeof x === "string")
-    : [];
-  const typographyDirection =
-    typeof body?.typographyDirection === "string"
-      ? body.typographyDirection.trim()
-      : "";
-  const moodSummary = typeof body?.moodSummary === "string" ? body.moodSummary : "";
-  const layoutBySection: Record<string, string> =
-    body?.layoutBySection && typeof body.layoutBySection === "object"
-      ? body.layoutBySection
-      : {};
-  const targetImplications: string[] = Array.isArray(body?.targetImplications)
-    ? body.targetImplications
-    : [];
-  const useVariants = body?.useVariants === true;
-  const variants = analysis.existingContentVariants ?? [];
+  try {
+    assertBriefMatchesAnalysis(referenceBrief, analysis);
+  } catch (e) {
+    if (e instanceof ConfirmBriefError) {
+      return NextResponse.json({ error: e.message }, { status: 409 });
+    }
+    throw e;
+  }
 
-  const layoutLines = Object.entries(layoutBySection)
-    .map(([id, layout]) => `- ${id}: ${layout} (사용자 확정)`)
+  const directives = Array.isArray(body?.directives) ? body.directives : [];
+  const representative = body?.representative ?? {};
+  const baseContentVariantId: string | undefined =
+    typeof body?.baseContentVariantId === "string" ? body.baseContentVariantId : undefined;
+
+  const { direction, pages: briefPages, brandDecisions } = referenceBrief;
+  const paletteOption = direction.editedPaletteOption;
+  const moodKeywords = direction.moodKeywords;
+  const typographyDirection = direction.typographyDirection;
+
+  const layoutLines = briefPages
+    .flatMap((p) => p.sections.map((s) => `- ${s.sectionId}: ${s.layoutPattern} (사용자 확정)`))
     .join("\n");
 
-  const variantBlock =
-    useVariants && variants.length >= 2
-      ? `\n## 기존 시안 변형 기반 생성 (중요 — 실사용#24)
-이 문서에는 이미 시안 변형 ${variants.length}개가 있다. 3안을 처음부터 만들지 말고, 아래 변형을 각 안에 1:1로 매핑하라 (basedOnVariantLabel에 라벨 기록). 그 위에 UI 톤(색감·레이아웃)만 옵션별로 다르게 얹어라.
-${variants.map((v) => `- ${v.label}: ${v.contentSummary}`).join("\n")}\n`
-      : "";
+  // 채택 레퍼런스의 적용 요소·메모를 우선 사용한다(P9-A 작업 2·4) — 검색 결과
+  // 자체가 아니라 "무엇을 가져오기로 했는지"만 프롬프트에 들어간다.
+  const adoptionLines = briefPages
+    .flatMap((p) =>
+      p.sections.flatMap((s) =>
+        s.adoptions.map(
+          (a) =>
+            `- ${s.sectionId}: ${a.aspects.join("/") || "전반"} 참고${a.note ? ` — ${a.note}` : ""}`,
+        ),
+      ),
+    )
+    .join("\n");
+
+  const brandLines = brandDecisions
+    .map((b) => {
+      const parts: string[] = [];
+      if (b.adoptedPatterns.length > 0) parts.push(`가져올 점: ${b.adoptedPatterns.join("; ")}`);
+      if (b.avoidedPatterns.length > 0) parts.push(`피할 점: ${b.avoidedPatterns.join("; ")}`);
+      return `  - ${b.name}${parts.length > 0 ? ` — ${parts.join(" / ")}` : ""}`;
+    })
+    .join("\n");
+
+  const variants = analysis.existingContentVariants ?? [];
+  const baseVariant = baseContentVariantId
+    ? variants.find((v) => v.variantId === baseContentVariantId)
+    : undefined;
+  // 기존 시안 변형은 3안을 나누는 축이 아니라, 기준 변형 하나의 톤·강조점을
+  // 참고 자료로만 전달한다(§6.7 — 변형별 안 생성은 온디맨드로 별도 처리).
+  const variantBlock = baseVariant
+    ? `\n## 기준 콘텐츠 변형 (참고 — 이 변형으로 3안 모두 작성, 변형별로 안을 나누지 않는다)\n${baseVariant.label}: ${baseVariant.contentSummary}\n`
+    : "";
 
   const forcedMode = deriveForcedMode(analysis.explicitRequirements);
   const forcedModeBlock = forcedMode
@@ -104,13 +108,16 @@ ${buildDirectiveBlock(directives, "concept")}${forcedModeBlock}
 ## 프로젝트
 ${analysis.title} — ${analysis.description}
 화면 유형: ${analysis.domain}${analysis.businessDomains && analysis.businessDomains.length > 0 ? ` / 프로젝트 도메인: ${analysis.businessDomains.join(", ")}` : ""} / 산출물 형식: ${analysis.projectType} / 타겟: ${analysis.targetUser}
-${DIFFERENTIATION[analysis.domain] ?? DIFFERENTIATION.generic}
+${STRUCTURE_AXIS_BLOCK}
 
 ## 확정된 디자인 결정 (반드시 반영)
 - 팔레트: ${JSON.stringify(paletteOption)}
-- 무드: ${moodSummary || "미확정"}
+- 무드 키워드: ${moodKeywords.join(", ") || "미확정"}
+- 타이포 방향: ${typographyDirection || "미확정"}
+- 금지 방향: ${direction.avoidDirections.join(", ") || "없음"}
 ${layoutLines ? `- 섹션별 표현 방식:\n${layoutLines}` : ""}
-${targetImplications.length > 0 ? `- 벤치마킹 시사점:\n${targetImplications.map((t) => `  - ${t}`).join("\n")}` : ""}
+${adoptionLines ? `- 채택한 레퍼런스 적용 요소:\n${adoptionLines}` : ""}
+${brandLines ? `- 벤치마킹 시사점:\n${brandLines}` : ""}
 ${variantBlock}
 ## 소스 자료 (선택된 페이지·확정 섹션만)
 ${buildSourceMaterial(analysis)}
@@ -120,11 +127,10 @@ ${buildSourceMaterial(analysis)}
 - 3축(conceptKeywords)은 "사용성/일관성/효율성" 같은 전략 축 3개. no("01"~"03"), title("사용성 (Usability)"), category("UX Strategy | 사용자 경험 중심"), description(2~3문장).
 - pages: 소스 자료의 페이지·섹션 구조를 그대로 쓰되(pageId/sectionId 동일하게 유지 — 절대 새 ID 만들지 마라), 각 섹션에 layoutPattern(사용자 확정값 우선)과 contentMapping을 채워라.
 - contentMapping.maskedContent: 그 화면 영역에 들어갈 실제 카피/본문 요약 (마스킹 토큰 유지). targetArea: hero-title/feature-card/timeline/table/stat-band 등.
-- 3안은 위 차별화 축에서 서로 뚜렷이 달라야 한다. label은 "A안 — 신뢰의 블루" 형식.
 - platforms (웹+모바일 동시 요구 시에만): 소스 자료가 웹과 모바일 산출물을 모두 명시적으로 요구하는 경우(예: "반응형 웹 + 모바일 앱", "PC/모바일 각각"), 각 안에 platforms.web과 platforms.mobile 페이지 세트를 별도로 채워라. 두 세트 모두 pages와 같은 구조이며 pageId/sectionId는 소스 자료 그대로 유지하되, layoutPattern·contentMapping은 플랫폼 특성(모바일 = 단일 컬럼, 하단 탭, 축약 카피)에 맞게 다르게 설계하라. 이때 pages에는 웹 세트를 그대로 복사해 넣어라. 웹 단일 요구라면 platforms를 넣지 마라.
 
 반드시 JSON만 출력:
-{ "options": [{ "optionId": string, "label": string, "basedOnVariantLabel": string|null,
+{ "options": [{ "optionId": string, "label": string,
   "conceptKeywords": [{ "no": string, "title": string, "category": string, "description": string }],
   "uiStructure": { "mode": "dark"|"light", "navPosition": "top"|"left", "infoStructure": string, "layoutConcept": string },
   "keyVisual": { "imageTone": string, "illustrationStyle": string, "backgroundPattern": string, "decorativeElements": string },
@@ -141,7 +147,19 @@ ${buildSourceMaterial(analysis)}
     if (concept.options.length === 0) {
       throw new Error("컨셉 생성 결과가 비어 있습니다.");
     }
-    return NextResponse.json({ concept });
+    // basedOnVariantLabel은 이제 "기준 변형" 표시 용도다(§6.7) — 3안 전체에 동일하게 적용.
+    const optionsWithVariantLabel = baseVariant
+      ? concept.options.map((o) => ({ ...o, basedOnVariantLabel: baseVariant.label }))
+      : concept.options;
+    const versioned = {
+      ...concept,
+      options: optionsWithVariantLabel,
+      version: "2.0" as const,
+      sourceBasis: referenceBrief,
+      ...(baseContentVariantId ? { baseContentVariantId } : {}),
+    };
+    assertConceptJsonInvariant(versioned);
+    return NextResponse.json({ concept: versioned });
   } catch (e) {
     const message = e instanceof Error ? e.message : "컨셉 생성에 실패했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });

@@ -55,7 +55,12 @@ export default function ConceptWorkspace({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const variants = analysis.existingContentVariants ?? [];
-  const [useVariants, setUseVariants] = useState(variants.length >= 2);
+  // 기준 콘텐츠 변형 — 구조 3안 생성에 참고할 톤 하나만 고른다(§6.7). 문서에
+  // 변형이 있으면 첫 번째를 기본값으로 하되 사용자가 바꿀 수 있다. 다른 변형은
+  // 여기서 3안을 나누지 않고, 확정된 안에만 온디맨드로 나중에 적용한다.
+  const [baseContentVariantId, setBaseContentVariantId] = useState<string>(
+    variants[0]?.variantId ?? "",
+  );
   const [selectedOptionId, setSelectedOptionId] = useState<string>();
   const [previewPageId, setPreviewPageId] = useState<string>();
   const [previewPlatform, setPreviewPlatform] = useState<"web" | "mobile">("web");
@@ -64,16 +69,15 @@ export default function ConceptWorkspace({
     references.representative ?? recommendRepresentativePages(analysis);
 
   const generate = async () => {
+    if (!references.confirmedBrief) {
+      setError(
+        "레퍼런스·무드 단계에서 결정을 먼저 확정해야 합니다 (팔레트·무드 선택 후 \"다음\"을 누르세요).",
+      );
+      return;
+    }
     setBusy(true);
     setError(undefined);
     try {
-      const mood = references.globalMood;
-      const selectedMood = references.moodOptions?.find(
-        (m) => m.id === references.selectedMoodId,
-      );
-      const adopted = (references.analysisTargetList ?? []).filter(
-        (t) => t.adopted,
-      );
       const res = await fetch("/api/concept", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -81,24 +85,8 @@ export default function ConceptWorkspace({
           analysis,
           directives,
           representative,
-          paletteOption: references.editedPaletteOption,
-          moodKeywords: mood?.keywords ?? selectedMood?.keywords ?? [],
-          typographyDirection:
-            selectedMood?.styleAttributes.typographyNote ?? "",
-          moodSummary: mood
-            ? `${mood.keywords.join(", ")} — ${mood.description}`
-            : "",
-          layoutBySection: Object.fromEntries(
-            Object.entries(references.bySectionId ?? {}).map(([id, r]) => [
-              id,
-              r.layoutPattern,
-            ]),
-          ),
-          targetImplications: adopted
-            .map((t) => references.targetAnalyses?.[t.id])
-            .filter(Boolean)
-            .map((a) => `${a!.name}: ${a!.implications}`),
-          useVariants,
+          referenceBrief: references.confirmedBrief,
+          ...(baseContentVariantId ? { baseContentVariantId } : {}),
         }),
       });
       const body = await res.json().catch(() => null);
@@ -142,15 +130,21 @@ export default function ConceptWorkspace({
       <div style={card}>
         {variants.length >= 2 && (
           <label style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
-            <input
-              type="checkbox"
-              checked={useVariants}
-              onChange={(e) => setUseVariants(e.target.checked)}
-            />
             <span style={{ fontSize: 14 }}>
-              문서에 이미 있는 시안 변형 {variants.length}개(
-              {variants.map((v) => v.label).join("/")})를 3안의 기반으로 사용
+              문서에 이미 있는 시안 변형 {variants.length}개 중 기준 변형 선택
+              (3안 모두 이 톤으로 작성 — 다른 변형은 확정 후 개별 적용 가능)
             </span>
+            <select
+              value={baseContentVariantId}
+              onChange={(e) => setBaseContentVariantId(e.target.value)}
+              className="select-box"
+            >
+              {variants.map((v) => (
+                <option key={v.variantId} value={v.variantId}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
           </label>
         )}
         <button

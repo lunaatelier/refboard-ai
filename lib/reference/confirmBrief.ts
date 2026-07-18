@@ -173,6 +173,39 @@ function resolveSelectedMoodImages(references: ReferenceResult): MoodImage[] {
   return available.filter((img) => urlSet.has(img.url));
 }
 
+// 컨셉 API가 받은 ConfirmedReferenceBrief가 "지금" 분석 결과와 실제로 맞물리는지
+// 교차 검증한다(§P9-A). 브리프는 확정 당시 스냅샷이라, 그 사이 페이지/섹션 선택이
+// 바뀌었으면 더 이상 유효하지 않은 pageId/sectionId를 담고 있을 수 있다.
+export function assertBriefMatchesAnalysis(
+  brief: ConfirmedReferenceBrief,
+  analysis: ProjectAnalysis,
+): void {
+  const validPageIds = new Set(
+    analysis.pages.filter((p) => p.selected).map((p) => p.pageId),
+  );
+  const validSectionIds = new Set(
+    analysis.pages
+      .filter((p) => p.selected)
+      .flatMap((p) =>
+        p.sections.filter((s) => s.status === "confirmed").map((s) => s.sectionId),
+      ),
+  );
+  for (const page of brief.pages) {
+    if (!validPageIds.has(page.pageId)) {
+      throw new ConfirmBriefError(
+        `확정 브리프의 페이지가 현재 분석 결과에 없습니다: ${page.pageId}`,
+      );
+    }
+    for (const section of page.sections) {
+      if (!validSectionIds.has(section.sectionId)) {
+        throw new ConfirmBriefError(
+          `확정 브리프의 섹션이 현재 분석 결과에 없습니다: ${section.sectionId}`,
+        );
+      }
+    }
+  }
+}
+
 function buildAnalysisDigest(analysis: ProjectAnalysis): unknown {
   return analysis.pages
     .filter((p) => p.selected)

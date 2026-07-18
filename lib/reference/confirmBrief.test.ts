@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Page, ProjectAnalysis } from "../analysis/types";
-import { buildConfirmedBrief, ConfirmBriefError } from "./confirmBrief";
+import {
+  assertBriefMatchesAnalysis,
+  buildConfirmedBrief,
+  ConfirmBriefError,
+} from "./confirmBrief";
 import type {
   MoodOption,
   Palette,
@@ -344,5 +348,38 @@ describe("confirmBrief — 민감정보 미포함", () => {
     for (const forbidden of ["parsedText", "mappings", "Detection", "raw\":"]) {
       assert.equal(serialized.includes(forbidden), false, `"${forbidden}"가 포함되면 안 됨`);
     }
+  });
+});
+
+describe("assertBriefMatchesAnalysis — P9-A 교차 검증", () => {
+  it("브리프가 현재 분석 결과와 맞으면 통과한다", () => {
+    const brief = buildConfirmedBrief(makeAnalysis(), makeReferences(), {
+      now: fixedNow,
+    });
+    assert.doesNotThrow(() => assertBriefMatchesAnalysis(brief, makeAnalysis()));
+  });
+
+  it("그 사이 페이지 선택이 바뀌어 브리프의 페이지가 사라졌으면 던진다", () => {
+    const brief = buildConfirmedBrief(makeAnalysis(), makeReferences(), {
+      now: fixedNow,
+    });
+    const laterAnalysis = makeAnalysis();
+    laterAnalysis.pages[0].selected = false; // p1을 더 이상 선택하지 않음
+    assert.throws(
+      () => assertBriefMatchesAnalysis(brief, laterAnalysis),
+      ConfirmBriefError,
+    );
+  });
+
+  it("그 사이 섹션이 후보로 되돌아갔으면 던진다", () => {
+    const brief = buildConfirmedBrief(makeAnalysis(), makeReferences(), {
+      now: fixedNow,
+    });
+    const laterAnalysis = makeAnalysis();
+    laterAnalysis.pages[0].sections[0].status = "candidate";
+    assert.throws(
+      () => assertBriefMatchesAnalysis(brief, laterAnalysis),
+      ConfirmBriefError,
+    );
   });
 });

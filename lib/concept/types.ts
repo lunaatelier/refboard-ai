@@ -1,7 +1,12 @@
 // 컨셉 타입 (Phase 4) — Concept JSON = 단일 원천(SSoT). data-model.md §6이 기준.
 // HTML/PPT/PDF/디자인 MD 모든 산출물은 이 JSON 하나에서 파생된다.
 
-import type { ContentType, LayoutPattern, ProjectDirective } from "../analysis/types";
+import type {
+  ContentType,
+  LayoutPattern,
+  ProjectAnalysis,
+  ProjectDirective,
+} from "../analysis/types";
 import type { ConfirmedReferenceBrief, Palette } from "../reference/types";
 import type { RepresentativePages } from "../reference/types";
 
@@ -18,8 +23,12 @@ export interface ConceptJson {
   baseContentVariantId?: string; // 콘텐츠 변형이 있을 때 구조 3안 생성에 쓴 기준 변형(§6.7)
 }
 
-// ConceptRequest.analysis에 들어가는 안전 파생 DTO. ProjectAnalysis 전체를
-// 그대로 전달하지 않는다 — 선택 페이지·확정 섹션의 마스킹 콘텐츠만 포함.
+// Gemini 프롬프트에 실제로 들어가는 내용의 형태(내부 문서화·해시 계산용) —
+// buildSafeConceptAnalysisInput()의 출력. 클라이언트→서버는 같은 신뢰 경계라
+// ConceptRequest.analysis는 전체 ProjectAnalysis를 받는다(아래) — normalizeConcept의
+// 위조 pageId/sectionId 필터링은 분석 결과 전체 목록이 있어야 가능하다. "외부
+// 전송 금지"(§3.6)는 Gemini(외부 API)로 나가는 내용에 적용되는 것이지, 클라이언트→
+// 자사 서버 요청에는 적용되지 않는다.
 export interface SafeConceptAnalysisInput {
   title: string;
   description: string;
@@ -37,10 +46,16 @@ export interface SafeConceptAnalysisInput {
       maskedContent: string;
     }>;
   }>;
+  // 기존 콘텐츠 변형 — 이미 마스킹된 요약이라 안전 DTO에 포함해도 된다(§6.7).
+  existingContentVariants?: Array<{
+    variantId: string;
+    label: string;
+    contentSummary: string;
+  }>;
 }
 
 export interface ConceptRequest {
-  analysis: SafeConceptAnalysisInput;
+  analysis: ProjectAnalysis;
   directives: ProjectDirective[];
   referenceBrief: ConfirmedReferenceBrief;
   representative: RepresentativePages;
