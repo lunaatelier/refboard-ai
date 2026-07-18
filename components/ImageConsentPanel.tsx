@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -57,7 +57,12 @@ interface ImageConsentPanelProps {
   busy: boolean;
   error?: string;
   onAnalyze: (assetIds: string[]) => void;
+  onClearError?: () => void;
 }
+
+// 작은 이미지·아이콘 추정 기준(px) — 자동 제외가 아니라 "장식 가능성 높음"
+// 접힘 그룹으로만 분류한다. 실측 크기를 알기 전(로딩 중)엔 일반 그룹으로 둔다.
+const DECORATIVE_MAX_DIM = 48;
 
 const badge = (bg: string, color: string): React.CSSProperties => ({
   fontSize: 14,
@@ -75,9 +80,11 @@ export default function ImageConsentPanel({
   busy,
   error,
   onAnalyze,
+  onClearError,
 }: ImageConsentPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [decorativeOpen, setDecorativeOpen] = useState(false);
 
   // OCR 선마스킹 (Step 18) — 결과는 비민감 요약(findings)만 보관.
   // "분석" 버튼 한 번으로 선택한 이미지만 OCR → 문제 없으면 바로 분석까지 이어간다.
@@ -89,12 +96,80 @@ export default function ImageConsentPanel({
   const [ocrError, setOcrError] = useState<string>();
   const [excludedNotice, setExcludedNotice] = useState<string>();
 
+  // 실측 크기(px) — "장식 가능성 높음" 분류용. dataUrl은 이미 브라우저 메모리에
+  // 있는 것을 로컬 Image()로 재는 것뿐이라 외부 전송이 발생하지 않는다.
+  const [dims, setDims] = useState<Map<string, { w: number; h: number }>>(
+    new Map(),
+  );
+  useEffect(() => {
+    let cancelled = false;
+    for (const img of images) {
+      const probe = new window.Image();
+      probe.onload = () => {
+        if (cancelled) return;
+        setDims((prev) =>
+          prev.has(img.assetId)
+            ? prev
+            : new Map(prev).set(img.assetId, {
+                w: probe.naturalWidth,
+                h: probe.naturalHeight,
+              }),
+        );
+      };
+      probe.src = img.dataUrl;
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [images]);
+
+  const isDecorative = (assetId: string) => {
+    const d = dims.get(assetId);
+    return !!d && Math.max(d.w, d.h) <= DECORATIVE_MAX_DIM;
+  };
+
+  const { slideGroups, decorativeImages } = useMemo(() => {
+    const decorative: ConsentImage[] = [];
+    const bySlide = new Map<string, ConsentImage[]>();
+    for (const img of images) {
+      if (isDecorative(img.assetId)) {
+        decorative.push(img);
+        continue;
+      }
+      const key = img.sourceSlide != null ? String(img.sourceSlide) : "기타";
+      bySlide.set(key, [...(bySlide.get(key) ?? []), img]);
+    }
+    const groups = [...bySlide.entries()].sort((a, b) => {
+      if (a[0] === "기타") return 1;
+      if (b[0] === "기타") return -1;
+      return Number(a[0]) - Number(b[0]);
+    });
+    return { slideGroups: groups, decorativeImages: decorative };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [images, dims]);
+
   const toggle = (id: string, on: boolean) => {
     setExcludedNotice(undefined);
+    setOcrError(undefined);
+    onClearError?.();
     setSelected((prev) => {
       const next = new Set(prev);
       if (on) next.add(id);
       else next.delete(id);
+      return next;
+    });
+  };
+
+  const toggleGroup = (ids: string[], on: boolean) => {
+    setExcludedNotice(undefined);
+    setOcrError(undefined);
+    onClearError?.();
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
       return next;
     });
   };
@@ -216,6 +291,100 @@ export default function ImageConsentPanel({
     );
   };
 
+  const renderImageCard = (img: ConsentImage) => {
+    const insight = insightFor(img.assetId);
+    const ocr = ocrResults.get(img.assetId);
+    const isSelected = selected.has(img.assetId);
+    return (
+      <div
+        key={img.assetId}
+        style={{
+          border: `1px solid ${isSelected ? "var(--primary)" : "var(--border)"}`,
+          background: isSelected ? "var(--primary-weak-bg)" : "var(--canvas)",
+          borderRadius: "var(--radius-lg)",
+          padding: "var(--space-sm)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--space-xs)",
+        }}
+      >
+        <div style={{ position: "relative" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={img.dataUrl}
+            alt={`이미지 ${img.assetId}`}
+            style={{
+              width: "100%",
+              height: 110,
+              objectFit: "contain",
+              background: "var(--surface)",
+              borderRadius: "var(--radius-md)",
+              display: "block",
+            }}
+          />
+          <input
+            type="checkbox"
+            checked={isSelected}
+            disabled={busy || ocrBusy || !!insight}
+            onChange={(e) => toggle(img.assetId, e.target.checked)}
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 6,
+              width: 18,
+              height: 18,
+            }}
+          />
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "var(--space-xs)",
+          }}
+        >
+          <span
+            style={{
+              fontSize: 13,
+              color: "var(--text-muted)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {img.sourceSlide != null ? `슬라이드 ${img.sourceSlide}` : img.assetId}
+          </span>
+          {!insight && renderStatus(ocr)}
+        </div>
+        {insight && (
+          <p
+            title={insight}
+            style={{
+              fontSize: 13,
+              color: "var(--text-muted)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <TokenText text={insight} />
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  const selectableIds = (list: ConsentImage[]) =>
+    list.filter((i) => !insightFor(i.assetId)).map((i) => i.assetId);
+
+  const allNonDecorativeIds = slideGroups.flatMap(([, list]) =>
+    selectableIds(list),
+  );
+  const allNonDecorativeSelected =
+    allNonDecorativeIds.length > 0 &&
+    allNonDecorativeIds.every((id) => selected.has(id));
+
   return (
     <div
       style={{
@@ -314,101 +483,118 @@ export default function ImageConsentPanel({
             </p>
           </details>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-              gap: "var(--space-md)",
-            }}
-          >
-            {images.map((img) => {
-              const insight = insightFor(img.assetId);
-              const ocr = ocrResults.get(img.assetId);
-              const isSelected = selected.has(img.assetId);
-              return (
+          {allNonDecorativeIds.length > 0 && (
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-sm)",
+                fontSize: 14,
+                fontWeight: 600,
+                color: "var(--text-muted)",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={allNonDecorativeSelected}
+                disabled={busy || ocrBusy}
+                onChange={(e) =>
+                  toggleGroup(allNonDecorativeIds, e.target.checked)
+                }
+              />
+              전체 선택 ({allNonDecorativeIds.length}장)
+            </label>
+          )}
+
+          {slideGroups.map(([slideKey, list]) => {
+            const ids = selectableIds(list);
+            const groupSelected = ids.length > 0 && ids.every((id) => selected.has(id));
+            return (
+              <div
+                key={slideKey}
+                style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}
+              >
                 <div
-                  key={img.assetId}
                   style={{
-                    border: `1px solid ${isSelected ? "var(--primary)" : "var(--border)"}`,
-                    background: isSelected
-                      ? "var(--primary-weak-bg)"
-                      : "var(--canvas)",
-                    borderRadius: "var(--radius-lg)",
-                    padding: "var(--space-sm)",
                     display: "flex",
-                    flexDirection: "column",
-                    gap: "var(--space-xs)",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "var(--space-sm)",
                   }}
                 >
-                  <div style={{ position: "relative" }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={img.dataUrl}
-                      alt={`이미지 ${img.assetId}`}
-                      style={{
-                        width: "100%",
-                        height: 110,
-                        objectFit: "contain",
-                        background: "var(--surface)",
-                        borderRadius: "var(--radius-md)",
-                        display: "block",
-                      }}
-                    />
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      disabled={busy || ocrBusy || !!insight}
-                      onChange={(e) => toggle(img.assetId, e.target.checked)}
-                      style={{
-                        position: "absolute",
-                        top: 6,
-                        left: 6,
-                        width: 18,
-                        height: 18,
-                      }}
-                    />
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: "var(--space-xs)",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: "var(--text-muted)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {img.sourceSlide != null
-                        ? `슬라이드 ${img.sourceSlide}`
-                        : img.assetId}
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>
+                    {slideKey === "기타" ? "기타 이미지" : `슬라이드 ${slideKey}`}{" "}
+                    <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
+                      {list.length}장
                     </span>
-                    {!insight && renderStatus(ocr)}
-                  </div>
-                  {insight && (
-                    <p
-                      title={insight}
+                  </span>
+                  {ids.length > 0 && (
+                    <label
                       style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "var(--space-xs)",
                         fontSize: 13,
                         color: "var(--text-muted)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
                       }}
                     >
-                      <TokenText text={insight} />
-                    </p>
+                      <input
+                        type="checkbox"
+                        checked={groupSelected}
+                        disabled={busy || ocrBusy}
+                        onChange={(e) => toggleGroup(ids, e.target.checked)}
+                      />
+                      그룹 선택
+                    </label>
                   )}
                 </div>
-              );
-            })}
-          </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                    gap: "var(--space-md)",
+                  }}
+                >
+                  {list.map(renderImageCard)}
+                </div>
+              </div>
+            );
+          })}
+
+          {decorativeImages.length > 0 && (
+            <details
+              className="accordion-row"
+              open={decorativeOpen}
+              onToggle={(e) => setDecorativeOpen(e.currentTarget.open)}
+            >
+              <summary style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)", cursor: "pointer" }}>
+                장식 가능성 높음 — 작은 이미지·아이콘 ({decorativeImages.length}장)
+              </summary>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "var(--space-sm)",
+                  marginTop: "var(--space-sm)",
+                }}
+              >
+                <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                  크기가 작아 장식·아이콘일 가능성이 높다고 판단해 기본적으로
+                  접어뒀습니다. 자동 제외는 아니며, 필요하면 언제든 체크해서
+                  분석 대상에 포함할 수 있습니다.
+                </p>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                    gap: "var(--space-md)",
+                  }}
+                >
+                  {decorativeImages.map(renderImageCard)}
+                </div>
+              </div>
+            </details>
+          )}
 
           <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)" }}>
             {selected.size}장 선택됨

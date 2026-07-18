@@ -18,6 +18,7 @@ import type {
   Detection,
   DictionaryEntry,
   MaskingGroupSummary,
+  MaskingTokenContext,
   NumericDetection,
   NumericMaskingMode,
   SensitiveKind,
@@ -238,17 +239,38 @@ export default function MaskingReview({
       keptCount: groups.reduce((sum, g) => sum + g.keptCount, 0),
       skippedCount: groups.reduce((sum, g) => sum + g.skippedCount, 0),
       tokens: groups.flatMap((g) => g.tokens),
+      uncertainCount: groups.reduce((sum, g) => sum + g.uncertainCount, 0),
+      uncertainKeptCount: groups.reduce((sum, g) => sum + g.uncertainKeptCount, 0),
+      tokenContexts: groups.flatMap((g) => g.tokenContexts),
     }));
   })();
   const numericSummaryGroups = (maskingSummary ?? []).filter((g) =>
     NUMERIC_KIND_SET.has(g.kind),
   );
+  const totalDetected = (maskingSummary ?? []).reduce(
+    (sum, g) => sum + g.totalCount,
+    0,
+  );
   const totalApplied = (maskingSummary ?? []).reduce(
     (sum, g) => sum + g.appliedCount,
     0,
   );
+  const totalKept = (maskingSummary ?? []).reduce(
+    (sum, g) => sum + g.keptCount,
+    0,
+  );
   const totalSkipped = (maskingSummary ?? []).reduce(
     (sum, g) => sum + g.skippedCount,
+    0,
+  );
+  // 경고는 무조건 뜨지 않는다 — "공개 유지"·"제외" 자체는 정상 상태다.
+  // 아래 두 케이스(불확실+실명유지 / 미검토 불확실 항목)만 검토를 촉구한다.
+  const uncertainKeptTotal = (maskingSummary ?? []).reduce(
+    (sum, g) => sum + g.uncertainKeptCount,
+    0,
+  );
+  const uncertainTotal = (maskingSummary ?? []).reduce(
+    (sum, g) => sum + g.uncertainCount,
     0,
   );
 
@@ -260,6 +282,29 @@ export default function MaskingReview({
     display: "flex",
     flexDirection: "column",
     gap: "var(--space-md)",
+  };
+
+  const warningLine: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "var(--space-xs)",
+    color: "var(--warning-weak-text)",
+    background: "var(--warning-weak-bg)",
+    borderRadius: "var(--radius-md)",
+    padding: "var(--space-sm) var(--space-md)",
+    fontSize: 14,
+    fontWeight: 600,
+  };
+
+  const handleDownloadMaskedTxt = () => {
+    if (!maskedText) return;
+    const blob = new Blob([maskedText], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "마스킹본.txt";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   // 상태 배너 — 검수 중 ↔ 완료 전환은 이 배너의 톤·문구만 바뀐다 (화면 구조는 유지)
@@ -296,18 +341,44 @@ export default function MaskingReview({
           ? "마스킹 검수 완료 — 확정된 텍스트만 다음 단계로 전달됩니다"
           : "탐지 항목을 확인한 뒤 마스킹을 확정하세요."}
       </span>
-      <span
-        style={{
-          fontSize: 14,
-          fontWeight: 600,
-          color: confirmed ? "var(--success)" : "var(--primary)",
-          background: "var(--canvas)",
-          borderRadius: "var(--radius-full)",
-          padding: "4px 14px",
-        }}
-      >
-        {confirmed ? `${totalApplied}건 적용됨` : `${enabledCount}건 적용 예정`}
-      </span>
+      {confirmed ? (
+        <div style={{ display: "flex", gap: "var(--space-xs)", flexWrap: "wrap" }}>
+          {[
+            ["탐지됨", totalDetected],
+            ["마스킹 적용", totalApplied],
+            ["공개 유지", totalKept],
+            ["제외", totalSkipped],
+          ].map(([label, count]) => (
+            <span
+              key={label}
+              style={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: "var(--success)",
+                background: "var(--canvas)",
+                borderRadius: "var(--radius-full)",
+                padding: "4px 12px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {label} {count}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span
+          style={{
+            fontSize: 14,
+            fontWeight: 600,
+            color: "var(--primary)",
+            background: "var(--canvas)",
+            borderRadius: "var(--radius-full)",
+            padding: "4px 14px",
+          }}
+        >
+          {`${enabledCount}건 적용 예정`}
+        </span>
+      )}
     </div>
   );
 
@@ -507,11 +578,24 @@ export default function MaskingReview({
       {confirmed &&
         entitySummaryGroups.map((g) => (
           <div key={g.bucket} style={card}>
-            <h3 style={{ fontSize: 18, fontWeight: 600 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 600, display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
               {g.title}{" "}
               <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
                 {g.totalCount}건
               </span>
+              {g.uncertainKeptCount > 0 && (
+                <span
+                  title="더미인지 확실하지 않은데 실명 유지로 확정됐습니다"
+                  style={badge("var(--error-weak-text)", "var(--error-weak-bg)")}
+                >
+                  불확실+실명유지 {g.uncertainKeptCount}
+                </span>
+              )}
+              {g.uncertainCount - g.uncertainKeptCount > 0 && (
+                <span style={badge("var(--warning-weak-text)", "var(--warning-weak-bg)")}>
+                  검토 필요 {g.uncertainCount - g.uncertainKeptCount}
+                </span>
+              )}
             </h3>
             <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
               {summaryLine(g)}
@@ -525,6 +609,7 @@ export default function MaskingReview({
                 ))}
               </div>
             )}
+            {tokenContextAccordion(g.tokenContexts)}
           </div>
         ))}
 
@@ -614,6 +699,7 @@ export default function MaskingReview({
                   ))}
                 </div>
               )}
+              {tokenContextAccordion(g.tokenContexts)}
             </div>
           ))}
         </div>
@@ -689,24 +775,20 @@ export default function MaskingReview({
 
       {imageConsentPanel}
 
-      {confirmed && totalSkipped > 0 && (
-        <p
-          role="alert"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-xs)",
-            color: "var(--warning-weak-text)",
-            background: "var(--warning-weak-bg)",
-            borderRadius: "var(--radius-md)",
-            padding: "var(--space-sm) var(--space-md)",
-            fontSize: 14,
-            fontWeight: 600,
-          }}
-        >
+      {/* 경고는 "공개 유지"·"제외"가 있다고 무조건 뜨지 않는다 — 그 개수는 위
+          상태 배너에 이미 나온다. 여기선 실제로 재확인이 필요한 두 경우만 뜬다. */}
+      {confirmed && uncertainKeptTotal > 0 && (
+        <p role="alert" style={warningLine}>
           <AlertTriangle size={16} color="var(--warning-weak-text)" style={{ flexShrink: 0 }} />
-          미적용 항목 {totalSkipped}건이 있습니다 (해제했거나 더미로 남긴 항목).
-          원문 그대로 외부에 전송됩니다.
+          더미인지 확실하지 않은 항목 {uncertainKeptTotal}건이 실명 유지로 확정됐습니다.
+          아래 그룹에서 다시 확인하세요.
+        </p>
+      )}
+      {confirmed && uncertainTotal - uncertainKeptTotal > 0 && (
+        <p role="alert" style={warningLine}>
+          <AlertTriangle size={16} color="var(--warning-weak-text)" style={{ flexShrink: 0 }} />
+          더미인지 확실하지 않아 검토가 필요한 항목이 {uncertainTotal - uncertainKeptTotal}건
+          있습니다.
         </p>
       )}
 
@@ -725,27 +807,59 @@ export default function MaskingReview({
               원문 임시 확인 (확정 시 즉시 폐기)
             </label>
           )}
-        </div>
-        <pre
-          style={{
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            fontFamily: "inherit",
-            background: "var(--surface)",
-            borderRadius: "var(--radius-md)",
-            padding: "var(--space-base)",
-            maxHeight: confirmed ? 400 : 320,
-            overflowY: "auto",
-          }}
-        >
-          {confirmed ? (
-            <TokenText text={maskedText ?? ""} />
-          ) : showOriginal ? (
-            parsedText
-          ) : (
-            <TokenText text={preview} />
+          {confirmed && (
+            <button
+              onClick={handleDownloadMaskedTxt}
+              className="btn-tertiary"
+              style={{
+                padding: "6px var(--space-md)",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border)",
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              마스킹본 TXT 다운로드
+            </button>
           )}
-        </pre>
+        </div>
+        {confirmed ? (
+          <details className="accordion-row">
+            <summary style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)", cursor: "pointer" }}>
+              전체 텍스트 펼쳐보기
+            </summary>
+            <pre
+              style={{
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                fontFamily: "inherit",
+                background: "var(--surface)",
+                borderRadius: "var(--radius-md)",
+                padding: "var(--space-base)",
+                marginTop: "var(--space-sm)",
+                maxHeight: 400,
+                overflowY: "auto",
+              }}
+            >
+              <TokenText text={maskedText ?? ""} />
+            </pre>
+          </details>
+        ) : (
+          <pre
+            style={{
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              fontFamily: "inherit",
+              background: "var(--surface)",
+              borderRadius: "var(--radius-md)",
+              padding: "var(--space-base)",
+              maxHeight: 320,
+              overflowY: "auto",
+            }}
+          >
+            {showOriginal ? parsedText : <TokenText text={preview} />}
+          </pre>
+        )}
         {confirmed && (
           <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
             원문은 폐기되었습니다. 복원 매핑은 세션 메모리에만 있으므로
@@ -820,4 +934,62 @@ function badge(color: string, bg: string): React.CSSProperties {
     borderRadius: "var(--radius-full)",
     padding: "4px 10px",
   };
+}
+
+function tokenKindLabel(kind: SensitiveKind): string {
+  return (
+    KIND_LABELS[kind] ??
+    NUMERIC_KIND_LABELS[kind as NumericDetection["kind"]] ??
+    kind
+  );
+}
+
+// 토큰별 컨텍스트(정보 종류·슬라이드·발생횟수·마스킹된 문장) — 기본 닫힘 아코디언.
+function tokenContextAccordion(tokenContexts: MaskingTokenContext[]) {
+  if (tokenContexts.length === 0) return null;
+  return (
+    <details className="accordion-row">
+      <summary
+        style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)", cursor: "pointer" }}
+      >
+        토큰별 상세 ({tokenContexts.length}개)
+      </summary>
+      <ul
+        style={{
+          listStyle: "none",
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--space-xs)",
+          marginTop: "var(--space-sm)",
+        }}
+      >
+        {tokenContexts.map((tc, i) => (
+          <li
+            key={`${tc.token}-${i}`}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              padding: "8px var(--space-md)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              background: "var(--surface)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+              <span style={badge("var(--primary-hover)", "var(--primary-weak-bg)")}>{tc.token}</span>
+              <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
+                {tokenKindLabel(tc.kind)}
+                {tc.slide != null && ` · 슬라이드 ${tc.slide}`}
+                {` · ${tc.occurrenceCount}회 등장`}
+              </span>
+            </div>
+            <p style={{ fontSize: 14, color: "var(--text-muted)", wordBreak: "break-word" }}>
+              {tc.maskedExcerpt}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }

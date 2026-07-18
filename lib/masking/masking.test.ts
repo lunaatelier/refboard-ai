@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createDraft, finalizeMask } from "./apply";
+import { createDraft, finalizeMask, summarizeMasking } from "./apply";
 import { detect } from "./detect";
 import { maskFileName } from "./filename";
 import { detectWordOccurrences } from "./manual";
@@ -326,6 +326,90 @@ describe("마스킹 검수 통합 — 이미지 분석이 텍스트 확정보다
       official.mappings.filter((m) => m.raw === "가상전자").length,
       1,
     );
+  });
+});
+
+describe("summarizeMasking — 토큰별 컨텍스트 (P2)", () => {
+  it("raw는 요약 어디에도 남지 않는다", () => {
+    const text = "가상전자 담당 hong@example.com";
+    const ds = detect(text, dict);
+    const { mappings } = finalizeMask(text, ds);
+    const summary = summarizeMasking(text, ds, [], mappings);
+    const serialized = JSON.stringify(summary);
+    assert.ok(!serialized.includes("가상전자"));
+    assert.ok(!serialized.includes("hong@example.com"));
+  });
+
+  it("uncertain 항목 수와, 그중 실명 유지로 확정된 수를 각각 집계한다", () => {
+    // 123-XX-XXXXX 순차 사업자번호는 더미 확신 없이 "uncertain"으로만 태깅된다
+    const text = "사업자 123-45-67890";
+    const ds = detect(text).map((d) => ({ ...d, keepPlaintext: true }));
+    assert.equal(ds[0].dummyConfidence, "uncertain");
+    const { mappings } = finalizeMask(text, ds);
+    const summary = summarizeMasking(text, ds, [], mappings);
+    const g = summary.find((x) => x.kind === "businessRegNo");
+    assert.equal(g?.uncertainCount, 1);
+    assert.equal(g?.uncertainKeptCount, 1);
+  });
+
+  it("uncertain이지만 유지로 확정되지 않은 항목은 uncertainKeptCount에 안 잡힌다", () => {
+    const text = "사업자 123-45-67890";
+    const ds = detect(text); // 기본값: enabled=true(uncertain은 미적용 대상 아님), keepPlaintext 없음
+    const { mappings } = finalizeMask(text, ds);
+    const summary = summarizeMasking(text, ds, [], mappings);
+    const g = summary.find((x) => x.kind === "businessRegNo");
+    assert.equal(g?.uncertainCount, 1);
+    assert.equal(g?.uncertainKeptCount, 0);
+  });
+
+  it("pptx 슬라이드 마커 기준으로 토큰의 발생 슬라이드를 찾는다", () => {
+    const text =
+      "--- 슬라이드 1 ---\n표지\n--- 슬라이드 2 ---\n작성자 가상담당자B\n--- 슬라이드 3 ---\n끝";
+    const start = text.indexOf("가상담당자B");
+    const ds = detect(
+      text,
+      [],
+      [{ kind: "personName", raw: "가상담당자B", start, end: start + "가상담당자B".length }],
+    );
+    const { mappings } = finalizeMask(text, ds);
+    const summary = summarizeMasking(text, ds, [], mappings);
+    const g = summary.find((x) => x.kind === "personName");
+    assert.equal(g?.tokenContexts.length, 1);
+    assert.equal(g?.tokenContexts[0].slide, 2);
+    assert.equal(g?.tokenContexts[0].occurrenceCount, 1);
+  });
+
+  it("마스킹된 주변 문맥에 raw가 아니라 토큰이 들어간다", () => {
+    const text = "회사 소개: 가상전자는 좋은 회사입니다. 문의: hong@example.com";
+    const ds = detect(text, dict);
+    const { mappings } = finalizeMask(text, ds);
+    const summary = summarizeMasking(text, ds, [], mappings);
+    const g = summary.find((x) => x.kind === "company");
+    const excerpt = g?.tokenContexts[0]?.maskedExcerpt ?? "";
+    assert.ok(excerpt.includes("[회사A]"));
+    assert.ok(!excerpt.includes("가상전자"));
+  });
+
+  it("range-generalize 수치도 치환 문구로 컨텍스트가 만들어진다", () => {
+    const sample = "가상그린은 고객 43곳을 보유.";
+    const ns = detectNumeric(sample).map((n) => ({
+      ...n,
+      mode: "range-generalize" as const,
+    }));
+    const { mappings } = finalizeMask(sample, [], ns);
+    const summary = summarizeMasking(sample, [], ns, mappings);
+    const g = summary.find((x) => x.kind === "businessMetric");
+    assert.equal(g?.tokenContexts[0]?.token, "수십 곳");
+    assert.ok(!g?.tokenContexts[0]?.maskedExcerpt.includes("43곳"));
+  });
+
+  it("exact-mask 수치는 토큰([투자금A])으로 컨텍스트가 만들어진다", () => {
+    const sample = "누적 투자금 35억 달성.";
+    const ns = detectNumeric(sample).filter((n) => n.mode === "exact-mask");
+    const { mappings } = finalizeMask(sample, [], ns);
+    const summary = summarizeMasking(sample, [], ns, mappings);
+    const g = summary.find((x) => x.kind === "financialMetric");
+    assert.equal(g?.tokenContexts[0]?.token, "[투자금A]");
   });
 });
 

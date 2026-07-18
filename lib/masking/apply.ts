@@ -4,6 +4,7 @@ import type {
   DraftMaskResult,
   FinalMaskResult,
   MaskingGroupSummary,
+  MaskingTokenContext,
   MaskMapping,
   NumericDetection,
 } from "./types";
@@ -45,7 +46,7 @@ function buildMask(
   detections: Detection[],
   numericDetections: NumericDetection[] = [],
   seedMappings: MaskMapping[] = [],
-): { maskedText: string; mappings: MaskMapping[] } {
+): { maskedText: string; mappings: MaskMapping[]; replacements: Replacement[] } {
   const active = detections.filter(isMaskable);
 
   // 같은 (kind, raw) → 같은 토큰.
@@ -96,7 +97,7 @@ function buildMask(
     maskedText = maskedText.slice(0, r.start) + r.text + maskedText.slice(r.end);
   }
 
-  return { maskedText, mappings };
+  return { maskedText, mappings, replacements };
 }
 
 // 검수 중 미리보기 — Detection(raw 포함)을 그대로 유지. 검수 UI에서만 사용.
@@ -119,12 +120,68 @@ export function finalizeMask(
   numericDetections: NumericDetection[] = [],
   seedMappings: MaskMapping[] = [],
 ): FinalMaskResult {
-  return buildMask(text, detections, numericDetections, seedMappings);
+  const { maskedText, mappings } = buildMask(
+    text,
+    detections,
+    numericDetections,
+    seedMappings,
+  );
+  return { maskedText, mappings };
+}
+
+const EXCERPT_RADIUS = 60;
+const SLIDE_MARKER_RE = /--- 슬라이드 (\d+) ---/g;
+
+// pptx 소스에서만 존재하는 "--- 슬라이드 N ---" 마커 기준으로, 해당 위치가
+// 속한 슬라이드 번호를 찾는다 (app/page.tsx의 slideHasSensitiveHint와 동일 규칙).
+function slideAt(text: string, pos: number): number | undefined {
+  SLIDE_MARKER_RE.lastIndex = 0;
+  let current: number | undefined;
+  let match: RegExpExecArray | null;
+  while ((match = SLIDE_MARKER_RE.exec(text))) {
+    if (match.index > pos) break;
+    current = Number(match[1]);
+  }
+  return current;
+}
+
+// 문맥 창 — 줄바꿈이 반경 안에 있으면 그 줄 경계까지, 없으면 고정 반경으로 자른다.
+function excerptWindow(text: string, start: number, end: number): { from: number; to: number } {
+  let from = Math.max(0, start - EXCERPT_RADIUS);
+  let to = Math.min(text.length, end + EXCERPT_RADIUS);
+  const leftBreak = text.lastIndexOf("\n", start);
+  if (leftBreak >= from) from = leftBreak + 1;
+  const rightBreak = text.indexOf("\n", end);
+  if (rightBreak >= 0 && rightBreak <= to) to = rightBreak;
+  return { from, to };
+}
+
+// 창 안의 문맥에 실제 치환 목록을 다시 적용해 마스킹된 상태로만 반환한다.
+// 창 경계가 어떤 치환 구간을 관통해도, 그 구간의 창 안쪽 부분은 항상 토큰
+// 텍스트로 대체되므로 raw 조각이 노출되는 경우는 없다.
+function maskWindow(text: string, from: number, to: number, replacements: Replacement[]): string {
+  const windowText = text.slice(from, to);
+  const local = replacements
+    .filter((r) => r.start < to && r.end > from)
+    .map((r) => ({
+      start: Math.max(r.start, from) - from,
+      end: Math.min(r.end, to) - from,
+      text: r.text,
+    }))
+    .sort((a, b) => a.start - b.start);
+  let out = windowText;
+  for (const r of [...local].reverse()) {
+    out = out.slice(0, r.start) + r.text + out.slice(r.end);
+  }
+  const prefix = from > 0 ? "…" : "";
+  const suffix = to < text.length ? "…" : "";
+  return prefix + out.trim() + suffix;
 }
 
 // 확정 직전(원문·raw 폐기 전)에 호출 — kind별 카드 골격을 유지하기 위한
-// 비민감 요약을 만든다. raw는 절대 포함하지 않는다(토큰·개수만).
+// 비민감 요약을 만든다. raw는 절대 포함하지 않는다(토큰·개수·마스킹된 문맥만).
 export function summarizeMasking(
+  text: string,
   detections: Detection[],
   numericDetections: NumericDetection[],
   mappings: MaskMapping[],
@@ -134,7 +191,17 @@ export function summarizeMasking(
   const ensure = (kind: Detection["kind"]): MaskingGroupSummary => {
     let g = groups.get(kind);
     if (!g) {
-      g = { kind, totalCount: 0, appliedCount: 0, keptCount: 0, skippedCount: 0, tokens: [] };
+      g = {
+        kind,
+        totalCount: 0,
+        appliedCount: 0,
+        keptCount: 0,
+        skippedCount: 0,
+        tokens: [],
+        uncertainCount: 0,
+        uncertainKeptCount: 0,
+        tokenContexts: [],
+      };
       groups.set(kind, g);
     }
     return g;
@@ -146,6 +213,10 @@ export function summarizeMasking(
     if (!d.enabled) g.skippedCount++;
     else if (d.keepPlaintext) g.keptCount++;
     else g.appliedCount++;
+    if (d.dummyConfidence === "uncertain") {
+      g.uncertainCount++;
+      if (d.enabled && d.keepPlaintext) g.uncertainKeptCount++;
+    }
   }
 
   for (const n of numericDetections) {
@@ -164,6 +235,45 @@ export function summarizeMasking(
     if (n.mode === "range-generalize") {
       ensure(n.kind).tokens.push(n.generalized ?? "비공개 수치");
     }
+  }
+
+  // 토큰별 컨텍스트(P2) — 같은 (kind, raw) 매핑 시드를 넘겨 실제 확정 시와
+  // 동일한 토큰이 재생성되도록 한 뒤, replacements로 문맥 창을 마스킹한다.
+  const { replacements } = buildMask(text, detections, numericDetections, mappings);
+
+  for (const m of mappings) {
+    const applied = detections.filter(
+      (d) => d.kind === m.kind && d.raw === m.raw && isMaskable(d),
+    );
+    if (applied.length === 0) continue; // 이 문서에 없는(다른 문서에서 넘어온) 시드 매핑
+    const first = applied.reduce((a, b) => (a.start < b.start ? a : b));
+    const occurrenceCount = detections.filter(
+      (d) => d.kind === m.kind && d.raw === m.raw,
+    ).length;
+    const { from, to } = excerptWindow(text, first.start, first.end);
+    ensure(m.kind).tokenContexts.push({
+      token: m.token,
+      kind: m.kind,
+      slide: slideAt(text, first.start),
+      occurrenceCount,
+      maskedExcerpt: maskWindow(text, from, to, replacements),
+    });
+  }
+
+  for (const n of numericDetections) {
+    if (n.mode === "keep") continue;
+    const token =
+      n.mode === "exact-mask"
+        ? (mappings.find((m) => m.kind === n.kind && m.raw === n.raw)?.token ?? n.raw)
+        : (n.generalized ?? "비공개 수치");
+    const { from, to } = excerptWindow(text, n.start, n.end);
+    ensure(n.kind).tokenContexts.push({
+      token,
+      kind: n.kind,
+      slide: slideAt(text, n.start),
+      occurrenceCount: 1,
+      maskedExcerpt: maskWindow(text, from, to, replacements),
+    });
   }
 
   return [...groups.values()];

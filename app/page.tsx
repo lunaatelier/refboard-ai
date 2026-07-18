@@ -328,6 +328,7 @@ export default function Home() {
     // raw를 폐기하기 전, kind별 비민감 요약(개수·토큰만)을 만들어 검수 카드
     // 골격을 그대로 유지한 채 완료 상태로 접을 수 있게 한다.
     const maskingSummary = summarizeMasking(
+      draft.parsedText,
       draft.detections,
       draft.numericDetections,
       mappings,
@@ -695,6 +696,7 @@ export default function Home() {
                       busy={imageBusy}
                       error={imageError}
                       onAnalyze={handleAnalyzeImages}
+                      onClearError={() => setImageError(undefined)}
                     />
                   ) : undefined
                 }

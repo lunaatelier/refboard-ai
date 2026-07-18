@@ -106,6 +106,17 @@ export interface FinalMaskResult {
   mappings: MaskMapping[]; // → SecureClientMemory (WorkflowState 아님)
 }
 
+// 토큰별 컨텍스트 요약 (P2) — raw 없이 "어디서 몇 번 나왔는지"만 확정 직전에
+// 계산해 둔다. maskedExcerpt는 원문 주변 문맥을 잘라낸 뒤 같은 자리에서
+// 즉시 마스킹까지 적용한 결과다 — 원문 위치·raw는 이 함수 밖으로 나가지 않는다.
+export interface MaskingTokenContext {
+  token: string; // "[회사A]" — 적용된 토큰(또는 range-generalize 치환 문구)
+  kind: SensitiveKind;
+  slide?: number; // pptx 소스일 때만 — "--- 슬라이드 N ---" 마커 기준
+  occurrenceCount: number; // 문서 내 발생 횟수
+  maskedExcerpt: string; // 마스킹된 주변 문장(원문 조각 아님)
+}
+
 // 검수 카드 골격 유지용 비민감 요약 — raw 없이 kind/개수/토큰만.
 // 확정 직후 WorkflowState에 저장해, 검수 화면이 카드 구조를 그대로 둔 채
 // 항목별 상세를 "적용/유지/제외 + 토큰" 요약으로 접을 수 있게 한다.
@@ -116,6 +127,9 @@ export interface MaskingGroupSummary {
   keptCount: number; // "유지"로 확정된 공개 엔티티 (실명 유지)
   skippedCount: number; // 해제했거나 더미로 남겨 미적용
   tokens: string[]; // 적용된 토큰/치환 문구 (예: "[전화A]", "수십억 원대")
+  uncertainCount: number; // dummyConfidence "uncertain"인 항목 수 (검토 필요 신호)
+  uncertainKeptCount: number; // 그중 "유지"로 확정되어 실명이 그대로 나가는 항목 수
+  tokenContexts: MaskingTokenContext[]; // 토큰별 상세(정보 종류·슬라이드·발생횟수·문맥)
 }
 
 // 파일명도 마스킹 대상 (실사용#32) — 원본 파일명은 화면 어디에도 노출 금지
