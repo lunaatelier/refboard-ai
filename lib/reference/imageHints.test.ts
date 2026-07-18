@@ -14,6 +14,11 @@ const mood = (label: string, keywords: string[]): MoodOption => ({
   keywords,
   description: "",
   imageQuery: "",
+  paletteOptionId: "p",
+  typography: {
+    title: { sampleText: "", note: "" },
+    body: { sampleText: "", note: "" },
+  },
   styleAttributes: {
     radius: "soft",
     density: "airy",

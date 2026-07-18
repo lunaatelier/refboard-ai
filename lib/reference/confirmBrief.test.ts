@@ -43,6 +43,11 @@ function makeMoodOption(id = "mood-1"): MoodOption {
     keywords: ["신뢰감 있는", "안정적인"],
     description: "차분하고 신뢰가 가는 톤",
     imageQuery: "calm office interior",
+    paletteOptionId: "trust",
+    typography: {
+      title: { sampleText: "신뢰를 잇는 방법", note: "굵은 산세리프" },
+      body: { sampleText: "차분하고 안정적인 톤을 유지합니다.", note: "본문은 굵기 대비를 최소화" },
+    },
     styleAttributes: {
       radius: "soft",
       density: "airy",

@@ -139,6 +139,10 @@ export default function PaletteMoodTab({
   };
 
   const generateMoods = async () => {
+    if ((references.paletteOptions ?? []).length === 0) {
+      setError("팔레트 후보가 아직 준비되지 않았습니다. 잠시 후 다시 시도하세요.");
+      return;
+    }
     setMoodBusy(true);
     setError(undefined);
     try {
@@ -152,6 +156,7 @@ export default function PaletteMoodTab({
           projectType: analysis.projectType,
           tags: analysis.tags,
           directives,
+          paletteOptions: references.paletteOptions,
         }),
       });
       const body = await res.json().catch(() => null);

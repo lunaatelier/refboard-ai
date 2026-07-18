@@ -30,6 +30,24 @@ export interface MoodImage {
   attribution: string;
 }
 
+// 방향 카드 공통 스타일 속성 (P3) — MoodOption.styleAttributes와 DirectionOption이 공유.
+export interface DirectionStyleAttributes {
+  radius: "sharp" | "soft";
+  density: "compact" | "airy";
+  contrast: "high" | "soft";
+}
+
+// 제목/본문 타이포 샘플 (P3) — 실제 폰트 로딩 없이, 예시 문구+방향 설명으로 표현.
+export interface TypographySample {
+  sampleText: string; // 렌더링용 한국어 예시 문구
+  note: string; // 방향 설명 한 줄 (예: "굵은 산세리프, 타이트한 자간")
+}
+
+export interface TypographyDirection {
+  title: TypographySample;
+  body: TypographySample;
+}
+
 // 무드 후보 (Gemini 생성, 3종 제시 → 선택)
 export interface MoodOption {
   id: string;
@@ -37,11 +55,12 @@ export interface MoodOption {
   keywords: string[]; // "신뢰감 있는", "혁신적인" ...
   description: string;
   imageQuery: string; // Unsplash/Pexels 검색어 (영어)
-  styleAttributes: {
-    radius: "sharp" | "soft";
-    density: "compact" | "airy";
-    contrast: "high" | "soft";
-    typographyNote: string;
+  // P3 — 팔레트·무드를 1:1로 묶는다. 3개 무드가 가능한 한 서로 다른 팔레트
+  // 후보를 쓰도록 normalizeMoodPaletteAssignment()가 정규화한다.
+  paletteOptionId: string;
+  typography: TypographyDirection; // P3 — 제목/본문 타이포 샘플
+  styleAttributes: DirectionStyleAttributes & {
+    typographyNote: string; // 하위 호환 — DesignBasis.typographyDirection이 이 필드를 그대로 씀
   };
 }
 
@@ -185,13 +204,34 @@ export interface ReferenceAdoption {
   decision: DecisionMeta;
 }
 
+// 이미지 역할 (P3) — 무드보드 템플릿에서 위계 있게 배치하기 위한 태그.
+// 대표(hero) 1장 + 보조(supporting) 2~3장을 기본으로 삼되, 디테일/텍스처/
+// 레이아웃은 사용자가 필요할 때만 재배정한다.
+export type ImageRole = "hero" | "supporting" | "detail" | "texture" | "layout";
+
+export interface DirectionImageCandidate {
+  url: string;
+  source: "unsplash" | "pexels";
+  attribution: string;
+  role: ImageRole;
+  selected: boolean; // 최대 4장까지 selected=true (후보는 최대 6장)
+  order: number; // 선택된 이미지 표시 순서
+}
+
+// 팔레트+무드를 1:1로 묶은 방향 카드 (P3). 3안 중 정확히 1안을 선택한다.
 export interface DirectionOption {
   directionId: string;
-  label: string;
+  label: string; // 방향명
+  description: string; // 한 줄 설명
   paletteOptionId: string;
   moodOptionId: string;
-  imageCandidates: MoodImage[];
-  selectedImageUrls: string[];
+  keywords: string[]; // 최대 5개
+  typography: TypographyDirection;
+  styleAttributes: DirectionStyleAttributes;
+  imageCandidates: DirectionImageCandidate[]; // 최대 6장
+  // AI가 제안하는 방향 조언 문구 — 사용자가 이미지 재생성 때 쓰는 제외
+  // 키워드(ReferenceResult.avoidDirections)와는 다른, 카드에 표시되는 조언 텍스트.
+  recommendedDirections: string[];
   avoidDirections: string[];
 }
 
