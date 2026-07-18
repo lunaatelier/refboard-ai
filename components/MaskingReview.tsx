@@ -8,6 +8,7 @@ import TokenText from "./TokenText";
 import { createDraft } from "@/lib/masking/apply";
 import {
   ENTITY_KIND_LABELS,
+  ENTITY_KIND_SHORT_LABELS,
   isPublicEntityKind,
 } from "@/lib/masking/entity";
 import { detectWordOccurrences } from "@/lib/masking/manual";
@@ -408,10 +409,15 @@ export default function MaskingReview({
                           Object.keys(ENTITY_KIND_LABELS) as AnalysisTargetKind[]
                         ).map((k) => (
                           <option key={k} value={k}>
-                            {ENTITY_KIND_LABELS[k]}
+                            {ENTITY_KIND_SHORT_LABELS[k]}
                           </option>
                         ))}
                       </select>
+                      <Info
+                        size={16}
+                        color="var(--text-muted)"
+                        title={ENTITY_KIND_LABELS[d.entityKind ?? "customer"]}
+                      />
                       {isPublicEntityKind(d.entityKind ?? "customer") && (
                         <label
                           style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}
@@ -567,19 +573,25 @@ export default function MaskingReview({
                   }
                   className="select-box"
                 >
-                  <option value="exact-mask">정확 마스킹 (토큰)</option>
-                  <option value="range-generalize">
-                    범위 일반화 — {n.generalized ?? "규모 유지"}
-                  </option>
-                  <option value="keep">유지 (공개 확정)</option>
+                  <option value="exact-mask">마스킹</option>
+                  <option value="range-generalize">일반화</option>
+                  <option value="keep">유지</option>
                 </select>
+                <Info
+                  size={16}
+                  color="var(--text-muted)"
+                  title={
+                    "마스킹: 수치를 통째로 가림(예: [투자금])\n" +
+                    "일반화: 정확한 수치 대신 규모감만 표시" +
+                    (n.mode === "range-generalize" && n.generalized
+                      ? ` (예: ${n.generalized})`
+                      : "") +
+                    "\n유지: 이미 공개된 수치로 확정한 경우만 원문 그대로 전송"
+                  }
+                />
               </li>
             ))}
           </ul>
-          <p style={{ fontSize: 16, color: "var(--text-muted)" }}>
-            범위 일반화는 &ldquo;수십억 원대&rdquo;처럼 규모감만 남깁니다 —
-            기밀을 지키면서 AI가 맥락을 읽을 수 있습니다.
-          </p>
         </div>
       )}
 

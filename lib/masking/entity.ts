@@ -10,6 +10,18 @@ export const CONFIDENTIAL_ENTITY_KINDS: AnalysisTargetKind[] = [
   "partner",
 ];
 
+// 셀렉트 박스 표시용 — 짧은 단어만. 등급 설명은 ENTITY_KIND_LABELS(툴팁)에서.
+export const ENTITY_KIND_SHORT_LABELS: Record<AnalysisTargetKind, string> = {
+  customer: "고객사",
+  investor: "투자사",
+  partner: "협력사",
+  competitor: "경쟁사",
+  benchmarkBrand: "벤치마킹 브랜드",
+  roleModel: "롤모델",
+  publicReference: "공개 참고",
+};
+
+// 툴팁/인포 용 — 등급(기밀·가림 vs 공개·유지 가능) 설명 포함.
 export const ENTITY_KIND_LABELS: Record<AnalysisTargetKind, string> = {
   customer: "우리 고객사 (기밀·가림)",
   investor: "투자사 (기밀·가림)",

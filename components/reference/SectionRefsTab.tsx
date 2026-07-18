@@ -668,9 +668,17 @@ function CollectedReferences({
                     fontWeight: 600,
                   }}
                 >
-                  <option value="inspiration-only">참고용 (기본)</option>
-                  <option value="embeddable">삽입 가능 — 라이선스 확인함</option>
+                  <option value="inspiration-only">참고용</option>
+                  <option value="embeddable">삽입 가능</option>
                 </select>
+                <Info
+                  size={14}
+                  color="var(--text-muted)"
+                  title={
+                    "참고용: 무드보드 참고 이미지로만 사용, 산출물에 직접 삽입하지 않음\n" +
+                    "삽입 가능: 라이선스를 확인했고 산출물에 그대로 삽입 가능"
+                  }
+                />
                 <button
                   onClick={() => onRemove(i)}
                   aria-label="레퍼런스 제외"
