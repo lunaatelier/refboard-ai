@@ -5,7 +5,15 @@ import { Check, Info } from "lucide-react";
 import SkinPreview from "./SkinPreview";
 import { pickBackgroundColorRequirement } from "@/lib/analysis/requirements";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
-import { buildDirectionOptions } from "@/lib/reference/direction";
+import {
+  applyRegeneratedImages,
+  buildDirectionOptions,
+  moveSelectedImage,
+  replaceImageCandidate,
+  setImageRole,
+  setImageSelected,
+  type SearchedImageLike,
+} from "@/lib/reference/direction";
 import {
   generatePaletteOptions,
   hexToHsl,
@@ -13,6 +21,7 @@ import {
 } from "@/lib/reference/palette";
 import type {
   DirectionOption,
+  ImageRole,
   MoodOption,
   Palette,
   PaletteRole,
@@ -66,12 +75,19 @@ const chip: React.CSSProperties = {
   padding: "1px 10px",
 };
 
-async function fetchMoodImages(query: string) {
+interface MoodImageQuery {
+  query: string;
+  colorHex?: string;
+  excludeKeywords?: string[];
+  page?: number;
+}
+
+async function fetchMoodImages(params: MoodImageQuery): Promise<SearchedImageLike[]> {
   try {
     const res = await fetch("/api/mood-images", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify(params),
     });
     const body = await res.json().catch(() => null);
     return Array.isArray(body?.images) ? body.images : [];
@@ -79,6 +95,14 @@ async function fetchMoodImages(query: string) {
     return [];
   }
 }
+
+const IMAGE_ROLE_LABELS: Record<ImageRole, string> = {
+  hero: "대표",
+  supporting: "보조",
+  detail: "디테일",
+  texture: "텍스처",
+  layout: "레이아웃",
+};
 
 export default function PaletteMoodTab({
   analysis,
@@ -92,6 +116,19 @@ export default function PaletteMoodTab({
   const [customHexError, setCustomHexError] = useState<string>();
   const [roleHexDraft, setRoleHexDraft] = useState<Record<string, string>>({});
 
+  // 이미지 상세 조작 (P3-4) — 다시 생성 컨트롤과 진행 상태.
+  const [subjectDraft, setSubjectDraft] = useState<Record<string, string>>({});
+  const [styleDraft, setStyleDraft] = useState<Record<string, string>>({});
+  const [keepSubject, setKeepSubject] = useState(true);
+  const [keepColor, setKeepColor] = useState(false);
+  const [excludeKeywords, setExcludeKeywords] = useState<string[]>([]);
+  const [excludeDraft, setExcludeDraft] = useState("");
+  const [regenPage, setRegenPage] = useState(2); // 1은 최초 방향 생성 때 이미 사용됨
+  const [regenBusy, setRegenBusy] = useState(false);
+  const [regenError, setRegenError] = useState<string>();
+  const [replaceBusyUrl, setReplaceBusyUrl] = useState<string>();
+  const [selectionNotice, setSelectionNotice] = useState<string>();
+
   const mode = references.paletteMode ?? "light";
   const edited = references.editedPaletteOption;
   const currentPalette: Palette | undefined = edited?.[mode];
@@ -102,6 +139,107 @@ export default function PaletteMoodTab({
   const selectedDirection = directions.find(
     (d) => d.directionId === references.selectedDirectionId,
   );
+
+  const defaultSubjectFor = (direction: DirectionOption) =>
+    references.moodOptions?.find((m) => m.id === direction.moodOptionId)?.imageQuery ??
+    direction.label;
+  const subjectFor = (direction: DirectionOption) =>
+    subjectDraft[direction.directionId] ?? defaultSubjectFor(direction);
+  const styleFor = (direction: DirectionOption) => styleDraft[direction.directionId] ?? "";
+  const queryFor = (direction: DirectionOption) =>
+    `${subjectFor(direction)} ${styleFor(direction)}`.trim();
+
+  // 방향 하나의 이미지 후보를 바꾼 뒤, 선택 중인 방향이면 하위 호환 필드
+  // (globalMood.images)도 함께 맞춰준다 — P3-3에서 선택 시점에만 채웠던 것을
+  // 이미지가 바뀔 때마다 다시 맞추는 확장.
+  const updateDirection = (updated: DirectionOption) => {
+    onChange((prev) => {
+      const nextDirections = (prev.directionOptions ?? []).map((d) =>
+        d.directionId === updated.directionId ? updated : d,
+      );
+      const isSelected = prev.selectedDirectionId === updated.directionId;
+      return {
+        ...prev,
+        directionOptions: nextDirections,
+        globalMood:
+          isSelected && prev.globalMood
+            ? {
+                ...prev.globalMood,
+                images: updated.imageCandidates
+                  .filter((c) => c.selected)
+                  .map((c) => ({ url: c.url, source: c.source, attribution: c.attribution })),
+              }
+            : prev.globalMood,
+      };
+    });
+  };
+
+  const toggleImageSelected = (direction: DirectionOption, url: string, selected: boolean) => {
+    const next = setImageSelected(direction, url, selected);
+    if (next === direction && selected) {
+      setSelectionNotice("최대 4장까지 선택할 수 있습니다. 다른 이미지를 먼저 해제하세요.");
+      return;
+    }
+    setSelectionNotice(undefined);
+    updateDirection(next);
+  };
+
+  const changeImageRole = (direction: DirectionOption, url: string, role: ImageRole) =>
+    updateDirection(setImageRole(direction, url, role));
+
+  const moveImage = (direction: DirectionOption, url: string, delta: -1 | 1) =>
+    updateDirection(moveSelectedImage(direction, url, delta));
+
+  const addExcludeKeyword = () => {
+    const word = excludeDraft.trim();
+    if (!word || excludeKeywords.includes(word)) return;
+    setExcludeKeywords([...excludeKeywords, word]);
+    setExcludeDraft("");
+  };
+
+  const replaceOneImage = async (direction: DirectionOption, url: string) => {
+    setReplaceBusyUrl(url);
+    setRegenError(undefined);
+    try {
+      const images = await fetchMoodImages({
+        query: queryFor(direction),
+        colorHex: keepColor ? currentPalette?.primary : undefined,
+        excludeKeywords,
+        page: regenPage,
+      });
+      setRegenPage((p) => p + 1);
+      const existingUrls = new Set(direction.imageCandidates.map((c) => c.url));
+      const fresh = images.find((img) => !existingUrls.has(img.url));
+      if (!fresh) {
+        setRegenError("교체할 새 이미지를 찾지 못했습니다. 검색어를 바꿔보세요.");
+        return;
+      }
+      updateDirection(replaceImageCandidate(direction, url, fresh));
+    } finally {
+      setReplaceBusyUrl(undefined);
+    }
+  };
+
+  const regenerateDirectionImages = async (direction: DirectionOption) => {
+    setRegenBusy(true);
+    setRegenError(undefined);
+    try {
+      const images = await fetchMoodImages({
+        query: queryFor(direction),
+        colorHex: keepColor ? currentPalette?.primary : undefined,
+        excludeKeywords,
+        page: regenPage,
+      });
+      setRegenPage((p) => p + 1);
+      if (images.length === 0) {
+        setRegenError("이미지를 찾지 못했습니다. 검색어를 바꿔보세요.");
+        return;
+      }
+      updateDirection(applyRegeneratedImages(direction, images));
+    } finally {
+      setRegenBusy(false);
+    }
+  };
 
   const setRole = (role: PaletteRole, color: string) => {
     if (!edited) return;
@@ -198,7 +336,7 @@ export default function PaletteMoodTab({
 
       // 방향 3안 각각의 대표 이미지 — 배치로 한 번에 가져온다 (§P4 "약 3회").
       const imageLists = await Promise.all(
-        moods.map((m) => fetchMoodImages(m.imageQuery)),
+        moods.map((m) => fetchMoodImages({ query: m.imageQuery })),
       );
       const imagesByMoodId = Object.fromEntries(
         moods.map((m, i) => [m.id, imageLists[i]]),
@@ -539,6 +677,7 @@ export default function PaletteMoodTab({
 
       {/* ── 선택된 방향 상세 — 팔레트 역할 편집 + 실시간 프리뷰 ── */}
       {selectedDirection && edited && currentPalette && (
+        <>
         <div style={card}>
           <h3 style={{ fontSize: 18, fontWeight: 600 }}>
             {selectedDirection.label}{" "}
@@ -636,6 +775,226 @@ export default function PaletteMoodTab({
             </div>
           </div>
         </div>
+
+        {/* ── 이미지 상세 조작 (P3-4) — 선택/역할/순서/교체 + 다시 생성 컨트롤 ── */}
+        <div style={card}>
+          <h3 style={{ fontSize: 18, fontWeight: 600 }}>
+            이미지 구성{" "}
+            <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 14 }}>
+              최대 4장 선택 · 역할·순서 조정 가능
+            </span>
+          </h3>
+
+          <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap", alignItems: "center" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14 }}>
+              <input
+                type="checkbox"
+                checked={keepSubject}
+                onChange={(e) => setKeepSubject(e.target.checked)}
+              />
+              피사체 유지
+            </label>
+            <input
+              value={subjectFor(selectedDirection)}
+              onChange={(e) =>
+                setSubjectDraft({ ...subjectDraft, [selectedDirection.directionId]: e.target.value })
+              }
+              disabled={keepSubject}
+              placeholder="피사체 (예: office desk)"
+              style={{
+                width: 180,
+                padding: "6px 10px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-md)",
+                font: "inherit",
+                fontSize: 14,
+                opacity: keepSubject ? 0.6 : 1,
+              }}
+            />
+            <input
+              value={styleFor(selectedDirection)}
+              onChange={(e) =>
+                setStyleDraft({ ...styleDraft, [selectedDirection.directionId]: e.target.value })
+              }
+              placeholder="스타일 키워드 (예: minimal bright)"
+              style={{
+                width: 200,
+                padding: "6px 10px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-md)",
+                font: "inherit",
+                fontSize: 14,
+              }}
+            />
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14 }}>
+              <input
+                type="checkbox"
+                checked={keepColor}
+                onChange={(e) => setKeepColor(e.target.checked)}
+              />
+              컬러 유지{currentPalette && ` (${currentPalette.primary})`}
+            </label>
+          </div>
+
+          <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 14, color: "var(--text-muted)" }}>제외 키워드</span>
+            {excludeKeywords.map((k) => (
+              <span key={k} style={{ ...chip, display: "flex", alignItems: "center", gap: 4 }}>
+                {k}
+                <button
+                  onClick={() => setExcludeKeywords(excludeKeywords.filter((x) => x !== k))}
+                  aria-label={`${k} 제외 키워드 삭제`}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    color: "inherit",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                    padding: 0,
+                  }}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            <input
+              value={excludeDraft}
+              onChange={(e) => setExcludeDraft(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addExcludeKeyword()}
+              placeholder="단어 입력 후 Enter"
+              style={{
+                width: 140,
+                padding: "4px 8px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-md)",
+                font: "inherit",
+                fontSize: 13,
+              }}
+            />
+          </div>
+
+          <button
+            onClick={() => regenerateDirectionImages(selectedDirection)}
+            disabled={regenBusy}
+            className="btn-weak-primary"
+            style={{
+              alignSelf: "flex-start",
+              padding: "6px 14px",
+              borderRadius: "var(--radius-md)",
+              border: "none",
+              fontWeight: 600,
+              fontSize: 14,
+            }}
+          >
+            {regenBusy ? "다시 생성 중…" : "이 방향 이미지 다시 생성"}
+          </button>
+          {selectionNotice && (
+            <p role="alert" style={{ color: "var(--warning-weak-text)", fontWeight: 600, fontSize: 13 }}>
+              {selectionNotice}
+            </p>
+          )}
+          {regenError && (
+            <p role="alert" style={{ color: "var(--error-weak-text)", fontWeight: 600, fontSize: 13 }}>
+              {regenError}
+            </p>
+          )}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+              gap: "var(--space-sm)",
+            }}
+          >
+            {selectedDirection.imageCandidates.map((c) => {
+              const selectedIndex = selectedDirection.imageCandidates
+                .filter((x) => x.selected)
+                .sort((a, b) => a.order - b.order)
+                .findIndex((x) => x.url === c.url);
+              return (
+                <div
+                  key={c.url}
+                  style={{
+                    border: `1px solid ${c.selected ? "var(--primary)" : "var(--border)"}`,
+                    borderRadius: "var(--radius-md)",
+                    padding: "var(--space-xs)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={c.url}
+                    alt={c.attribution}
+                    style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: "var(--radius-sm)" }}
+                  />
+                  <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13 }}>
+                    <input
+                      type="checkbox"
+                      checked={c.selected}
+                      onChange={(e) =>
+                        toggleImageSelected(selectedDirection, c.url, e.target.checked)
+                      }
+                    />
+                    선택{c.selected ? ` (${selectedIndex + 1}번)` : ""}
+                  </label>
+                  <select
+                    value={c.role}
+                    onChange={(e) =>
+                      changeImageRole(selectedDirection, c.url, e.target.value as ImageRole)
+                    }
+                    className="select-box"
+                    style={{ fontSize: 13, padding: "2px 6px" }}
+                  >
+                    {(Object.keys(IMAGE_ROLE_LABELS) as ImageRole[]).map((r) => (
+                      <option key={r} value={r}>
+                        {IMAGE_ROLE_LABELS[r]}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    {c.selected && (
+                      <>
+                        <button
+                          onClick={() => moveImage(selectedDirection, c.url, -1)}
+                          disabled={selectedIndex <= 0}
+                          title="앞으로"
+                          style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "transparent", fontSize: 12, padding: "1px 6px" }}
+                        >
+                          ▲
+                        </button>
+                        <button
+                          onClick={() => moveImage(selectedDirection, c.url, 1)}
+                          title="뒤로"
+                          style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "transparent", fontSize: 12, padding: "1px 6px" }}
+                        >
+                          ▼
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => replaceOneImage(selectedDirection, c.url)}
+                      disabled={replaceBusyUrl === c.url}
+                      style={{
+                        marginLeft: "auto",
+                        border: "1px solid var(--border)",
+                        borderRadius: "var(--radius-full)",
+                        background: "transparent",
+                        color: "var(--text-muted)",
+                        fontSize: 12,
+                        padding: "1px 8px",
+                      }}
+                    >
+                      {replaceBusyUrl === c.url ? "교체 중…" : "🔄 교체"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        </>
       )}
     </div>
   );
