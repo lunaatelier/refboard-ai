@@ -129,6 +129,130 @@ export interface RepresentativePages {
   contentPageId?: string; // 내용 대표 (content/metrics — 정보구조가 드러나는 페이지)
 }
 
+// ── 확정 결정 계약 (개선 지시서 §6, data-model.md §5.1이 단일 기준) ──
+// ReferenceResult(위)는 편집 중인 작업 상태. 사용자가 실제로 채택한 결정만
+// 남긴 불변 스냅샷(ConfirmedReferenceBrief)은 별도로 둔다 — 미선택 검색
+// 결과·미채택 분석이 컨셉 생성에 섞이지 않게 하기 위함.
+
+export type AdoptionStatus = "applied" | "reference-only" | "excluded";
+export type AdoptionAspect =
+  | "layout"
+  | "color"
+  | "typography"
+  | "image-tone"
+  | "interaction"
+  | "content-density";
+export type SectionReferencePriority = "high-impact" | "inherited" | "optional";
+export type DecisionSource = "user" | "inherited" | "ai";
+export type Freshness = "current" | "stale";
+
+// 채택 카드 출처. usage는 항상 inspiration-only — 산출물에 자동 삽입하지 않는다.
+export interface ReferenceCandidate {
+  provider: "inspo" | "manual";
+  providerId?: string;
+  title?: string;
+  sourceUrl: string;
+  thumbnailUrl?: string;
+  patterns: string[];
+  colors: string[];
+  usage: "inspiration-only";
+  fetchedAt: string;
+}
+
+export interface DecisionMeta {
+  source: DecisionSource;
+  freshness: Freshness;
+  basedOnHash: string;
+}
+
+export interface WorkflowRevision {
+  analysisHash: string;
+  directionHash?: string;
+  briefHash?: string;
+  promptVersion: string;
+}
+
+export interface ReferenceAdoption {
+  adoptionId: string;
+  pageId: string;
+  sectionId: string;
+  reference: ReferenceCandidate;
+  status: AdoptionStatus;
+  aspects: AdoptionAspect[];
+  note: string;
+  decision: DecisionMeta;
+}
+
+export interface DirectionOption {
+  directionId: string;
+  label: string;
+  paletteOptionId: string;
+  moodOptionId: string;
+  imageCandidates: MoodImage[];
+  selectedImageUrls: string[];
+  avoidDirections: string[];
+}
+
+// 브랜드 분석 출처 검증 (P6) — 모델이 JSON에 쓴 sourceUrl 문자열을 그대로 신뢰하지 않는다.
+export interface VerifiedSource {
+  url: string;
+  status: "official" | "supporting" | "unverified";
+  groundingCited: boolean;
+  domainVerified: boolean;
+  fetchedAt: string;
+}
+
+export interface BrandDecision {
+  targetId: string;
+  name: string;
+  adoptedPatterns: string[];
+  avoidedPatterns: string[];
+  verifiedSources: VerifiedSource[];
+}
+
+// 이미지 생성 결과의 data URL을 워크플로 JSON에 직접 넣지 않는다 — assetId만 보유,
+// 실제 바이너리는 별도 Blob store(IndexedDB)에 둔다.
+export interface ImageNeedDecision {
+  required: boolean;
+  role: "hero" | "section" | "icon";
+  prompt?: string;
+  generatedImageAssetId?: string;
+}
+
+export interface PageReferenceDecision {
+  pageId: string;
+  pageTitle: string;
+  purposeSummary: string;
+  sections: Array<{
+    sectionId: string;
+    sectionTitle: string;
+    priority: SectionReferencePriority;
+    layoutPattern: string;
+    decision: DecisionMeta;
+    adoptions: ReferenceAdoption[];
+    imageNeed?: ImageNeedDecision;
+  }>;
+}
+
+export interface ConfirmedReferenceBrief {
+  version: "2.0";
+  confirmedAt: string;
+  revision: WorkflowRevision;
+  direction: {
+    paletteOptionId: string; // 최초 후보의 출처
+    editedPaletteOption: PaletteOption; // 역할 재배치 편집 결과
+    paletteMode: "light" | "dark"; // 확정한 기본 모드
+    moodId: string;
+    moodKeywords: string[];
+    typographyDirection: string;
+    selectedMoodImages: MoodImage[];
+    styleAttributes: MoodOption["styleAttributes"];
+    avoidDirections: string[];
+  };
+  pages: PageReferenceDecision[];
+  brandDecisions: BrandDecision[];
+}
+
 // Phase 3 결과 — 프로젝트 전체 결정(팔레트/무드)은 위, 섹션별은 bySectionId(10-b).
 // 진행 중 단계별로 채워지므로 필드는 optional로 열어둔다.
 export interface ReferenceResult {
@@ -147,4 +271,13 @@ export interface ReferenceResult {
   imageHints?: ImageHint[]; // Step 11
   representative?: RepresentativePages; // Step 11 (Phase 4에서 계승)
   referenceConfirmed?: boolean; // ④ 전체 확정 (Step 10-c)
+  // ── 확정 결정 계약 (P1) ──
+  directionOptions?: DirectionOption[];
+  selectedDirectionId?: string;
+  referenceAdoptions?: Record<string, ReferenceAdoption>; // key: adoptionId
+  selectedMoodImageUrls?: string[];
+  avoidDirections?: string[];
+  confirmedBrief?: ConfirmedReferenceBrief;
+  revision?: WorkflowRevision; // 마이그레이션 기간 optional — confirmBrief가 생성 시 채운다
+  baseContentVariantId?: string; // 콘텐츠 변형이 2개 이상일 때 사용자가 고른 기준 변형(§6.7)
 }
