@@ -413,11 +413,9 @@ export default function MaskingReview({
                           </option>
                         ))}
                       </select>
-                      <Info
-                        size={16}
-                        color="var(--text-muted)"
-                        title={ENTITY_KIND_LABELS[d.entityKind ?? "customer"]}
-                      />
+                      <span title={ENTITY_KIND_LABELS[d.entityKind ?? "customer"]}>
+                        <Info size={16} color="var(--text-muted)" />
+                      </span>
                       {isPublicEntityKind(d.entityKind ?? "customer") && (
                         <label
                           style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}
@@ -577,9 +575,7 @@ export default function MaskingReview({
                   <option value="range-generalize">일반화</option>
                   <option value="keep">유지</option>
                 </select>
-                <Info
-                  size={16}
-                  color="var(--text-muted)"
+                <span
                   title={
                     "마스킹: 수치를 통째로 가림(예: [투자금])\n" +
                     "일반화: 정확한 수치 대신 규모감만 표시" +
@@ -588,7 +584,9 @@ export default function MaskingReview({
                       : "") +
                     "\n유지: 이미 공개된 수치로 확정한 경우만 원문 그대로 전송"
                   }
-                />
+                >
+                  <Info size={16} color="var(--text-muted)" />
+                </span>
               </li>
             ))}
           </ul>
