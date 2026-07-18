@@ -11,7 +11,7 @@ import { pickBackgroundColorRequirement } from "@/lib/analysis/requirements";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
 import type { ExtractedAnalysisTarget } from "@/lib/masking/types";
 import { generatePaletteOptions } from "@/lib/reference/palette";
-import type { ReferenceResult } from "@/lib/reference/types";
+import type { ReferenceResult, ReferenceResultUpdater } from "@/lib/reference/types";
 import PageLayout, { PageCta } from "../shell/PageLayout";
 
 // ④ 레퍼런스·무드 (Step 10) — 정보량이 많아 탭으로 분할, 세로 무한 스크롤 금지 (flow-spec ④).
@@ -32,7 +32,7 @@ interface ReferenceWorkspaceProps {
   extractedTargets: ExtractedAnalysisTarget[];
   documentPurpose?: DocumentPurpose;
   references: ReferenceResult;
-  onChange: (next: ReferenceResult) => void;
+  onChange: (next: ReferenceResultUpdater) => void;
   onConfirm: () => void;
 }
 

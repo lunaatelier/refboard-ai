@@ -281,3 +281,11 @@ export interface ReferenceResult {
   revision?: WorkflowRevision; // 마이그레이션 기간 optional — confirmBrief가 생성 시 채운다
   baseContentVariantId?: string; // 콘텐츠 변형이 2개 이상일 때 사용자가 고른 기준 변형(§6.7)
 }
+
+// React의 setState처럼 "현재 값을 함수로 받아 다음 값을 반환"하는 형태도 허용한다.
+// await 이후 onChange를 호출하는 탭들이 요청 시작 시점의 스냅샷이 아니라 flush
+// 시점의 최신 references를 기준으로 병합하게 하기 위함(§2.9/§6.5 — 늦게 도착한
+// 응답이 그 사이 다른 탭에서 바뀐 값을 덮어쓰는 문제 방지).
+export type ReferenceResultUpdater =
+  | ReferenceResult
+  | ((prev: ReferenceResult) => ReferenceResult);

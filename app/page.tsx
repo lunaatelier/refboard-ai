@@ -802,7 +802,13 @@ export default function Home() {
             documentPurpose={workflow.documentPurpose}
             references={workflow.references ?? {}}
             onChange={(next) =>
-              setWorkflow((prev) => ({ ...prev, references: next }))
+              setWorkflow((prev) => ({
+                ...prev,
+                references:
+                  typeof next === "function"
+                    ? next(prev.references ?? {})
+                    : next,
+              }))
             }
             onConfirm={() =>
               setWorkflow((prev) => ({

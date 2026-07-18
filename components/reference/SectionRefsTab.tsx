@@ -12,6 +12,7 @@ import type {
   MoodImage,
   ReferenceItem,
   ReferenceResult,
+  ReferenceResultUpdater,
   SectionReference,
 } from "@/lib/reference/types";
 import { ErrorState } from "../shell/PageLayout";
@@ -24,7 +25,7 @@ interface SectionRefsTabProps {
   analysis: ProjectAnalysis;
   directives: ProjectDirective[];
   references: ReferenceResult;
-  onChange: (next: ReferenceResult) => void;
+  onChange: (next: ReferenceResultUpdater) => void;
 }
 
 const card: React.CSSProperties = {
@@ -88,7 +89,9 @@ export default function SectionRefsTab({
       if (!res.ok || !Array.isArray(body?.queries)) {
         throw new Error(body?.error ?? "검색어 생성에 실패했습니다.");
       }
-      const next: Record<string, SectionReference> = { ...bySectionId };
+      // 이번 응답이 실제로 갱신하는 섹션만 담는다 — 나머지 섹션의 최신 상태는
+      // onChange에서 prev.bySectionId를 그대로 살려 덮어쓰지 않는다.
+      const next: Record<string, SectionReference> = {};
       const candidates: Record<string, string[]> = {};
       for (const q of body.queries as {
         sectionId: string;
@@ -114,7 +117,10 @@ export default function SectionRefsTab({
         ];
       }
       setLayoutCandidates(candidates);
-      onChange({ ...references, bySectionId: next });
+      onChange((prev) => ({
+        ...prev,
+        bySectionId: { ...(prev.bySectionId ?? {}), ...next },
+      }));
       setOpenId(confirmedSections[0]?.sectionId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "검색어 생성에 실패했습니다.");
@@ -123,33 +129,14 @@ export default function SectionRefsTab({
     }
   };
 
-  const updateQuery = (sectionId: string, query: string) => {
-    const ref = bySectionId[sectionId];
-    if (!ref) return;
-    onChange({
-      ...references,
-      bySectionId: {
-        ...bySectionId,
-        [sectionId]: {
-          ...ref,
-          searchQuery: query,
-          platformQueries: buildPlatformQueries(query, analysis.domain),
-        },
-      },
-    });
-  };
+  const updateQuery = (sectionId: string, query: string) =>
+    patchRef(sectionId, () => ({
+      searchQuery: query,
+      platformQueries: buildPlatformQueries(query, analysis.domain),
+    }));
 
-  const setLayout = (sectionId: string, layout: string) => {
-    const ref = bySectionId[sectionId];
-    if (!ref) return;
-    onChange({
-      ...references,
-      bySectionId: {
-        ...bySectionId,
-        [sectionId]: { ...ref, layoutPattern: layout },
-      },
-    });
-  };
+  const setLayout = (sectionId: string, layout: string) =>
+    patchRef(sectionId, () => ({ layoutPattern: layout }));
 
   const copy = async (sectionId: string, platform: string, query: string) => {
     await navigator.clipboard.writeText(query);
@@ -163,14 +150,24 @@ export default function SectionRefsTab({
     setTimeout(() => setCopiedMain(undefined), 1500);
   };
 
-  const patchRef = (sectionId: string, patch: Partial<SectionReference>) => {
-    const ref = bySectionId[sectionId];
-    if (!ref) return;
-    onChange({
-      ...references,
-      bySectionId: { ...bySectionId, [sectionId]: { ...ref, ...patch } },
+  // patch를 값 또는 (현재 ref) => 값 형태로 받는다 — 함수형이면 항상 flush 시점의
+  // 최신 ref를 기준으로 계산해, await 이후 호출(예: fetchSectionImages)이 그 사이
+  // 다른 곳에서 바뀐 값을 덮어쓰지 않게 한다(§2.9/§6.5).
+  const patchRef = (
+    sectionId: string,
+    patch:
+      | Partial<SectionReference>
+      | ((ref: SectionReference) => Partial<SectionReference>),
+  ) =>
+    onChange((prev) => {
+      const ref = (prev.bySectionId ?? {})[sectionId];
+      if (!ref) return prev;
+      const resolved = typeof patch === "function" ? patch(ref) : patch;
+      return {
+        ...prev,
+        bySectionId: { ...prev.bySectionId, [sectionId]: { ...ref, ...resolved } },
+      };
     });
-  };
 
   // 섹션 전용 레퍼런스 이미지 (Step 10-b 보강) — 전역 무드보드(도메인 기준)와 별개로
   // 이 섹션의 검색어(예: 로고 방향)로 직접 이미지를 가져온다.
@@ -193,27 +190,25 @@ export default function SectionRefsTab({
   };
 
   const addReferenceItem = (sectionId: string, item: ReferenceItem) =>
-    patchRef(sectionId, {
-      references: [...(bySectionId[sectionId]?.references ?? []), item],
-    });
+    patchRef(sectionId, (ref) => ({
+      references: [...(ref.references ?? []), item],
+    }));
 
   const removeReferenceItem = (sectionId: string, index: number) =>
-    patchRef(sectionId, {
-      references: (bySectionId[sectionId]?.references ?? []).filter(
-        (_, i) => i !== index,
-      ),
-    });
+    patchRef(sectionId, (ref) => ({
+      references: (ref.references ?? []).filter((_, i) => i !== index),
+    }));
 
   const updateReferenceItem = (
     sectionId: string,
     index: number,
     patch: Partial<ReferenceItem>,
   ) =>
-    patchRef(sectionId, {
-      references: (bySectionId[sectionId]?.references ?? []).map((r, i) =>
+    patchRef(sectionId, (ref) => ({
+      references: (ref.references ?? []).map((r, i) =>
         i === index ? { ...r, ...patch } : r,
       ),
-    });
+    }));
 
   if (confirmedSections.length === 0) {
     return (

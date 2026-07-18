@@ -8,7 +8,11 @@ import {
   buildHintSkeletons,
   recommendRepresentativePages,
 } from "@/lib/reference/imageHints";
-import type { ImageHint, ReferenceResult } from "@/lib/reference/types";
+import type {
+  ImageHint,
+  ReferenceResult,
+  ReferenceResultUpdater,
+} from "@/lib/reference/types";
 import { ErrorState } from "../shell/PageLayout";
 
 // [이미지 힌트] 탭 (Step 11 + Step 19) — scale + 방향 + 프롬프트 표출.
@@ -20,7 +24,7 @@ interface ImageHintsTabProps {
   directives: ProjectDirective[];
   documentPurpose?: DocumentPurpose;
   references: ReferenceResult;
-  onChange: (next: ReferenceResult) => void;
+  onChange: (next: ReferenceResultUpdater) => void;
 }
 
 const card: React.CSSProperties = {
@@ -90,7 +94,13 @@ export default function ImageHintsTab({
   const [sourceMode, setSourceMode] = useState(defaultMode);
 
   const setRep = (patch: Partial<typeof rep>) =>
-    onChange({ ...references, representative: { ...rep, ...patch } });
+    onChange((prev) => ({
+      ...prev,
+      representative: {
+        ...(prev.representative ?? recommendRepresentativePages(analysis)),
+        ...patch,
+      },
+    }));
 
   const generate = async () => {
     setBusy(true);
@@ -125,7 +135,11 @@ export default function ImageHintsTab({
         prompt: body.prompts[i] ?? "",
         sourceReferenceMode: sourceMode,
       }));
-      onChange({ ...references, imageHints: hints, representative: rep });
+      onChange((prev) => ({
+        ...prev,
+        imageHints: hints,
+        representative: prev.representative ?? rep,
+      }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "프롬프트 생성에 실패했습니다.");
     } finally {
@@ -134,12 +148,12 @@ export default function ImageHintsTab({
   };
 
   const patchHint = (index: number, patch: Partial<ImageHint>) =>
-    onChange({
-      ...references,
-      imageHints: (references.imageHints ?? []).map((h, i) =>
+    onChange((prev) => ({
+      ...prev,
+      imageHints: (prev.imageHints ?? []).map((h, i) =>
         i === index ? { ...h, ...patch } : h,
       ),
-    });
+    }));
 
   const copy = async (index: number, text: string) => {
     await navigator.clipboard.writeText(text);

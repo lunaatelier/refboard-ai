@@ -16,6 +16,7 @@ import type {
   PaletteOption,
   PaletteRole,
   ReferenceResult,
+  ReferenceResultUpdater,
 } from "@/lib/reference/types";
 import { ErrorState } from "../shell/PageLayout";
 
@@ -36,7 +37,7 @@ interface PaletteMoodTabProps {
   analysis: ProjectAnalysis;
   directives: ProjectDirective[];
   references: ReferenceResult;
-  onChange: (next: ReferenceResult) => void;
+  onChange: (next: ReferenceResultUpdater) => void;
 }
 
 const card: React.CSSProperties = {
@@ -157,7 +158,7 @@ export default function PaletteMoodTab({
       if (!res.ok || !Array.isArray(body?.moods)) {
         throw new Error(body?.error ?? "무드 생성에 실패했습니다.");
       }
-      onChange({ ...references, moodOptions: body.moods });
+      onChange((prev) => ({ ...prev, moodOptions: body.moods }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "무드 생성에 실패했습니다.");
     } finally {
@@ -166,7 +167,7 @@ export default function PaletteMoodTab({
   };
 
   const selectMood = async (mood: MoodOption) => {
-    onChange({ ...references, selectedMoodId: mood.id });
+    onChange((prev) => ({ ...prev, selectedMoodId: mood.id }));
     setImagesBusy(true);
     try {
       const res = await fetch("/api/mood-images", {
@@ -175,14 +176,18 @@ export default function PaletteMoodTab({
         body: JSON.stringify({ query: mood.imageQuery }),
       });
       const body = await res.json().catch(() => null);
-      onChange({
-        ...references,
-        selectedMoodId: mood.id,
-        globalMood: {
-          keywords: mood.keywords,
-          description: mood.description,
-          images: Array.isArray(body?.images) ? body.images : [],
-        },
+      onChange((prev) => {
+        // 그 사이 사용자가 다른 무드를 선택했으면 이 응답은 버린다(늦게 도착한
+        // 이전 선택의 이미지가 최신 선택을 덮어쓰지 않게, §2.9/§6.5).
+        if (prev.selectedMoodId !== mood.id) return prev;
+        return {
+          ...prev,
+          globalMood: {
+            keywords: mood.keywords,
+            description: mood.description,
+            images: Array.isArray(body?.images) ? body.images : [],
+          },
+        };
       });
     } finally {
       setImagesBusy(false);

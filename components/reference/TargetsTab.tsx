@@ -17,6 +17,7 @@ import type {
   AnalysisTargetAnalysis,
   AnalysisTargetListItem,
   ReferenceResult,
+  ReferenceResultUpdater,
 } from "@/lib/reference/types";
 import { ErrorState } from "../shell/PageLayout";
 
@@ -29,7 +30,7 @@ interface TargetsTabProps {
   directives: ProjectDirective[];
   extractedTargets: ExtractedAnalysisTarget[];
   references: ReferenceResult;
-  onChange: (next: ReferenceResult) => void;
+  onChange: (next: ReferenceResultUpdater) => void;
 }
 
 const card: React.CSSProperties = {
@@ -109,18 +110,21 @@ export default function TargetsTab({
       });
     }
     if (seeded.length > 0) {
-      onChange({ ...references, analysisTargetList: seeded });
+      onChange((prev) => ({
+        ...prev,
+        analysisTargetList: prev.analysisTargetList ?? seeded,
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const patchItem = (id: string, patch: Partial<AnalysisTargetListItem>) =>
-    onChange({
-      ...references,
-      analysisTargetList: list.map((t) =>
+    onChange((prev) => ({
+      ...prev,
+      analysisTargetList: (prev.analysisTargetList ?? []).map((t) =>
         t.id === id ? { ...t, ...patch } : t,
       ),
-    });
+    }));
 
   const fetchMore = async () => {
     setListBusy(true);
@@ -143,20 +147,24 @@ export default function TargetsTab({
       if (!res.ok || !Array.isArray(body?.targets)) {
         throw new Error(body?.error ?? "목록 생성에 실패했습니다.");
       }
-      const added: AnalysisTargetListItem[] = (
-        body.targets as { name: string; url: string; oneLineSummary: string }[]
-      )
-        .filter((t) => !list.some((x) => x.name === t.name))
-        .map((t, i) => ({
-          id: `gem-${Date.now()}-${i}`,
-          name: t.name,
-          url: t.url,
-          source: "gemini" as const,
-          oneLineSummary: t.oneLineSummary,
-          analysisStatus: "listed" as const,
-          adopted: false,
-        }));
-      onChange({ ...references, analysisTargetList: [...list, ...added] });
+      onChange((prev) => {
+        const prevList = prev.analysisTargetList ?? [];
+        const existingNames = new Set(prevList.map((t) => t.name));
+        const added: AnalysisTargetListItem[] = (
+          body.targets as { name: string; url: string; oneLineSummary: string }[]
+        )
+          .filter((t) => !existingNames.has(t.name))
+          .map((t, i) => ({
+            id: `gem-${Date.now()}-${i}`,
+            name: t.name,
+            url: t.url,
+            source: "gemini" as const,
+            oneLineSummary: t.oneLineSummary,
+            analysisStatus: "listed" as const,
+            adopted: false,
+          }));
+        return { ...prev, analysisTargetList: [...prevList, ...added] };
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "목록 생성에 실패했습니다.");
     } finally {
@@ -167,10 +175,10 @@ export default function TargetsTab({
   const addManual = () => {
     const name = manualName.trim();
     if (!name) return;
-    onChange({
-      ...references,
+    onChange((prev) => ({
+      ...prev,
       analysisTargetList: [
-        ...list,
+        ...(prev.analysisTargetList ?? []),
         {
           id: `man-${Date.now()}`,
           name,
@@ -181,7 +189,7 @@ export default function TargetsTab({
           adopted: false,
         },
       ],
-    });
+    }));
     setManualName("");
     setManualUrl("");
   };
@@ -191,13 +199,16 @@ export default function TargetsTab({
     if (!force) {
       const cached = getCachedTargetAnalysis(item.name);
       if (cached) {
-        onChange({
-          ...references,
-          analysisTargetList: list.map((t) =>
+        onChange((prev) => ({
+          ...prev,
+          analysisTargetList: (prev.analysisTargetList ?? []).map((t) =>
             t.id === item.id ? { ...t, analysisStatus: "analyzed" } : t,
           ),
-          targetAnalyses: { ...analyses, [item.id]: { ...cached, id: item.id } },
-        });
+          targetAnalyses: {
+            ...(prev.targetAnalyses ?? {}),
+            [item.id]: { ...cached, id: item.id },
+          },
+        }));
         setOpenId(item.id);
         return;
       }
@@ -228,13 +239,13 @@ export default function TargetsTab({
         analyzedAt: new Date().toISOString(),
       };
       setCachedTargetAnalysis(item.name, full);
-      onChange({
-        ...references,
-        analysisTargetList: list.map((t) =>
+      onChange((prev) => ({
+        ...prev,
+        analysisTargetList: (prev.analysisTargetList ?? []).map((t) =>
           t.id === item.id ? { ...t, analysisStatus: "analyzed" } : t,
         ),
-        targetAnalyses: { ...analyses, [item.id]: full },
-      });
+        targetAnalyses: { ...(prev.targetAnalyses ?? {}), [item.id]: full },
+      }));
       setOpenId(item.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "분석에 실패했습니다.");
