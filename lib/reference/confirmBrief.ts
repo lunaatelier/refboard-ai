@@ -1,5 +1,6 @@
 import type { ProjectAnalysis } from "../analysis/types";
 import { hashValue } from "../state/hash";
+import { resolvePageBoardSummary } from "./pageBoard";
 import type {
   BrandDecision,
   ConfirmedReferenceBrief,
@@ -105,10 +106,12 @@ export function buildConfirmedBrief(
     .map((page) => ({
       pageId: page.pageId,
       pageTitle: page.pageTitle,
-      // 페이지 목적을 담는 전용 필드가 아직 없다(P5 페이지 보드에서 도입 예정) —
-      // 그때까지는 대표 확정 섹션 요약을 임시로 쓴다.
-      purposeSummary:
-        page.sections.find((s) => s.status === "confirmed")?.contentSummary ?? "",
+      // P5-1: Page 원본을 건드리지 않고 로컬 규칙(+사용자 덮어쓰기)으로 파생한다.
+      purposeSummary: resolvePageBoardSummary(
+        page,
+        analysis,
+        references.pageMetaById?.[page.pageId],
+      ).purposeSummary,
       sections: page.sections
         .filter((s) => s.status === "confirmed")
         .map((section) => {

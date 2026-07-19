@@ -276,6 +276,23 @@ describe("confirmBrief — 페이지/섹션 범위", () => {
   });
 });
 
+describe("confirmBrief — 페이지 목적 요약 (P5-1)", () => {
+  it("pageMetaById 덮어쓰기가 없으면 로컬 파생값(pageRole 템플릿)을 쓴다", () => {
+    const brief = buildConfirmedBrief(makeAnalysis(), makeReferences(), {
+      now: fixedNow,
+    });
+    assert.equal(brief.pages[0].purposeSummary, "첫인상과 핵심 가치 제안 전달");
+  });
+
+  it("pageMetaById 덮어쓰기가 있으면 그 값을 쓴다", () => {
+    const refs = makeReferences({
+      pageMetaById: { p1: { purposeSummary: "사용자가 직접 쓴 목적" } },
+    });
+    const brief = buildConfirmedBrief(makeAnalysis(), refs, { now: fixedNow });
+    assert.equal(brief.pages[0].purposeSummary, "사용자가 직접 쓴 목적");
+  });
+});
+
 describe("confirmBrief — 채택 상태별 필터링", () => {
   it("applied만 포함하고 reference-only/excluded는 제외한다", () => {
     const refs = makeReferences({

@@ -314,6 +314,16 @@ export interface ReferenceResult {
   confirmedBrief?: ConfirmedReferenceBrief;
   revision?: WorkflowRevision; // 마이그레이션 기간 optional — confirmBrief가 생성 시 채운다
   baseContentVariantId?: string; // 콘텐츠 변형이 2개 이상일 때 사용자가 고른 기준 변형(§6.7)
+  // ── 페이지 보드 (P5) ──
+  pageMetaById?: Record<string, PageMetaOverride>; // key: pageId — 파생 요약의 사용자 덮어쓰기
+}
+
+// 페이지 보드 목적/핵심 대상 요약의 사용자 덮어쓰기 (P5-1) — Page 원본(분석 결과,
+// analysisHash에 들어감)은 건드리지 않고 여기 별도로 둔다. 없으면
+// lib/reference/pageBoard.ts의 로컬 파생값을 그대로 쓴다.
+export interface PageMetaOverride {
+  purposeSummary?: string;
+  audienceSummary?: string;
 }
 
 // React의 setState처럼 "현재 값을 함수로 받아 다음 값을 반환"하는 형태도 허용한다.
