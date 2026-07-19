@@ -3,7 +3,6 @@ import { hashValue } from "../state/hash";
 import type {
   BrandDecision,
   ConfirmedReferenceBrief,
-  MoodImage,
   PageReferenceDecision,
   ReferenceAdoption,
   ReferenceResult,
@@ -12,6 +11,11 @@ import type {
 // 편집 중인 ReferenceResult에서 사용자가 실제로 채택한 결정만 남긴 불변 스냅샷을
 // 만드는 순수 함수 (§6.4). 같은 입력이면 항상 같은 결과를 낸다 — 미선택 검색 결과,
 // 미채택 분석, 원문·복원 매핑은 이 함수를 거치지 않는다(애초에 읽지 않는다).
+//
+// P3-5: 무드·이미지 선택은 이제 references.directionOptions[selectedDirectionId]가
+// 단일 출처다(예전 selectedMoodId/globalMood/selectedMoodImageUrls는 삭제됨).
+// 팔레트 역할 편집본(editedPaletteOption/paletteMode)만 별도 상태로 남아있다 —
+// direction은 paletteOptionId 참조만 갖고, 실제 역할 재배치 결과는 저장하지 않는다.
 
 export const CONCEPT_PROMPT_VERSION = "concept-v1";
 
@@ -30,20 +34,22 @@ export function buildConfirmedBrief(
   const promptVersion = options.promptVersion ?? CONCEPT_PROMPT_VERSION;
   const confirmedAt = (options.now ?? defaultNow)();
 
+  const selectedDirection = references.directionOptions?.find(
+    (d) => d.directionId === references.selectedDirectionId,
+  );
+  if (!selectedDirection) {
+    throw new ConfirmBriefError("방향이 확정되지 않았습니다.");
+  }
+
   const editedPaletteOption = references.editedPaletteOption;
   if (!editedPaletteOption) {
     throw new ConfirmBriefError("팔레트가 확정되지 않았습니다.");
   }
   const paletteMode = references.paletteMode ?? "light";
 
-  const selectedMood = references.moodOptions?.find(
-    (m) => m.id === references.selectedMoodId,
-  );
-  if (!selectedMood) {
-    throw new ConfirmBriefError("무드가 확정되지 않았습니다.");
-  }
-
-  const selectedMoodImages = resolveSelectedMoodImages(references);
+  const selectedMoodImages = selectedDirection.imageCandidates
+    .filter((c) => c.selected)
+    .map((c) => ({ url: c.url, source: c.source, attribution: c.attribution }));
   if (selectedMoodImages.length > 4) {
     throw new ConfirmBriefError("선택 이미지는 최대 4장까지 확정할 수 있습니다.");
   }
@@ -83,12 +89,12 @@ export function buildConfirmedBrief(
     paletteOptionId: editedPaletteOption.optionId,
     editedPaletteOption,
     paletteMode,
-    moodId: selectedMood.id,
-    moodKeywords: references.globalMood?.keywords ?? selectedMood.keywords,
-    typographyDirection: selectedMood.styleAttributes.typographyNote,
+    moodId: selectedDirection.moodOptionId,
+    moodKeywords: selectedDirection.keywords,
+    typographyDirection: selectedDirection.typography.title.note,
     selectedMoodImages,
-    styleAttributes: selectedMood.styleAttributes,
-    avoidDirections: references.avoidDirections ?? [],
+    styleAttributes: selectedDirection.styleAttributes,
+    avoidDirections: selectedDirection.avoidDirections,
   };
 
   const analysisHash = hashValue(buildAnalysisDigest(analysis));
@@ -161,16 +167,6 @@ function defaultNow(): string {
 
 function sectionKey(pageId: string, sectionId: string): string {
   return `${pageId}::${sectionId}`;
-}
-
-// P3 무드보드의 이미지별 선택·제외 UI(선택 이미지 최대 4장)가 아직 없다 — 그때까지는
-// selectedMoodImageUrls가 있으면 그 부분집합만, 없으면 무드 검색 결과의 앞 4장만 쓴다.
-function resolveSelectedMoodImages(references: ReferenceResult): MoodImage[] {
-  const available = references.globalMood?.images ?? [];
-  const selectedUrls = references.selectedMoodImageUrls;
-  if (!selectedUrls) return available.slice(0, 4);
-  const urlSet = new Set(selectedUrls);
-  return available.filter((img) => urlSet.has(img.url));
 }
 
 // 컨셉 API가 받은 ConfirmedReferenceBrief가 "지금" 분석 결과와 실제로 맞물리는지

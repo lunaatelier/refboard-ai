@@ -110,8 +110,11 @@ export default function ImageHintsTab({
     setBusy(true);
     setError(undefined);
     try {
+      const selectedDirection = references.directionOptions?.find(
+        (d) => d.directionId === references.selectedDirectionId,
+      );
       const mood = references.moodOptions?.find(
-        (m) => m.id === references.selectedMoodId,
+        (m) => m.id === selectedDirection?.moodOptionId,
       );
       const skeletons = buildHintSkeletons(analysis, mood);
       const res = await fetch("/api/image-hints", {

@@ -66,12 +66,6 @@ export interface MoodOption {
   avoidDirections: string[]; // P3 — 이 무드와 어울리지 않는 방향 조언 (최대 3개)
 }
 
-export interface MoodBoard {
-  keywords: string[];
-  description: string;
-  images: MoodImage[];
-}
-
 export interface ReferenceQuery {
   platform: string; // Dribbble, Behance, Mobbin ...
   query: string; // 플랫폼 강점에 매핑된 검색어
@@ -290,7 +284,7 @@ export interface ConfirmedReferenceBrief {
     moodKeywords: string[];
     typographyDirection: string;
     selectedMoodImages: MoodImage[];
-    styleAttributes: MoodOption["styleAttributes"];
+    styleAttributes: DirectionStyleAttributes;
     avoidDirections: string[];
   };
   pages: PageReferenceDecision[];
@@ -304,11 +298,9 @@ export interface ReferenceResult {
   // "이 컬러로 3세트 재생성"에 쓴 키 컬러 — 카드별 개별 재생성 때 같은 브랜드 기준으로 재사용.
   paletteBrandHex?: string;
   // 선택한 옵션의 편집본 (역할 재배치 반영). selectedPalette = editedOption[mode].
-  editedPaletteOption?: PaletteOption;
+  editedPaletteOption?: PaletteOption; // 선택된 방향의 팔레트 편집본 (역할 재배치 반영)
   paletteMode?: "light" | "dark";
   moodOptions?: MoodOption[];
-  selectedMoodId?: string;
-  globalMood?: MoodBoard; // 선택 무드 + 이미지
   bySectionId?: Record<string, SectionReference>; // 섹션별 (Step 10-b)
   analysisTargetList?: AnalysisTargetListItem[]; // 1단계 목록 (누적, 사라지지 않음)
   targetAnalyses?: Record<string, AnalysisTargetAnalysis>; // id → 깊은 분석 (누적)
@@ -317,10 +309,8 @@ export interface ReferenceResult {
   referenceConfirmed?: boolean; // ④ 전체 확정 (Step 10-c)
   // ── 확정 결정 계약 (P1) ──
   directionOptions?: DirectionOption[];
-  selectedDirectionId?: string;
+  selectedDirectionId?: string; // 방향 3안 중 선택된 1안 — 팔레트/무드/이미지 선택의 단일 출처(P3-5)
   referenceAdoptions?: Record<string, ReferenceAdoption>; // key: adoptionId
-  selectedMoodImageUrls?: string[];
-  avoidDirections?: string[];
   confirmedBrief?: ConfirmedReferenceBrief;
   revision?: WorkflowRevision; // 마이그레이션 기간 optional — confirmBrief가 생성 시 채운다
   baseContentVariantId?: string; // 콘텐츠 변형이 2개 이상일 때 사용자가 고른 기준 변형(§6.7)

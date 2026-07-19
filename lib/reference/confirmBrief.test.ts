@@ -7,6 +7,7 @@ import {
   ConfirmBriefError,
 } from "./confirmBrief";
 import type {
+  DirectionOption,
   MoodOption,
   Palette,
   PaletteOption,
@@ -56,6 +57,46 @@ function makeMoodOption(id = "mood-1"): MoodOption {
     },
     recommendedDirections: [],
     avoidDirections: [],
+  };
+}
+
+function makeDirectionOption(overrides: Partial<DirectionOption> = {}): DirectionOption {
+  return {
+    directionId: "mood-1",
+    label: "신뢰의 블루",
+    description: "차분하고 신뢰가 가는 톤",
+    paletteOptionId: "trust",
+    moodOptionId: "mood-1",
+    keywords: ["신뢰감 있는", "안정적인"],
+    typography: {
+      title: { sampleText: "신뢰를 잇는 방법", note: "굵은 산세리프" },
+      body: {
+        sampleText: "차분하고 안정적인 톤을 유지합니다.",
+        note: "본문은 굵기 대비를 최소화",
+      },
+    },
+    styleAttributes: { radius: "soft", density: "airy", contrast: "soft" },
+    imageCandidates: [
+      {
+        url: "https://img.example/1.jpg",
+        source: "unsplash",
+        attribution: "A",
+        role: "hero",
+        selected: true,
+        order: 0,
+      },
+      {
+        url: "https://img.example/2.jpg",
+        source: "unsplash",
+        attribution: "B",
+        role: "supporting",
+        selected: true,
+        order: 1,
+      },
+    ],
+    recommendedDirections: [],
+    avoidDirections: [],
+    ...overrides,
   };
 }
 
@@ -119,15 +160,8 @@ function makeReferences(overrides: Partial<ReferenceResult> = {}): ReferenceResu
     editedPaletteOption: makePaletteOption(),
     paletteMode: "light",
     moodOptions: [makeMoodOption()],
-    selectedMoodId: "mood-1",
-    globalMood: {
-      keywords: ["신뢰감 있는"],
-      description: "차분한 톤",
-      images: [
-        { url: "https://img.example/1.jpg", source: "unsplash", attribution: "A" },
-        { url: "https://img.example/2.jpg", source: "unsplash", attribution: "B" },
-      ],
-    },
+    directionOptions: [makeDirectionOption()],
+    selectedDirectionId: "mood-1",
     ...overrides,
   };
 }
@@ -164,8 +198,16 @@ describe("confirmBrief — 팔레트/무드 확정 검증", () => {
     );
   });
 
-  it("무드 미확정이면 던진다", () => {
-    const refs = makeReferences({ selectedMoodId: undefined });
+  it("방향 미확정이면 던진다", () => {
+    const refs = makeReferences({ selectedDirectionId: undefined });
+    assert.throws(
+      () => buildConfirmedBrief(makeAnalysis(), refs, { now: fixedNow }),
+      ConfirmBriefError,
+    );
+  });
+
+  it("선택된 방향이 directionOptions 목록에 없으면 던진다", () => {
+    const refs = makeReferences({ selectedDirectionId: "does-not-exist" });
     assert.throws(
       () => buildConfirmedBrief(makeAnalysis(), refs, { now: fixedNow }),
       ConfirmBriefError,
@@ -174,19 +216,18 @@ describe("confirmBrief — 팔레트/무드 확정 검증", () => {
 
   it("선택 이미지가 4장을 넘으면 던진다", () => {
     const refs = makeReferences({
-      globalMood: {
-        keywords: [],
-        description: "",
-        images: Array.from({ length: 5 }, (_, i) => ({
-          url: `https://img.example/${i}.jpg`,
-          source: "unsplash" as const,
-          attribution: "A",
-        })),
-      },
-      selectedMoodImageUrls: Array.from(
-        { length: 5 },
-        (_, i) => `https://img.example/${i}.jpg`,
-      ),
+      directionOptions: [
+        makeDirectionOption({
+          imageCandidates: Array.from({ length: 5 }, (_, i) => ({
+            url: `https://img.example/${i}.jpg`,
+            source: "unsplash" as const,
+            attribution: "A",
+            role: "detail" as const,
+            selected: true,
+            order: i,
+          })),
+        }),
+      ],
     });
     assert.throws(
       () => buildConfirmedBrief(makeAnalysis(), refs, { now: fixedNow }),
@@ -262,6 +303,60 @@ describe("confirmBrief — 채택 상태별 필터링", () => {
     });
     assert.equal(brief.pages[0].sections[0].priority, "inherited");
     assert.equal(brief.pages[0].sections[0].decision.source, "inherited");
+  });
+});
+
+describe("confirmBrief — 방향(P3-5): directionOptions가 무드·이미지의 단일 출처", () => {
+  it("moodId/moodKeywords/typographyDirection/avoidDirections이 selectedDirection에서 온다", () => {
+    const refs = makeReferences({
+      directionOptions: [
+        makeDirectionOption({
+          moodOptionId: "mood-1",
+          keywords: ["절제된", "고급스러운"],
+          typography: {
+            title: { sampleText: "제목", note: "커스텀 타이포 노트" },
+            body: { sampleText: "본문", note: "본문 노트" },
+          },
+          avoidDirections: ["화려한 그라디언트"],
+        }),
+      ],
+    });
+    const brief = buildConfirmedBrief(makeAnalysis(), refs, { now: fixedNow });
+    assert.equal(brief.direction.moodId, "mood-1");
+    assert.deepEqual(brief.direction.moodKeywords, ["절제된", "고급스러운"]);
+    assert.equal(brief.direction.typographyDirection, "커스텀 타이포 노트");
+    assert.deepEqual(brief.direction.avoidDirections, ["화려한 그라디언트"]);
+  });
+
+  it("selectedMoodImages는 imageCandidates 중 selected=true만, url/source/attribution만 담는다", () => {
+    const refs = makeReferences({
+      directionOptions: [
+        makeDirectionOption({
+          imageCandidates: [
+            {
+              url: "https://img.example/kept.jpg",
+              source: "pexels",
+              attribution: "Kept",
+              role: "hero",
+              selected: true,
+              order: 0,
+            },
+            {
+              url: "https://img.example/excluded.jpg",
+              source: "pexels",
+              attribution: "Excluded",
+              role: "detail",
+              selected: false,
+              order: 1,
+            },
+          ],
+        }),
+      ],
+    });
+    const brief = buildConfirmedBrief(makeAnalysis(), refs, { now: fixedNow });
+    assert.deepEqual(brief.direction.selectedMoodImages, [
+      { url: "https://img.example/kept.jpg", source: "pexels", attribution: "Kept" },
+    ]);
   });
 });
 

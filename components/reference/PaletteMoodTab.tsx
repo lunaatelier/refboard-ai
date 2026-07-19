@@ -35,9 +35,10 @@ import { ErrorState } from "../shell/PageLayout";
 // 생성 시점에 한 번에 가져온다(§P4 호출 예산 "방향안별 대표 query 약 3회")
 // — 그래야 카드 하나만 봐도 컬러+이미지가 결합된 전체 인상을 비교할 수 있다.
 //
-// P3-5 전까지는 confirmBrief.ts/ImageHintsTab/ConceptWorkspace가 여전히
-// references.editedPaletteOption/paletteMode/selectedMoodId/globalMood를
-// 직접 읽으므로, 방향을 선택할 때 이 필드들도 함께 채워 하위 호환을 유지한다.
+// selectedDirectionId가 무드·이미지 선택의 단일 출처다(P3-5) — confirmBrief.ts/
+// ImageHintsTab은 이걸로 directionOptions에서 직접 조회한다. editedPaletteOption/
+// paletteMode만 별도 상태다 — direction은 paletteOptionId 참조만 가지므로,
+// 역할 재배치(색 유지, 배치만 변경) 편집 결과는 여기 따로 보관해야 한다.
 
 const ROLE_LABELS: Record<PaletteRole, string> = {
   primary: "Primary (강조)",
@@ -132,12 +133,12 @@ export default function PaletteMoodTab({
   const mode = references.paletteMode ?? "light";
   const edited = references.editedPaletteOption;
   const currentPalette: Palette | undefined = edited?.[mode];
-  const selectedMood = references.moodOptions?.find(
-    (m) => m.id === references.selectedMoodId,
-  );
   const directions = references.directionOptions ?? [];
   const selectedDirection = directions.find(
     (d) => d.directionId === references.selectedDirectionId,
+  );
+  const selectedMood = references.moodOptions?.find(
+    (m) => m.id === selectedDirection?.moodOptionId,
   );
 
   const defaultSubjectFor = (direction: DirectionOption) =>
@@ -149,29 +150,15 @@ export default function PaletteMoodTab({
   const queryFor = (direction: DirectionOption) =>
     `${subjectFor(direction)} ${styleFor(direction)}`.trim();
 
-  // 방향 하나의 이미지 후보를 바꾼 뒤, 선택 중인 방향이면 하위 호환 필드
-  // (globalMood.images)도 함께 맞춰준다 — P3-3에서 선택 시점에만 채웠던 것을
-  // 이미지가 바뀔 때마다 다시 맞추는 확장.
+  // 방향 하나의 이미지 후보를 references.directionOptions에 반영한다 — 이미지
+  // 선택 상태의 단일 출처이므로(P3-5), 별도 필드를 다시 맞출 필요가 없다.
   const updateDirection = (updated: DirectionOption) => {
-    onChange((prev) => {
-      const nextDirections = (prev.directionOptions ?? []).map((d) =>
+    onChange((prev) => ({
+      ...prev,
+      directionOptions: (prev.directionOptions ?? []).map((d) =>
         d.directionId === updated.directionId ? updated : d,
-      );
-      const isSelected = prev.selectedDirectionId === updated.directionId;
-      return {
-        ...prev,
-        directionOptions: nextDirections,
-        globalMood:
-          isSelected && prev.globalMood
-            ? {
-                ...prev.globalMood,
-                images: updated.imageCandidates
-                  .filter((c) => c.selected)
-                  .map((c) => ({ url: c.url, source: c.source, attribution: c.attribution })),
-              }
-            : prev.globalMood,
-      };
-    });
+      ),
+    }));
   };
 
   const toggleImageSelected = (direction: DirectionOption, url: string, selected: boolean) => {
@@ -277,10 +264,8 @@ export default function PaletteMoodTab({
       moodOptions: undefined,
       directionOptions: undefined,
       selectedDirectionId: undefined,
-      selectedMoodId: undefined,
       editedPaletteOption: undefined,
       paletteMode: undefined,
-      globalMood: undefined,
     });
   };
 
@@ -348,10 +333,8 @@ export default function PaletteMoodTab({
         moodOptions: moods,
         directionOptions: nextDirections,
         selectedDirectionId: undefined,
-        selectedMoodId: undefined,
         editedPaletteOption: undefined,
         paletteMode: undefined,
-        globalMood: undefined,
       }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "방향 생성에 실패했습니다.");
@@ -360,29 +343,19 @@ export default function PaletteMoodTab({
     }
   };
 
+  // 팔레트 역할 편집본(editedPaletteOption/paletteMode)만 별도 상태로 시드한다 —
+  // 나머지(무드·이미지 선택)는 selectedDirectionId 하나로 directionOptions에서
+  // 바로 읽으므로 별도로 맞춰줄 필드가 없다(P3-5).
   const selectDirection = (direction: DirectionOption) => {
     const palette = (references.paletteOptions ?? []).find(
       (p) => p.optionId === direction.paletteOptionId,
     );
-    const mood = references.moodOptions?.find((m) => m.id === direction.moodOptionId);
     onChange((prev) => ({
       ...prev,
       selectedDirectionId: direction.directionId,
-      // 하위 호환 — P3-5에서 confirmBrief.ts가 directionOptions 기준으로
-      // 바뀌기 전까지, 아래 필드들을 직접 읽는 화면들이 있다.
-      selectedMoodId: direction.moodOptionId,
       editedPaletteOption: palette ? structuredClone(palette) : prev.editedPaletteOption,
       paletteMode:
         prev.paletteMode ?? (analysis.domain === "dashboard-ops" ? "dark" : "light"),
-      globalMood: mood
-        ? {
-            keywords: mood.keywords,
-            description: mood.description,
-            images: direction.imageCandidates
-              .filter((c) => c.selected)
-              .map((c) => ({ url: c.url, source: c.source, attribution: c.attribution })),
-          }
-        : prev.globalMood,
     }));
   };
 

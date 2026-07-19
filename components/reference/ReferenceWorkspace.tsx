@@ -134,7 +134,7 @@ export default function ReferenceWorkspace({
 
       {(() => {
         const selectionComplete = Boolean(
-          references.editedPaletteOption && references.selectedMoodId,
+          references.editedPaletteOption && references.selectedDirectionId,
         );
         const disabled = !selectionComplete || references.referenceConfirmed;
         return (

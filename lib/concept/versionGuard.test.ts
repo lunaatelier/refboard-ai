@@ -54,7 +54,6 @@ describe("versionGuard — ConceptJson 버전 강제", () => {
               radius: "soft",
               density: "airy",
               contrast: "soft",
-              typographyNote: "",
             },
             avoidDirections: [],
           },
