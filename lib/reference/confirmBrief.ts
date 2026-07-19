@@ -1,6 +1,7 @@
 import type { ProjectAnalysis } from "../analysis/types";
 import { hashValue } from "../state/hash";
 import { resolvePageBoardSummary } from "./pageBoard";
+import { sectionKey } from "./sectionPriority";
 import type {
   BrandDecision,
   ConfirmedReferenceBrief,
@@ -117,18 +118,24 @@ export function buildConfirmedBrief(
         .map((section) => {
           const key = sectionKey(page.pageId, section.sectionId);
           const adoptions = appliedByKey.get(key) ?? [];
-          // 섹션 우선순위(고영향/상속/선택)를 사용자가 직접 지정하는 UI는 아직 없다(P5).
-          // 그때까지는 "적용 레퍼런스가 있으면 고영향"으로 유도한다.
           const hasAdoptions = adoptions.length > 0;
+          // P5-2: sectionDecisionsByKey에 명시적 결정(rule 추천 또는 사용자 승격/
+          // 강등)이 있으면 그걸 쓴다. 없으면(레거시 데이터) 기존 휴리스틱으로
+          // 폴백한다 — "적용 레퍼런스가 있으면 고영향".
+          const explicitDecision = references.sectionDecisionsByKey?.[key];
+          const priority =
+            explicitDecision?.priority ?? (hasAdoptions ? "high-impact" : "inherited");
+          const decisionSource =
+            explicitDecision?.source ?? (hasAdoptions ? "user" : "inherited");
           return {
             sectionId: section.sectionId,
             sectionTitle: section.sectionTitle,
-            priority: hasAdoptions ? ("high-impact" as const) : ("inherited" as const),
+            priority,
             layoutPattern:
               references.bySectionId?.[section.sectionId]?.layoutPattern ??
               section.recommendedLayout,
             decision: {
-              source: hasAdoptions ? ("user" as const) : ("inherited" as const),
+              source: decisionSource,
               freshness: "current" as const,
               basedOnHash: hasAdoptions ? directionHash : analysisHash,
             },
@@ -166,10 +173,6 @@ export function buildConfirmedBrief(
 
 function defaultNow(): string {
   return new Date().toISOString();
-}
-
-function sectionKey(pageId: string, sectionId: string): string {
-  return `${pageId}::${sectionId}`;
 }
 
 // 컨셉 API가 받은 ConfirmedReferenceBrief가 "지금" 분석 결과와 실제로 맞물리는지

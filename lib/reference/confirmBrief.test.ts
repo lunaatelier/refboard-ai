@@ -276,6 +276,36 @@ describe("confirmBrief — 페이지/섹션 범위", () => {
   });
 });
 
+describe("confirmBrief — 섹션 우선순위 (P5-2)", () => {
+  it("sectionDecisionsByKey에 명시적 결정이 있으면 그걸 쓴다(적용 레퍼런스 없어도)", () => {
+    const refs = makeReferences({
+      sectionDecisionsByKey: {
+        "p1::p1-s1": { priority: "optional", source: "rule" },
+      },
+    });
+    const brief = buildConfirmedBrief(makeAnalysis(), refs, { now: fixedNow });
+    assert.equal(brief.pages[0].sections[0].priority, "optional");
+    assert.equal(brief.pages[0].sections[0].decision.source, "rule");
+  });
+
+  it("명시적 결정이 없으면(레거시 데이터) 기존 휴리스틱으로 폴백한다", () => {
+    const refs = makeReferences({
+      referenceAdoptions: { a: makeAdoption() },
+    });
+    const brief = buildConfirmedBrief(makeAnalysis(), refs, { now: fixedNow });
+    assert.equal(brief.pages[0].sections[0].priority, "high-impact");
+    assert.equal(brief.pages[0].sections[0].decision.source, "user");
+  });
+
+  it("적용 레퍼런스도 명시적 결정도 없으면 inherited/inherited로 떨어진다", () => {
+    const brief = buildConfirmedBrief(makeAnalysis(), makeReferences(), {
+      now: fixedNow,
+    });
+    assert.equal(brief.pages[0].sections[0].priority, "inherited");
+    assert.equal(brief.pages[0].sections[0].decision.source, "inherited");
+  });
+});
+
 describe("confirmBrief — 페이지 목적 요약 (P5-1)", () => {
   it("pageMetaById 덮어쓰기가 없으면 로컬 파생값(pageRole 템플릿)을 쓴다", () => {
     const brief = buildConfirmedBrief(makeAnalysis(), makeReferences(), {

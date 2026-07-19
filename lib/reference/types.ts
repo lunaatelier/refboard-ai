@@ -160,8 +160,17 @@ export type AdoptionAspect =
   | "interaction"
   | "content-density";
 export type SectionReferencePriority = "high-impact" | "inherited" | "optional";
-export type DecisionSource = "user" | "inherited" | "ai";
+// "rule" = 로컬 키워드 휴리스틱(P5-2)의 추천 — 실제 AI 호출이 아니므로 "ai"와 구분한다.
+export type DecisionSource = "user" | "inherited" | "ai" | "rule";
 export type Freshness = "current" | "stale";
+
+// 섹션 우선순위 작업 상태 (P5-2) — 확정 스냅샷(PageReferenceDecision)과 달리
+// 편집 중에 사용자가 승격/강등한 결정을 여기 저장한다. 명시적 결정이 없으면
+// confirmBrief.ts가 기존 휴리스틱(적용 레퍼런스 있으면 고영향)으로 폴백한다.
+export interface SectionPriorityEntry {
+  priority: SectionReferencePriority;
+  source: DecisionSource;
+}
 
 // 채택 카드 출처. usage는 항상 inspiration-only — 산출물에 자동 삽입하지 않는다.
 export interface ReferenceCandidate {
@@ -316,6 +325,7 @@ export interface ReferenceResult {
   baseContentVariantId?: string; // 콘텐츠 변형이 2개 이상일 때 사용자가 고른 기준 변형(§6.7)
   // ── 페이지 보드 (P5) ──
   pageMetaById?: Record<string, PageMetaOverride>; // key: pageId — 파생 요약의 사용자 덮어쓰기
+  sectionDecisionsByKey?: Record<string, SectionPriorityEntry>; // key: `${pageId}::${sectionId}`
 }
 
 // 페이지 보드 목적/핵심 대상 요약의 사용자 덮어쓰기 (P5-1) — Page 원본(분석 결과,
