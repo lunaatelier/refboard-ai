@@ -29,13 +29,20 @@ export type FetchLike = (
   },
 ) => Promise<MinimalResponse>;
 
+export interface CheckedResponse {
+  response: MinimalResponse;
+  // 리다이렉트를 실제로 따라간 최종 URL — 상대경로 해석(OG 이미지 등)이나
+  // 실제 도착 도메인 검증(P6 브랜드 출처 검증)에 원본 url 대신 이걸 써야 한다.
+  finalUrl: URL;
+}
+
 // 리다이렉트를 fetch에 맡기면(redirect:"follow") 최종 목적지가 SSRF 검사를 안 거친다.
 // 공개 URL이 302로 내부망을 가리켜도 통과해버리므로, 매 홉마다 직접 재검사한다.
 export async function fetchChecked(
   url: URL,
   signal: AbortSignal,
   fetchImpl: FetchLike,
-): Promise<MinimalResponse> {
+): Promise<CheckedResponse> {
   let current = url;
   for (let hop = 0; ; hop++) {
     if (isBlockedLinkTarget(current)) {
@@ -48,7 +55,7 @@ export async function fetchChecked(
     });
     const location = res.headers.get("location");
     if (res.status < 300 || res.status >= 400 || !location) {
-      return res;
+      return { response: res, finalUrl: current };
     }
     if (hop >= MAX_REDIRECTS) {
       throw new TooManyRedirectsError();

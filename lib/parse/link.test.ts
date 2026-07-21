@@ -80,13 +80,14 @@ describe("Step 17 보강 — 리다이렉트 매 홉 SSRF 재검증", () => {
       }
       throw new Error("unexpected host " + url.hostname);
     };
-    const res = await fetchChecked(
+    const { response: res, finalUrl } = await fetchChecked(
       new URL("https://a.example.com/"),
       new AbortController().signal,
       fetchImpl,
     );
     assert.equal(res.status, 200);
     assert.equal(await res.text(), "final body");
+    assert.equal(finalUrl.toString(), "https://b.example.com/final");
   });
 
   it("리다이렉트가 너무 많으면 중단된다", async () => {

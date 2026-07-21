@@ -108,11 +108,25 @@ export async function generateJson<T>(
   }
 }
 
+// P6 — grounding 호출자가 실제 citation을 받아 자체 검증(도메인·안전 fetch)에
+// 쓸 수 있게 한다. 모델이 JSON 본문에 직접 적어 넣은 sourceUrl 문자열은 환각일
+// 수 있으므로(§3.5), 이 sources는 반드시 Gemini의 실제 groundingMetadata에서만
+// 채운다 — 모델이 텍스트로 언급한 URL을 파싱해서 넣지 않는다.
+export interface GroundedSource {
+  url: string;
+  title?: string;
+}
+
+export interface GroundedResult<T> {
+  data: T;
+  sources: GroundedSource[];
+}
+
 // 검색 grounding 호출 (Step 10-c) — 분석 대상 브랜드의 실서비스 URL 확보용 (환각 방지).
 // google_search 도구는 JSON 응답 모드와 함께 쓸 수 없어 텍스트에서 JSON을 추출한다.
 // 주의: 무료 티어에서 grounding 쿼터는 모델별로 다르다 — gemini-3.5-flash는 쿼터가 없어
 // grounding 전용 모델(기본 gemini-2.5-flash)을 분리해서 쓴다.
-export async function generateGroundedJson<T>(prompt: string): Promise<T> {
+export async function generateGroundedJson<T>(prompt: string): Promise<GroundedResult<T>> {
   assertServer();
   const model = process.env.GEMINI_GROUNDING_MODEL || "gemini-2.5-flash";
 
@@ -127,10 +141,21 @@ export async function generateGroundedJson<T>(prompt: string): Promise<T> {
   }
 
   const data = await res.json();
-  const parts: unknown[] = data?.candidates?.[0]?.content?.parts ?? [];
+  const candidate = data?.candidates?.[0];
+  const parts: unknown[] = candidate?.content?.parts ?? [];
   const text = parts
     .map((p) => (typeof (p as { text?: unknown })?.text === "string" ? (p as { text: string }).text : ""))
     .join("");
+
+  const groundingChunks: unknown[] = candidate?.groundingMetadata?.groundingChunks ?? [];
+  const sources: GroundedSource[] = groundingChunks
+    .map((c) => (c as { web?: { uri?: unknown; title?: unknown } })?.web)
+    .filter((w): w is { uri?: unknown; title?: unknown } => Boolean(w))
+    .filter((w): w is { uri: string; title?: unknown } => typeof w.uri === "string")
+    .map((w) => ({
+      url: w.uri,
+      ...(typeof w.title === "string" ? { title: w.title } : {}),
+    }));
 
   // 코드펜스/설명문 속에서 JSON 본문만 추출
   const start = Math.min(
@@ -144,7 +169,7 @@ export async function generateGroundedJson<T>(prompt: string): Promise<T> {
     throw new Error("AI 응답에서 JSON을 찾지 못했습니다.");
   }
   try {
-    return JSON.parse(text.slice(start, end + 1)) as T;
+    return { data: JSON.parse(text.slice(start, end + 1)) as T, sources };
   } catch {
     throw new Error("AI 응답 JSON 파싱에 실패했습니다.");
   }

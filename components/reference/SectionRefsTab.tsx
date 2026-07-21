@@ -4,6 +4,12 @@ import { Check, ChevronDown, ChevronRight, Copy, Info, Link, X } from "lucide-re
 import { useEffect, useRef, useState } from "react";
 import type { Page, ProjectAnalysis, ProjectDirective, Section } from "@/lib/analysis/types";
 import {
+  adoptionForCollected,
+  adoptionsForSection,
+  removeAdoption,
+  setAdoption,
+} from "@/lib/reference/adoption";
+import {
   buildPlatformQueries,
   buildProfiledPlatformQueries,
   platformNameFromUrl,
@@ -17,8 +23,11 @@ import {
 import { seedSectionPriorities, sectionKey } from "@/lib/reference/sectionPriority";
 import { buildSectionQuerySet, type SectionQueryAxis } from "@/lib/reference/sectionQuery";
 import type {
+  AdoptionAspect,
+  AdoptionStatus,
+  CollectedReference,
   MoodImage,
-  ReferenceItem,
+  ReferenceAdoption,
   ReferenceResult,
   ReferenceResultUpdater,
   SectionReference,
@@ -31,8 +40,9 @@ import { ErrorState } from "../shell/PageLayout";
 // 왼쪽 페이지 내비게이션 / 중앙 선택 페이지+섹션 우선순위 / 오른쪽 결정 패널.
 // 여기서 P4(로컬 3축 검색어, UI 용어 없는 사진 검색어, provider 세션 캐시)와
 // P5-1/P5-2(페이지 보드 요약, 섹션 우선순위)의 데이터 계약이 처음으로 화면에 연결된다.
-// 적용/참고만/제외 채택 액션 자체(P5 items 8-13)는 P5-4에서 CollectedReference와
-// 함께 구현한다 — 이 탭은 아직 기존 ReferenceItem URL 수집만 다룬다.
+// 적용/참고만/제외 채택 액션(P5 items 8-13)은 P5-4에서 여기 CollectedReferences에
+// 연결됐다 — confirmBrief.ts는 이미 referenceAdoptions를 소비하도록 되어 있었으므로
+// (P1) 이번이 그 생산자가 처음 생기는 지점이다.
 
 const PROMPT_VERSION = "v1";
 
@@ -40,6 +50,15 @@ const PRIORITY_LABEL: Record<SectionReferencePriority, string> = {
   "high-impact": "고영향",
   inherited: "상속",
   optional: "선택",
+};
+
+const ASPECT_LABEL: Record<AdoptionAspect, string> = {
+  layout: "레이아웃",
+  color: "컬러",
+  typography: "타이포",
+  "image-tone": "이미지 톤",
+  interaction: "인터랙션",
+  "content-density": "정보 밀도",
 };
 
 interface SectionRefsTabProps {
@@ -270,22 +289,49 @@ export default function SectionRefsTab({
     }
   };
 
-  const addReferenceItem = (section: Section, item: ReferenceItem) =>
-    patchRef(section, (ref) => ({ references: [...(ref.references ?? []), item] }));
-
-  const removeReferenceItem = (section: Section, index: number) =>
+  const addCollectedReference = (section: Section, item: CollectedReference) =>
     patchRef(section, (ref) => ({
-      references: (ref.references ?? []).filter((_, i) => i !== index),
+      collectedReferences: [...(ref.collectedReferences ?? []), item],
     }));
 
-  const updateReferenceItem = (
+  const removeCollectedReference = (page: Page, section: Section, id: string) => {
+    patchRef(section, (ref) => ({
+      collectedReferences: (ref.collectedReferences ?? []).filter((r) => r.id !== id),
+    }));
+    // 수집 목록에서 지우면 그 항목에 걸려 있던 채택 결정도 함께 정리한다 —
+    // 원본이 사라졌는데 오른쪽 패널에 채택 흔적만 남는 상태를 피한다.
+    onChange((prev) => removeAdoption(prev, page.pageId, section.sectionId, id));
+  };
+
+  const updateCollectedReference = (
     section: Section,
-    index: number,
-    patch: Partial<ReferenceItem>,
+    id: string,
+    patch: Partial<CollectedReference>,
   ) =>
     patchRef(section, (ref) => ({
-      references: (ref.references ?? []).map((r, i) => (i === index ? { ...r, ...patch } : r)),
+      collectedReferences: (ref.collectedReferences ?? []).map((r) =>
+        r.id === id ? { ...r, ...patch } : r,
+      ),
     }));
+
+  // 적용/참고만/제외 (개선 지시서 P5 items 8-13) — 오른쪽 결정 패널
+  // (referenceAdoptions)에 즉시 반영된다. aspects/note 생략 시 이전 값 보존.
+  const setReferenceAdoption = (
+    page: Page,
+    section: Section,
+    collected: CollectedReference,
+    status: AdoptionStatus,
+    extra?: { aspects?: AdoptionAspect[]; note?: string },
+  ) =>
+    onChange((prev) =>
+      setAdoption(prev, {
+        pageId: page.pageId,
+        sectionId: section.sectionId,
+        collected,
+        status,
+        ...extra,
+      }),
+    );
 
   const totalConfirmed = selectedPages.reduce(
     (n, p) => n + p.sections.filter((s) => s.status === "confirmed").length,
@@ -517,9 +563,17 @@ export default function SectionRefsTab({
               onUpdateQuery={(q) => updateQuery(focusedSection, q)}
               onSetLayout={(l) => setLayout(focusedSection, l)}
               onFetchImages={(q) => fetchSectionImages(focusedSection, q)}
-              onAddReferenceItem={(item) => addReferenceItem(focusedSection, item)}
-              onRemoveReferenceItem={(i) => removeReferenceItem(focusedSection, i)}
-              onUpdateReferenceItem={(i, patch) => updateReferenceItem(focusedSection, i, patch)}
+              onAddCollectedReference={(item) => addCollectedReference(focusedSection, item)}
+              onRemoveCollectedReference={(id) =>
+                removeCollectedReference(focusedPage, focusedSection, id)
+              }
+              onUpdateCollectedReference={(id, patch) =>
+                updateCollectedReference(focusedSection, id, patch)
+              }
+              adoptions={adoptionsForSection(references, focusedPage.pageId, focusedSection.sectionId)}
+              onSetAdoption={(collected, status, extra) =>
+                setReferenceAdoption(focusedPage, focusedSection, collected, status, extra)
+              }
             />
           ) : (
             <p style={{ color: "var(--text-muted)" }}>왼쪽에서 섹션을 선택하세요.</p>
@@ -551,9 +605,15 @@ interface SectionDecisionPanelProps {
   onUpdateQuery: (query: string) => void;
   onSetLayout: (layout: string) => void;
   onFetchImages: (query: string) => void;
-  onAddReferenceItem: (item: ReferenceItem) => void;
-  onRemoveReferenceItem: (index: number) => void;
-  onUpdateReferenceItem: (index: number, patch: Partial<ReferenceItem>) => void;
+  onAddCollectedReference: (item: CollectedReference) => void;
+  onRemoveCollectedReference: (id: string) => void;
+  onUpdateCollectedReference: (id: string, patch: Partial<CollectedReference>) => void;
+  adoptions: ReferenceAdoption[];
+  onSetAdoption: (
+    collected: CollectedReference,
+    status: AdoptionStatus,
+    extra?: { aspects?: AdoptionAspect[]; note?: string },
+  ) => void;
 }
 
 // 섹션 결정 패널 — 고영향이 아니면 상속 안내+승격 버튼만 보여준다(개선 지시서
@@ -579,9 +639,11 @@ function SectionDecisionPanel({
   onUpdateQuery,
   onSetLayout,
   onFetchImages,
-  onAddReferenceItem,
-  onRemoveReferenceItem,
-  onUpdateReferenceItem,
+  onAddCollectedReference,
+  onRemoveCollectedReference,
+  onUpdateCollectedReference,
+  adoptions,
+  onSetAdoption,
 }: SectionDecisionPanelProps) {
   if (priority !== "high-impact") {
     return (
@@ -818,10 +880,12 @@ function SectionDecisionPanel({
       </div>
 
       <CollectedReferences
-        items={sectionRef?.references ?? []}
-        onAdd={onAddReferenceItem}
-        onRemove={onRemoveReferenceItem}
-        onUpdate={onUpdateReferenceItem}
+        items={sectionRef?.collectedReferences ?? []}
+        adoptions={adoptions}
+        onAdd={onAddCollectedReference}
+        onRemove={onRemoveCollectedReference}
+        onUpdate={onUpdateCollectedReference}
+        onSetAdoption={onSetAdoption}
       />
     </div>
   );
@@ -903,19 +967,28 @@ function PlatformRow({
   );
 }
 
-// 수집한 레퍼런스 (Step 10-b, data-model §5 ReferenceItem)
-// 플랫폼 검색에서 찾은 URL을 직접 붙여 수집. 기본 usage = 참고용(안전).
-// "삽입 가능"은 라이선스를 확인한 경우에만 사용자가 명시적으로 바꾼다.
+// 수집한 레퍼런스 (Step 10-b, P5-4 CollectedReference) — 플랫폼 검색에서 찾은
+// URL을 직접 붙여 수집. 기본 usage = 참고용(안전). "삽입 가능"은 라이선스를
+// 확인한 경우에만 사용자가 명시적으로 바꾼다. 항목마다 적용/참고만/제외
+// (개선 지시서 P5 items 8-13)로 referenceAdoptions에 실제 채택 결정을 남긴다.
 function CollectedReferences({
   items,
+  adoptions,
   onAdd,
   onRemove,
   onUpdate,
+  onSetAdoption,
 }: {
-  items: ReferenceItem[];
-  onAdd: (item: ReferenceItem) => void;
-  onRemove: (index: number) => void;
-  onUpdate: (index: number, patch: Partial<ReferenceItem>) => void;
+  items: CollectedReference[];
+  adoptions: ReferenceAdoption[];
+  onAdd: (item: CollectedReference) => void;
+  onRemove: (id: string) => void;
+  onUpdate: (id: string, patch: Partial<CollectedReference>) => void;
+  onSetAdoption: (
+    collected: CollectedReference,
+    status: AdoptionStatus,
+    extra?: { aspects?: AdoptionAspect[]; note?: string },
+  ) => void;
 }) {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
@@ -930,14 +1003,27 @@ function CollectedReferences({
       return;
     }
     setInputError(undefined);
+    const id = makeCollectedReferenceId();
+    const manualTitle = title.trim();
     onAdd({
+      id,
       platform,
       sourceUrl: trimmed,
       usage: "inspiration-only",
-      ...(title.trim() ? { title: title.trim() } : {}),
+      ...(manualTitle ? { title: manualTitle } : {}),
     });
     setUrl("");
     setTitle("");
+    // OG 미리보기(P5-5, 개선 지시서 P5 item 14) — 실패해도 조용히 무시한다.
+    // CollectedReferenceRow는 thumbnail이 없으면 원래대로 텍스트 링크만 보여주므로
+    // 이 fetch가 실패하는 것 자체가 "텍스트 링크로 유지"라는 폴백이다.
+    fetchOgPreview(trimmed).then((meta) => {
+      if (!meta) return;
+      const patch: Partial<CollectedReference> = {};
+      if (meta.image) patch.thumbnail = meta.image;
+      if (!manualTitle && meta.title) patch.title = meta.title;
+      if (Object.keys(patch).length > 0) onUpdate(id, patch);
+    });
   };
 
   return (
@@ -960,85 +1046,15 @@ function CollectedReferences({
 
       {items.length > 0 && (
         <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
-          {items.map((r, i) => (
-            <li
-              key={`${r.sourceUrl}-${i}`}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "var(--space-xs)",
-                padding: "var(--space-sm) var(--space-md)",
-                background: "var(--surface)",
-                borderRadius: "var(--radius-md)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
-                <span style={{ fontSize: 14, fontWeight: 700 }}>{r.platform}</span>
-                <a
-                  href={r.sourceUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  style={{
-                    flex: 1,
-                    minWidth: 160,
-                    fontSize: 14,
-                    color: "var(--primary)",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {r.title || r.sourceUrl}
-                </a>
-                <select
-                  value={r.usage}
-                  onChange={(e) =>
-                    onUpdate(i, {
-                      usage: e.target.value as ReferenceItem["usage"],
-                    })
-                  }
-                  className="select-box"
-                  style={{
-                    color: r.usage === "embeddable" ? "var(--success)" : "var(--warning-weak-text)",
-                    fontWeight: 600,
-                  }}
-                >
-                  <option value="inspiration-only">참고용</option>
-                  <option value="embeddable">삽입 가능</option>
-                </select>
-                <span
-                  title={
-                    "참고용: 무드보드 참고 이미지로만 사용, 산출물에 직접 삽입하지 않음\n" +
-                    "삽입 가능: 라이선스를 확인했고 산출물에 그대로 삽입 가능"
-                  }
-                >
-                  <Info size={14} color="var(--text-muted)" />
-                </span>
-                <button
-                  onClick={() => onRemove(i)}
-                  aria-label="레퍼런스 제외"
-                  title="제외"
-                  className="btn-icon-neutral"
-                  style={{ width: 28, height: 28 }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-              {r.usage === "embeddable" && (
-                <input
-                  value={r.licenseNote ?? ""}
-                  onChange={(e) => onUpdate(i, { licenseNote: e.target.value })}
-                  placeholder="라이선스 근거 메모 (예: CC BY 4.0, 구매 라이선스 보유)"
-                  className="input-box"
-                  style={{
-                    padding: "var(--space-xs) var(--space-sm)",
-                    borderRadius: "var(--radius-sm)",
-                    font: "inherit",
-                    fontSize: 14,
-                  }}
-                />
-              )}
-            </li>
+          {items.map((r) => (
+            <CollectedReferenceRow
+              key={r.id}
+              item={r}
+              adoption={adoptions.find((a) => a.reference.providerId === r.id)}
+              onRemove={() => onRemove(r.id)}
+              onUpdate={(patch) => onUpdate(r.id, patch)}
+              onSetAdoption={(status, extra) => onSetAdoption(r, status, extra)}
+            />
           ))}
         </ul>
       )}
@@ -1094,5 +1110,208 @@ function CollectedReferences({
         </p>
       )}
     </div>
+  );
+}
+
+function makeCollectedReferenceId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `col-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function fetchOgPreview(
+  url: string,
+): Promise<{ title?: string; image?: string } | null> {
+  try {
+    const res = await fetch("/api/og-preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    if (!res.ok) return null;
+    const body = await res.json().catch(() => null);
+    return body && typeof body === "object" ? body : null;
+  } catch {
+    return null;
+  }
+}
+
+const ADOPTION_STATUS_OPTIONS: { value: AdoptionStatus; label: string }[] = [
+  { value: "applied", label: "적용" },
+  { value: "reference-only", label: "보관" },
+  { value: "excluded", label: "제외" },
+];
+
+// 채택 결정 = usage(참고용/삽입 가능, 저작권 문제)와 별개 축이다 — P5 kickoff
+// 리뷰에서 확정된 구분(§[[refboard-ai-pending-work]]). "보관"이라는 한글 라벨을
+// 골라 usage의 "참고만"과 헷갈리지 않게 한다.
+function CollectedReferenceRow({
+  item,
+  adoption,
+  onRemove,
+  onUpdate,
+  onSetAdoption,
+}: {
+  item: CollectedReference;
+  adoption: ReferenceAdoption | undefined;
+  onRemove: () => void;
+  onUpdate: (patch: Partial<CollectedReference>) => void;
+  onSetAdoption: (status: AdoptionStatus, extra?: { aspects?: AdoptionAspect[]; note?: string }) => void;
+}) {
+  const [note, setNote] = useState(adoption?.note ?? "");
+  const applied = adoption?.status === "applied";
+  const aspects = adoption?.aspects ?? [];
+
+  const toggleAspect = (aspect: AdoptionAspect) => {
+    const next = aspects.includes(aspect)
+      ? aspects.filter((a) => a !== aspect)
+      : [...aspects, aspect];
+    onSetAdoption("applied", { aspects: next, note });
+  };
+
+  return (
+    <li
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--space-xs)",
+        padding: "var(--space-sm) var(--space-md)",
+        background: "var(--surface)",
+        borderRadius: "var(--radius-md)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+        {item.thumbnail && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.thumbnail}
+            alt=""
+            style={{
+              width: 48,
+              height: 32,
+              objectFit: "cover",
+              borderRadius: "var(--radius-sm)",
+              flexShrink: 0,
+            }}
+          />
+        )}
+        <span style={{ fontSize: 14, fontWeight: 700 }}>{item.platform}</span>
+        <a
+          href={item.sourceUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+          style={{
+            flex: 1,
+            minWidth: 160,
+            fontSize: 14,
+            color: "var(--primary)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {item.title || item.sourceUrl}
+        </a>
+        <select
+          value={item.usage}
+          onChange={(e) => onUpdate({ usage: e.target.value as CollectedReference["usage"] })}
+          className="select-box"
+          style={{
+            color: item.usage === "embeddable" ? "var(--success)" : "var(--warning-weak-text)",
+            fontWeight: 600,
+          }}
+        >
+          <option value="inspiration-only">참고용</option>
+          <option value="embeddable">삽입 가능</option>
+        </select>
+        <span
+          title={
+            "참고용: 무드보드 참고 이미지로만 사용, 산출물에 직접 삽입하지 않음\n" +
+            "삽입 가능: 라이선스를 확인했고 산출물에 그대로 삽입 가능"
+          }
+        >
+          <Info size={14} color="var(--text-muted)" />
+        </span>
+        <button
+          onClick={onRemove}
+          aria-label="레퍼런스 제외"
+          title="수집 목록에서 삭제"
+          className="btn-icon-neutral"
+          style={{ width: 28, height: 28 }}
+        >
+          <X size={14} />
+        </button>
+      </div>
+
+      {item.usage === "embeddable" && (
+        <input
+          value={item.licenseNote ?? ""}
+          onChange={(e) => onUpdate({ licenseNote: e.target.value })}
+          placeholder="라이선스 근거 메모 (예: CC BY 4.0, 구매 라이선스 보유)"
+          className="input-box"
+          style={{
+            padding: "var(--space-xs) var(--space-sm)",
+            borderRadius: "var(--radius-sm)",
+            font: "inherit",
+            fontSize: 14,
+          }}
+        />
+      )}
+
+      <div style={{ display: "flex", gap: "var(--space-xs)" }}>
+        {ADOPTION_STATUS_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => onSetAdoption(opt.value, { aspects, note })}
+            className="btn-tertiary"
+            style={{
+              padding: "4px var(--space-sm)",
+              borderRadius: "var(--radius-full)",
+              border: "none",
+              fontSize: 13,
+              fontWeight: 600,
+              background:
+                adoption?.status === opt.value ? "var(--primary-weak-bg)" : "var(--surface-alt)",
+              color:
+                adoption?.status === opt.value ? "var(--primary-hover)" : "var(--text-muted)",
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {applied && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+          <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+            {(Object.keys(ASPECT_LABEL) as AdoptionAspect[]).map((aspect) => (
+              <label
+                key={aspect}
+                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13 }}
+              >
+                <input
+                  type="checkbox"
+                  checked={aspects.includes(aspect)}
+                  onChange={() => toggleAspect(aspect)}
+                />
+                {ASPECT_LABEL[aspect]}
+              </label>
+            ))}
+          </div>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onBlur={() => onSetAdoption("applied", { aspects, note })}
+            placeholder="적용 메모 (예: 히어로 레이아웃만 참고, 컬러는 제외)"
+            className="input-box"
+            style={{
+              padding: "var(--space-xs) var(--space-sm)",
+              borderRadius: "var(--radius-sm)",
+              font: "inherit",
+              fontSize: 14,
+            }}
+          />
+        </div>
+      )}
+    </li>
   );
 }

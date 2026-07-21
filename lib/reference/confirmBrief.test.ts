@@ -466,6 +466,55 @@ describe("confirmBrief — 브랜드 결정", () => {
     assert.deepEqual(brief.brandDecisions[0].adoptedPatterns, ["명확한 CTA"]);
     assert.deepEqual(brief.brandDecisions[0].avoidedPatterns, ["복잡한 내비게이션"]);
   });
+
+  it("brandDecisionOverrides(사용자 편집)가 있으면 wowPoints/painPoints보다 우선한다", () => {
+    const refs = makeReferences({
+      analysisTargetList: [
+        {
+          id: "t1",
+          name: "브랜드A",
+          url: "https://a.example",
+          source: "manual",
+          oneLineSummary: "요약",
+          analysisStatus: "analyzed",
+          adopted: true,
+        },
+      ],
+      targetAnalyses: {
+        t1: {
+          id: "t1",
+          name: "브랜드A",
+          depth: "deep",
+          layoutStrategy: "",
+          colorVisualStrategy: "",
+          componentPattern: "",
+          painPoints: ["복잡한 내비게이션"],
+          wowPoints: ["명확한 CTA"],
+          estimatedIntent: "",
+          implications: "",
+          sourceUrl: "https://a.example",
+          verifiedSources: [
+            {
+              url: "https://a.example",
+              status: "official",
+              groundingCited: true,
+              domainVerified: true,
+              fetchedAt: fixedNow(),
+            },
+          ],
+          confidence: "추천",
+          analyzedAt: fixedNow(),
+        },
+      },
+      brandDecisionOverrides: {
+        t1: { adoptedPatterns: ["사용자가 남긴 것"], avoidedPatterns: [] },
+      },
+    });
+    const brief = buildConfirmedBrief(makeAnalysis(), refs, { now: fixedNow });
+    assert.deepEqual(brief.brandDecisions[0].adoptedPatterns, ["사용자가 남긴 것"]);
+    assert.deepEqual(brief.brandDecisions[0].avoidedPatterns, []);
+    assert.equal(brief.brandDecisions[0].verifiedSources[0].status, "official");
+  });
 });
 
 describe("confirmBrief — 해시 결정성", () => {

@@ -73,9 +73,13 @@ export interface ReferenceQuery {
   url?: string; // auto-search일 때 검색 이동 URL
 }
 
-// 레퍼런스 항목 (Step 10, data-model §5) — 문서형 레퍼런스는 저작권 민감 → usage/license 구분.
+// 수집한 레퍼런스 (Step 10, P5-4) — 문서형 레퍼런스는 저작권 민감 → usage/license 구분.
 // 크롤러를 쓰지 않으므로(CLAUDE.md §7) 항목은 사용자가 플랫폼 검색에서 찾은 URL을 직접 붙여 수집한다.
-export interface ReferenceItem {
+// P5 kickoff 리뷰(§[[refboard-ai-pending-work]]) 결정: 배열 인덱스로 mutate하던 옛
+// ReferenceItem[] 대신 안정 id를 가진다 — 채택(ReferenceAdoption) 생성 시 이 id가
+// ReferenceCandidate.providerId로 그대로 흘러가 재적용/해제를 안정적으로 추적한다.
+export interface CollectedReference {
+  id: string; // 안정 식별자 — 배열 위치가 바뀌어도 유지
   platform: string; // URL에서 자동 인식 (등록 플랫폼 매칭, 아니면 호스트명)
   title?: string;
   sourceUrl: string;
@@ -90,7 +94,7 @@ export interface SectionReference {
   layoutPattern: string; // 사용자 선택 확정
   searchQuery: string; // 이 섹션의 대표 검색어 (Gemini 생성, 편집 가능)
   platformQueries: ReferenceQuery[];
-  references?: ReferenceItem[]; // 수집한 레퍼런스 (usage/권리 포함)
+  collectedReferences?: CollectedReference[]; // 수집한 레퍼런스 (usage/권리 포함, 채택 전 원재료)
   images?: MoodImage[]; // 이 섹션 검색어로 가져온 레퍼런스 이미지 (전역 무드보드와 별개)
 }
 
@@ -121,7 +125,10 @@ export interface AnalysisTargetAnalysis {
   wowPoints: string[]; // 5. 와우포인트
   estimatedIntent: string; // 6. 추정 의도
   implications: string; // 7. 우리 프로젝트 시사점
-  sourceUrl: string; // grounding 출처 (환각 방지)
+  sourceUrl: string; // 모델이 JSON에 직접 적은 참고용 출처 — 환각 가능, 신뢰 근거로 쓰지 않는다(§3.5)
+  // P6 — 실제 Gemini grounding citation + 도메인 관계 + 안전 fetch로 검증한 출처.
+  // 구버전 캐시(targetCache)에는 없을 수 있어 optional.
+  verifiedSources?: VerifiedSource[];
   confidence: "추천"; // 확정 아님 — "추정 포함, 확인 필요"
   analyzedAt: string; // 캐시용 ("N일 전 분석" 표시)
 }
@@ -326,6 +333,8 @@ export interface ReferenceResult {
   // ── 페이지 보드 (P5) ──
   pageMetaById?: Record<string, PageMetaOverride>; // key: pageId — 파생 요약의 사용자 덮어쓰기
   sectionDecisionsByKey?: Record<string, SectionPriorityEntry>; // key: `${pageId}::${sectionId}`
+  // ── 브랜드 분석 채택 (P6) ──
+  brandDecisionOverrides?: Record<string, BrandDecisionOverride>; // key: AnalysisTargetListItem.id
 }
 
 // 페이지 보드 목적/핵심 대상 요약의 사용자 덮어쓰기 (P5-1) — Page 원본(분석 결과,
@@ -334,6 +343,14 @@ export interface ReferenceResult {
 export interface PageMetaOverride {
   purposeSummary?: string;
   audienceSummary?: string;
+}
+
+// 가져올 점/피할 점 사용자 편집 상태 (P6) — 심층 분석 직후 wowPoints/painPoints로
+// 한 번만 시드하고(lib/reference/brandDecision.ts), 이후 사용자가 체크 해제·직접
+// 추가한 결과만 여기 남는다. confirmBrief.ts가 이 값을 BrandDecision으로 옮긴다.
+export interface BrandDecisionOverride {
+  adoptedPatterns: string[];
+  avoidedPatterns: string[];
 }
 
 // React의 setState처럼 "현재 값을 함수로 받아 다음 값을 반환"하는 형태도 허용한다.

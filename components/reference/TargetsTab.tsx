@@ -9,6 +9,12 @@ import type {
 } from "@/lib/analysis/types";
 import type { ExtractedAnalysisTarget } from "@/lib/masking/types";
 import {
+  addCustomPattern,
+  seedBrandDecision,
+  togglePattern,
+  type BrandPatternField,
+} from "@/lib/reference/brandDecision";
+import {
   daysAgo,
   getCachedTargetAnalysis,
   setCachedTargetAnalysis,
@@ -16,8 +22,10 @@ import {
 import type {
   AnalysisTargetAnalysis,
   AnalysisTargetListItem,
+  BrandDecisionOverride,
   ReferenceResult,
   ReferenceResultUpdater,
+  VerifiedSource,
 } from "@/lib/reference/types";
 import { ErrorState } from "../shell/PageLayout";
 
@@ -45,7 +53,19 @@ const card: React.CSSProperties = {
 
 const VISIBLE_TARGET_COUNT = 9;
 
-const AXIS_LABELS: [keyof AnalysisTargetAnalysis, string][] = [
+// 7축 값만 문자열/문자열배열이라고 정확히 좁혀둔다 — keyof AnalysisTargetAnalysis
+// 전체로 두면 P6에서 추가된 verifiedSources(VerifiedSource[])까지 유니온에 섞여
+// 아래 렌더링에서 타입 에러가 난다.
+type AxisKey =
+  | "layoutStrategy"
+  | "colorVisualStrategy"
+  | "componentPattern"
+  | "painPoints"
+  | "wowPoints"
+  | "estimatedIntent"
+  | "implications";
+
+const AXIS_LABELS: [AxisKey, string][] = [
   ["layoutStrategy", "1. 레이아웃 전략"],
   ["colorVisualStrategy", "2. 컬러·비주얼 전략"],
   ["componentPattern", "3. 컴포넌트 패턴"],
@@ -54,6 +74,14 @@ const AXIS_LABELS: [keyof AnalysisTargetAnalysis, string][] = [
   ["estimatedIntent", "6. 추정 의도"],
   ["implications", "7. 우리 프로젝트 시사점"],
 ];
+
+// P6 — 실제 grounding+도메인+fetch 검증 결과 배지 (모델이 적은 sourceUrl 문자열과
+// 구분되는, 신뢰 가능한 출처 상태만 여기 표시한다).
+const SOURCE_STATUS: Record<VerifiedSource["status"], { label: string; bg: string; fg: string }> = {
+  official: { label: "공식 확인됨", bg: "var(--success-weak-bg)", fg: "var(--success)" },
+  supporting: { label: "보조 출처", bg: "var(--info-weak-bg)", fg: "var(--info)" },
+  unverified: { label: "미확인", bg: "var(--warning-weak-bg)", fg: "var(--warning-weak-text)" },
+};
 
 function hostnameOf(url: string): string | null {
   try {
@@ -78,6 +106,10 @@ export default function TargetsTab({
   const [manualName, setManualName] = useState("");
   const [manualUrl, setManualUrl] = useState("");
   const [showAllTargets, setShowAllTargets] = useState(false);
+  // 가져올 점/피할 점에 직접 문구를 추가하는 입력란 — 대상 id별로 따로 둔다.
+  const [customPatternInput, setCustomPatternInput] = useState<
+    Record<string, { adoptedPatterns: string; avoidedPatterns: string }>
+  >({});
   // 같은 대상을 "새로 분석"으로 다시 누르면 이전 요청은 취소한다(§P1 item 8).
   const analyzeAbortRef = useRef<Record<string, AbortController>>({});
 
@@ -119,6 +151,42 @@ export default function TargetsTab({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 심층 분석이 있는 대상은 가져올점/피할점 편집 상태를 항상 시드해둔다(멱등,
+  // 이미 있으면 그대로) — IndexedDB로 복원된 구버전 세션처럼 targetAnalyses는
+  // 있는데 brandDecisionOverrides가 없는 경우까지 커버한다.
+  useEffect(() => {
+    const ids = Object.keys(analyses);
+    if (ids.length === 0) return;
+    onChange((prev) => {
+      let next = prev.brandDecisionOverrides ?? {};
+      for (const id of ids) {
+        const deep = prev.targetAnalyses?.[id];
+        if (!deep) continue;
+        next = seedBrandDecision(id, deep, next);
+      }
+      return next === (prev.brandDecisionOverrides ?? {}) ? prev : { ...prev, brandDecisionOverrides: next };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Object.keys(analyses).join(",")]);
+
+  // brandDecisionOverrides가 아직 시드되기 전(마운트 직후 effect가 아직 안
+  // 돌았을 때)에도 안전하게 동작하도록, 없으면 targetAnalyses에서 즉석 시드한다.
+  const patchBrandDecision = (
+    id: string,
+    updater: (override: BrandDecisionOverride) => BrandDecisionOverride,
+  ) =>
+    onChange((prev) => {
+      const deep = prev.targetAnalyses?.[id];
+      const current =
+        prev.brandDecisionOverrides?.[id] ??
+        (deep ? { adoptedPatterns: [...deep.wowPoints], avoidedPatterns: [...deep.painPoints] } : undefined);
+      if (!current) return prev;
+      return {
+        ...prev,
+        brandDecisionOverrides: { ...prev.brandDecisionOverrides, [id]: updater(current) },
+      };
+    });
 
   const patchItem = (id: string, patch: Partial<AnalysisTargetListItem>) =>
     onChange((prev) => ({
@@ -544,30 +612,126 @@ export default function TargetsTab({
                     }}
                   >
                     <AlertTriangle size={16} color="var(--warning-weak-text)" />
-                    추정 포함, 확인 필요 · 출처:{" "}
+                    추정 포함, 확인 필요 · 모델이 밝힌 출처:{" "}
                     <a href={a.sourceUrl} target="_blank" rel="noreferrer noopener" style={{ color: "var(--primary)" }}>
                       {a.sourceUrl}
                     </a>
                   </p>
-                  {AXIS_LABELS.map(([key, label]) => {
-                    const v = a[key];
-                    return (
-                      <div key={key}>
-                        <b style={{ fontSize: 14 }}>{label}</b>
-                        {Array.isArray(v) ? (
-                          <ul style={{ paddingLeft: 20, fontSize: 14, color: "var(--text-muted)" }}>
-                            {v.map((x, i) => (
-                              <li key={i}>{x}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
-                            {String(v)}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
+
+                  {a.verifiedSources && a.verifiedSources.length > 0 && (
+                    <div>
+                      <b style={{ fontSize: 14 }}>검증된 출처</b>
+                      <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
+                        {a.verifiedSources.map((s, i) => {
+                          const status = SOURCE_STATUS[s.status];
+                          return (
+                            <li key={i} style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+                              <span style={pill(status.bg, status.fg)}>{status.label}</span>
+                              <a
+                                href={s.url}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                style={{
+                                  fontSize: 14,
+                                  color: "var(--primary)",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  maxWidth: 360,
+                                }}
+                              >
+                                {s.url}
+                              </a>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
+
+                  <BrandPatternList
+                    title="가져올 점"
+                    patterns={references.brandDecisionOverrides?.[item.id]?.adoptedPatterns ?? a.wowPoints}
+                    inputValue={customPatternInput[item.id]?.adoptedPatterns ?? ""}
+                    onInputChange={(v) =>
+                      setCustomPatternInput((prev) => ({
+                        ...prev,
+                        [item.id]: {
+                          avoidedPatterns: prev[item.id]?.avoidedPatterns ?? "",
+                          adoptedPatterns: v,
+                        },
+                      }))
+                    }
+                    onToggle={(p) =>
+                      patchBrandDecision(item.id, (o) => togglePattern(o, "adoptedPatterns", p))
+                    }
+                    onAdd={() => {
+                      const v = customPatternInput[item.id]?.adoptedPatterns ?? "";
+                      patchBrandDecision(item.id, (o) => addCustomPattern(o, "adoptedPatterns", v));
+                      setCustomPatternInput((prev) => ({
+                        ...prev,
+                        [item.id]: {
+                          avoidedPatterns: prev[item.id]?.avoidedPatterns ?? "",
+                          adoptedPatterns: "",
+                        },
+                      }));
+                    }}
+                  />
+                  <BrandPatternList
+                    title="피할 점"
+                    patterns={references.brandDecisionOverrides?.[item.id]?.avoidedPatterns ?? a.painPoints}
+                    inputValue={customPatternInput[item.id]?.avoidedPatterns ?? ""}
+                    onInputChange={(v) =>
+                      setCustomPatternInput((prev) => ({
+                        ...prev,
+                        [item.id]: {
+                          adoptedPatterns: prev[item.id]?.adoptedPatterns ?? "",
+                          avoidedPatterns: v,
+                        },
+                      }))
+                    }
+                    onToggle={(p) =>
+                      patchBrandDecision(item.id, (o) => togglePattern(o, "avoidedPatterns", p))
+                    }
+                    onAdd={() => {
+                      const v = customPatternInput[item.id]?.avoidedPatterns ?? "";
+                      patchBrandDecision(item.id, (o) => addCustomPattern(o, "avoidedPatterns", v));
+                      setCustomPatternInput((prev) => ({
+                        ...prev,
+                        [item.id]: {
+                          adoptedPatterns: prev[item.id]?.adoptedPatterns ?? "",
+                          avoidedPatterns: "",
+                        },
+                      }));
+                    }}
+                  />
+
+                  <details className="accordion-row">
+                    <summary style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)", cursor: "pointer" }}>
+                      상세 분석 (7개 축) 펼쳐보기
+                    </summary>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)", marginTop: "var(--space-sm)" }}>
+                      {AXIS_LABELS.map(([key, label]) => {
+                        const v = a[key];
+                        return (
+                          <div key={key}>
+                            <b style={{ fontSize: 14 }}>{label}</b>
+                            {Array.isArray(v) ? (
+                              <ul style={{ paddingLeft: 20, fontSize: 14, color: "var(--text-muted)" }}>
+                                {v.map((x, i) => (
+                                  <li key={i}>{x}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
+                                {String(v)}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
                 </div>
               )}
             </div>
@@ -603,4 +767,70 @@ function pill(background: string, color: string): React.CSSProperties {
     borderRadius: "var(--radius-full)",
     padding: "var(--space-xs) var(--space-md)",
   };
+}
+
+// 가져올 점/피할 점 편집 리스트 (P6, 개선 지시서 P6 item 9) — AI가 제안한 문구를
+// 체크 해제로 빼거나, 직접 문구를 추가할 수 있다. patterns는 이미 override(있으면)
+// 또는 AI 원본(없으면)으로 호출부에서 넘어온다.
+function BrandPatternList({
+  title,
+  patterns,
+  inputValue,
+  onInputChange,
+  onToggle,
+  onAdd,
+}: {
+  title: string;
+  patterns: string[];
+  inputValue: string;
+  onInputChange: (value: string) => void;
+  onToggle: (pattern: string) => void;
+  onAdd: () => void;
+}) {
+  return (
+    <div>
+      <b style={{ fontSize: 14 }}>{title}</b>
+      {patterns.length > 0 && (
+        <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
+          {patterns.map((p) => (
+            <li key={p} style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)", fontSize: 14 }}>
+                <input type="checkbox" checked={true} onChange={() => onToggle(p)} />
+                {p}
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div style={{ display: "flex", gap: "var(--space-xs)", marginTop: "var(--space-xs)" }}>
+        <input
+          value={inputValue}
+          onChange={(e) => onInputChange(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onAdd()}
+          placeholder={`${title} 직접 추가`}
+          className="input-box"
+          style={{
+            flex: 1,
+            padding: "6px var(--space-sm)",
+            borderRadius: "var(--radius-sm)",
+            font: "inherit",
+            fontSize: 14,
+          }}
+        />
+        <button
+          onClick={onAdd}
+          className="btn-tertiary"
+          style={{
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            padding: "6px var(--space-sm)",
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          추가
+        </button>
+      </div>
+    </div>
+  );
 }

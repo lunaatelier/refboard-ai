@@ -41,7 +41,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const res = await fetchChecked(url, AbortSignal.timeout(TIMEOUT_MS), fetch);
+    const { response: res } = await fetchChecked(url, AbortSignal.timeout(TIMEOUT_MS), fetch);
     if (!res.ok) {
       return NextResponse.json(
         { error: `페이지를 가져오지 못했습니다. (HTTP ${res.status})` },

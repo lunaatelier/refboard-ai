@@ -148,14 +148,17 @@ export function buildConfirmedBrief(
     .filter((t) => t.adopted)
     .map((t) => {
       const deep = references.targetAnalyses?.[t.id];
+      // P6: 사용자가 편집한 채택 상태(brandDecisionOverrides)가 있으면 그것을
+      // 쓴다. 없으면(구버전 데이터·아직 탭을 열어본 적 없는 대상) 심층 분석의
+      // wowPoints/painPoints로 폴백 — TargetsTab이 열릴 때 seedBrandDecision이
+      // 채워주는 것과 동일한 기본값이라 결과가 어긋나지 않는다.
+      const override = references.brandDecisionOverrides?.[t.id];
       return {
         targetId: t.id,
         name: t.name,
-        // "가져올 점/피할 점"을 사용자가 직접 선택·편집하는 UI는 아직 없다(P6) —
-        // 그때까지는 심층 분석의 wowPoints/painPoints를 그대로 옮긴다.
-        adoptedPatterns: deep?.wowPoints ?? [],
-        avoidedPatterns: deep?.painPoints ?? [],
-        verifiedSources: [], // P6에서 grounding 검증이 연결되기 전까지 빈 배열
+        adoptedPatterns: override?.adoptedPatterns ?? deep?.wowPoints ?? [],
+        avoidedPatterns: override?.avoidedPatterns ?? deep?.painPoints ?? [],
+        verifiedSources: deep?.verifiedSources ?? [],
       };
     });
 

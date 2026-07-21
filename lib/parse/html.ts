@@ -34,6 +34,62 @@ function decodeEntities(text: string): string {
     .replace(/&[a-z]+;|&#\d+;/gi, (m) => ENTITIES[m.toLowerCase()] ?? " ");
 }
 
+// OG 미리보기 (P5-5) — 사용자가 수동으로 붙여넣은 레퍼런스 URL의 제목/썸네일만
+// 뽑아 보여준다. 프로젝트 데이터가 아니라 공개 페이지 자체의 메타데이터라
+// 마스킹 대상이 아니다(§4.1 "외부"는 우리 문서 원문 기준). 실패 시 호출자가
+// 그냥 텍스트 링크로 두면 되도록 필드 전부 optional.
+export interface OgMeta {
+  title?: string;
+  description?: string;
+  image?: string;
+  siteName?: string;
+}
+
+function readMetaAttr(tag: string, name: string): string | undefined {
+  const re = new RegExp(`${name}\\s*=\\s*("([^"]*)"|'([^']*)')`, "i");
+  const m = tag.match(re);
+  if (!m) return undefined;
+  return decodeEntities(m[2] ?? m[3] ?? "");
+}
+
+export function extractOgMeta(html: string, baseUrl?: string): OgMeta {
+  const metaTags = html.match(/<meta\b[^>]*>/gi) ?? [];
+  const values: Record<string, string> = {};
+  for (const tag of metaTags) {
+    const prop = readMetaAttr(tag, "property") ?? readMetaAttr(tag, "name");
+    const content = readMetaAttr(tag, "content");
+    if (!prop || content === undefined) continue;
+    const key = prop.toLowerCase();
+    if (!(key in values)) values[key] = content; // 중복 태그는 첫 값 우선
+  }
+
+  const titleTagMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const titleTag = titleTagMatch ? decodeEntities(titleTagMatch[1]).trim() : undefined;
+
+  const image = values["og:image"] ?? values["og:image:url"] ?? values["twitter:image"];
+
+  return {
+    title: nonEmpty(values["og:title"] ?? values["twitter:title"] ?? titleTag),
+    description: nonEmpty(values["og:description"] ?? values["twitter:description"] ?? values["description"]),
+    siteName: nonEmpty(values["og:site_name"]),
+    image: image ? resolveMaybeRelative(image, baseUrl) : undefined,
+  };
+}
+
+function nonEmpty(text: string | undefined): string | undefined {
+  const trimmed = text?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function resolveMaybeRelative(url: string, baseUrl?: string): string | undefined {
+  if (!baseUrl) return nonEmpty(url);
+  try {
+    return new URL(url, baseUrl).toString();
+  } catch {
+    return nonEmpty(url);
+  }
+}
+
 // SSRF 가드 — 사설망·로컬 주소로의 서버 fetch 차단 (서버 라우트에서 사용)
 export function isBlockedLinkTarget(url: URL): boolean {
   if (url.protocol !== "http:" && url.protocol !== "https:") return true;

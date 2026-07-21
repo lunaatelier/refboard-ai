@@ -35,7 +35,7 @@ ${excludeNames.length > 0 ? `이미 목록에 있는 것 (제외): ${excludeName
 
   try {
     /* eslint-disable @typescript-eslint/no-explicit-any */
-    const raw = await generateGroundedJson<any[]>(prompt);
+    const { data: raw } = await generateGroundedJson<any[]>(prompt);
     const items = (Array.isArray(raw) ? raw : [])
       .filter(
         (t) =>

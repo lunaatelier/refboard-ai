@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateGroundedJson } from "@/lib/ai/client";
 import { buildDirectiveBlock } from "@/lib/ai/prompts";
+import { buildVerifiedSources } from "@/lib/reference/sourceVerification";
 
 // 분석 대상 브랜드 2단계 깊은 분석 (Step 10-c) — 7개 축을 구조화 질문으로 강제.
 // grounding으로 출처 URL 확보 (환각 방지). 결과는 "추천/추정 포함" 배지로 표기.
@@ -38,10 +39,12 @@ ${buildDirectiveBlock(directives, "reference")}
 
   try {
     /* eslint-disable @typescript-eslint/no-explicit-any */
-    const raw = await generateGroundedJson<any>(prompt);
+    const { data: raw, sources } = await generateGroundedJson<any>(prompt);
     const str = (v: unknown) => (typeof v === "string" ? v : "");
     const arr = (v: unknown) =>
       Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+    const modelStatedUrl = str(raw?.sourceUrl) || undefined;
+    const verifiedSources = await buildVerifiedSources(url, sources, modelStatedUrl);
     return NextResponse.json({
       analysis: {
         layoutStrategy: str(raw?.layoutStrategy),
@@ -51,7 +54,8 @@ ${buildDirectiveBlock(directives, "reference")}
         wowPoints: arr(raw?.wowPoints),
         estimatedIntent: str(raw?.estimatedIntent),
         implications: str(raw?.implications),
-        sourceUrl: str(raw?.sourceUrl) || url,
+        sourceUrl: modelStatedUrl || url,
+        verifiedSources,
       },
     });
   } catch (e) {
