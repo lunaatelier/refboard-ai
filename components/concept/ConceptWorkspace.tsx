@@ -336,11 +336,11 @@ export default function ConceptWorkspace({
                       {p.pageTitle}
                       {p.pageId ===
                       concept.outputSelection.visualRepresentativePageId
-                        ? " (시각 대표)"
+                        ? " (표지 대표)"
                         : p.pageId ===
                             concept.outputSelection
                               .contentRepresentativePageId
-                          ? " (내용 대표)"
+                          ? " (본문 대표)"
                           : ""}
                     </option>
                   ))}

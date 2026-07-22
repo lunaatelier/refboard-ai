@@ -135,6 +135,9 @@ export interface AnalysisTargetAnalysis {
 
 // 이미지 힌트 (Step 11 + Step 19) — 프롬프트+타입 표출 기본, 키 설정 시 실제 생성까지.
 export interface ImageHint {
+  // sectionKey(pageId, sectionId)(P7) — area 문자열/배열 순서가 아니라 이 키로
+  // 섹션과 안정적으로 연결한다. 편집값 보존·개별 재생성·confirmBrief 연결 전부 이 키 기준.
+  key: string;
   area: string; // 적용 영역 (예: "표지 키비주얼", "연혁 섹션")
   scale: "hero" | "section" | "icon"; // 표지급 / 섹션 삽화 / 아이콘
   prompt: string; // 이미지 생성 프롬프트 (영어 — 다른 도구에 바로 사용 가능)
@@ -335,6 +338,11 @@ export interface ReferenceResult {
   sectionDecisionsByKey?: Record<string, SectionPriorityEntry>; // key: `${pageId}::${sectionId}`
   // ── 브랜드 분석 채택 (P6) ──
   brandDecisionOverrides?: Record<string, BrandDecisionOverride>; // key: AnalysisTargetListItem.id
+  // ── 이미지 힌트 게이팅 (P7) ── key: sectionKey(pageId, sectionId)
+  // 사용자가 명시적으로 켜거나 끈 "새 이미지 필요" 결정만 여기 남는다. 값이 없는
+  // 섹션은 lib/reference/imageHints.ts의 defaultImageNeed(contentType) 휴리스틱을
+  // 그대로 표시값으로 쓴다 — 그래서 사용자가 끈 false는 휴리스틱이 절대 되살리지 않는다.
+  imageNeedByKey?: Record<string, boolean>;
 }
 
 // 페이지 보드 목적/핵심 대상 요약의 사용자 덮어쓰기 (P5-1) — Page 원본(분석 결과,

@@ -14,6 +14,7 @@ import {
   buildProfiledPlatformQueries,
   platformNameFromUrl,
 } from "@/lib/reference/platforms";
+import { defaultImageNeed } from "@/lib/reference/imageHints";
 import { resolvePageBoardSummary } from "@/lib/reference/pageBoard";
 import {
   buildImageQueryCacheKey,
@@ -145,6 +146,22 @@ export default function SectionRefsTab({
       sectionDecisionsByKey: {
         ...(prev.sectionDecisionsByKey ?? {}),
         [sectionKey(page.pageId, section.sectionId)]: { priority, source: "user" },
+      },
+    }));
+
+  // "새 이미지 필요" — 우선순위와 무관하게 모든 확정 섹션에서 켜고 끌 수 있다(P7).
+  // 저장값이 없으면 contentType 휴리스틱을 표시값으로 쓰고, 사용자가 명시적으로
+  // false로 끈 값은 절대 되살아나지 않는다(imageNeedByKey에 남아있는 한).
+  const imageNeedOf = (page: Page, section: Section): boolean =>
+    references.imageNeedByKey?.[sectionKey(page.pageId, section.sectionId)] ??
+    defaultImageNeed(section.contentType);
+
+  const setImageNeed = (page: Page, section: Section, required: boolean) =>
+    onChange((prev) => ({
+      ...prev,
+      imageNeedByKey: {
+        ...(prev.imageNeedByKey ?? {}),
+        [sectionKey(page.pageId, section.sectionId)]: required,
       },
     }));
 
@@ -537,6 +554,8 @@ export default function SectionRefsTab({
               section={focusedSection}
               priority={priorityOf(focusedPage, focusedSection)}
               onPromote={() => setPriority(focusedPage, focusedSection, "high-impact")}
+              imageNeeded={imageNeedOf(focusedPage, focusedSection)}
+              onSetImageNeed={(v) => setImageNeed(focusedPage, focusedSection, v)}
               domain={analysis.domain}
               intent={activeIntentFor(focusedSection)}
               querySet={querySetFor(focusedSection)}
@@ -589,6 +608,8 @@ interface SectionDecisionPanelProps {
   section: Section;
   priority: SectionReferencePriority;
   onPromote: () => void;
+  imageNeeded: boolean;
+  onSetImageNeed: (required: boolean) => void;
   domain: ProjectAnalysis["domain"];
   intent: ReturnType<typeof buildSectionQuerySet>["designIntents"][number] | undefined;
   querySet: ReturnType<typeof buildSectionQuerySet>;
@@ -616,6 +637,25 @@ interface SectionDecisionPanelProps {
   ) => void;
 }
 
+// "새 이미지 필요" 토글(P7) — 우선순위(고영향/상속/선택)와 무관하게 모든 확정
+// 섹션에서 노출한다. [이미지 힌트] 탭은 이 결정이 켜진 섹션에서만 힌트를 만든다.
+function ImageNeedToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span style={{ color: "var(--text-muted)" }}>
+        새 이미지 필요{checked ? " — 이미지 힌트 탭에서 프롬프트가 생성됩니다" : ""}
+      </span>
+    </label>
+  );
+}
+
 // 섹션 결정 패널 — 고영향이 아니면 상속 안내+승격 버튼만 보여준다(개선 지시서
 // P5 item 7: "고영향 섹션에서만 심층 탐색 CTA를 기본 노출").
 function SectionDecisionPanel({
@@ -623,6 +663,8 @@ function SectionDecisionPanel({
   section,
   priority,
   onPromote,
+  imageNeeded,
+  onSetImageNeed,
   domain,
   intent,
   querySet,
@@ -650,6 +692,7 @@ function SectionDecisionPanel({
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
         <h3 style={{ fontSize: 16, fontWeight: 700 }}>{section.sectionTitle}</h3>
         <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{page.pageTitle}</p>
+        <ImageNeedToggle checked={imageNeeded} onChange={onSetImageNeed} />
         <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
           {PRIORITY_LABEL[priority]}: 글로벌 방향과 기본 레이아웃(
           <strong>{section.recommendedLayoutLabel || section.recommendedLayout}</strong>)을
@@ -687,6 +730,7 @@ function SectionDecisionPanel({
         <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
           {page.pageTitle} · {section.contentType}
         </p>
+        <ImageNeedToggle checked={imageNeeded} onChange={onSetImageNeed} />
       </div>
 
       <div style={{ display: "flex", gap: "var(--space-xs)", flexWrap: "wrap" }}>

@@ -1,10 +1,12 @@
 import type { ProjectAnalysis } from "../analysis/types";
 import { hashValue } from "../state/hash";
+import { defaultImageNeed, scaleFor } from "./imageHints";
 import { resolvePageBoardSummary } from "./pageBoard";
 import { sectionKey } from "./sectionPriority";
 import type {
   BrandDecision,
   ConfirmedReferenceBrief,
+  ImageNeedDecision,
   PageReferenceDecision,
   ReferenceAdoption,
   ReferenceResult,
@@ -127,6 +129,19 @@ export function buildConfirmedBrief(
             explicitDecision?.priority ?? (hasAdoptions ? "high-impact" : "inherited");
           const decisionSource =
             explicitDecision?.source ?? (hasAdoptions ? "user" : "inherited");
+          // P7: imageNeedByKey(원본 결정)와 imageHints(sectionKey로 연결된 편집·생성
+          // 결과)를 같은 key로 결합해 imageNeed를 만든다 — 둘 중 하나만 있으면
+          // 값이 어긋난다는 P0 검토를 반영해, 이 결합 지점 하나로만 만든다.
+          const required = references.imageNeedByKey?.[key] ?? defaultImageNeed(section.contentType);
+          const matchingHint = (references.imageHints ?? []).find((h) => h.key === key);
+          const imageNeed: ImageNeedDecision = {
+            required,
+            role: matchingHint?.scale ?? scaleFor(section.contentType).scale,
+            ...(required && matchingHint?.prompt ? { prompt: matchingHint.prompt } : {}),
+            ...(required && matchingHint?.generatedImageAssetId
+              ? { generatedImageAssetId: matchingHint.generatedImageAssetId }
+              : {}),
+          };
           return {
             sectionId: section.sectionId,
             sectionTitle: section.sectionTitle,
@@ -140,6 +155,7 @@ export function buildConfirmedBrief(
               basedOnHash: hasAdoptions ? directionHash : analysisHash,
             },
             adoptions,
+            imageNeed,
           };
         }),
     }));

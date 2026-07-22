@@ -70,7 +70,7 @@ const cfg = (preset: RenderConfig["preset"]): RenderConfig => ({
   contentPageId: "p2",
   includedSubPageIds: ["p3"],
   imageHints: [
-    { area: "표지", scale: "hero", prompt: "eco hero prompt", direction: "3D", sourceReferenceMode: "use-source-image" },
+    { key: "p1::s1", area: "표지", scale: "hero", prompt: "eco hero prompt", direction: "3D", sourceReferenceMode: "use-source-image" },
   ],
 });
 

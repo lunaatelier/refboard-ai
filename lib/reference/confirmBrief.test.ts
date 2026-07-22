@@ -549,6 +549,58 @@ describe("confirmBrief — 민감정보 미포함", () => {
   });
 });
 
+describe("confirmBrief — imageNeed (P7): imageNeedByKey와 imageHints를 같은 key로 결합", () => {
+  it("imageNeedByKey가 없으면 contentType 휴리스틱으로 required가 정해진다 (feature=icon 기본 true)", () => {
+    const brief = buildConfirmedBrief(makeAnalysis(), makeReferences(), { now: fixedNow });
+    const imageNeed = brief.pages[0].sections[0].imageNeed;
+    assert.equal(imageNeed?.required, true);
+    assert.equal(imageNeed?.role, "icon");
+  });
+
+  it("사용자가 명시적으로 false로 끄면 required=false가 되고 prompt/assetId를 담지 않는다", () => {
+    const refs = makeReferences({
+      imageNeedByKey: { "p1::p1-s1": false },
+      imageHints: [
+        {
+          key: "p1::p1-s1",
+          area: "히어로",
+          scale: "icon",
+          prompt: "꺼졌는데 남아있는 프롬프트",
+          direction: "사진형",
+          sourceReferenceMode: "use-source-image",
+        },
+      ],
+    });
+    const brief = buildConfirmedBrief(makeAnalysis(), refs, { now: fixedNow });
+    const imageNeed = brief.pages[0].sections[0].imageNeed;
+    assert.equal(imageNeed?.required, false);
+    assert.equal(imageNeed?.prompt, undefined);
+  });
+
+  it("imageHints에 같은 key의 프롬프트/생성 이미지가 있으면 imageNeed에 옮겨온다", () => {
+    const refs = makeReferences({
+      imageNeedByKey: { "p1::p1-s1": true },
+      imageHints: [
+        {
+          key: "p1::p1-s1",
+          area: "히어로",
+          scale: "hero",
+          prompt: "hero prompt",
+          direction: "사진형",
+          sourceReferenceMode: "use-source-image",
+          generatedImageAssetId: "asset-1",
+        },
+      ],
+    });
+    const brief = buildConfirmedBrief(makeAnalysis(), refs, { now: fixedNow });
+    const imageNeed = brief.pages[0].sections[0].imageNeed;
+    assert.equal(imageNeed?.required, true);
+    assert.equal(imageNeed?.role, "hero");
+    assert.equal(imageNeed?.prompt, "hero prompt");
+    assert.equal(imageNeed?.generatedImageAssetId, "asset-1");
+  });
+});
+
 describe("assertBriefMatchesAnalysis — P9-A 교차 검증", () => {
   it("브리프가 현재 분석 결과와 맞으면 통과한다", () => {
     const brief = buildConfirmedBrief(makeAnalysis(), makeReferences(), {

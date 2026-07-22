@@ -49,6 +49,7 @@ describe("persistence — toSafeSnapshot", () => {
       references: {
         imageHints: [
           {
+            key: "p1::s1",
             area: "표지",
             scale: "hero",
             prompt: "prompt text",

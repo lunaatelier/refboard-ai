@@ -1,5 +1,6 @@
 import type { DomainHint, Page, ProjectAnalysis } from "../analysis/types";
-import type { MoodOption, RepresentativePages } from "./types";
+import { sectionKey } from "./sectionPriority";
+import type { MoodOption, ReferenceResult, RepresentativePages } from "./types";
 
 // 이미지 힌트 판정 (Step 11) — isomorphic 순수 함수. 프롬프트 문구만 Gemini가 채운다.
 
@@ -21,6 +22,9 @@ export function decideDirection(
 }
 
 export interface HintSkeleton {
+  key: string; // sectionKey(pageId, sectionId) — 섹션과 안정적으로 연결(P7)
+  pageId: string;
+  sectionId: string;
   area: string;
   scale: "hero" | "section" | "icon";
   direction: string;
@@ -28,48 +32,99 @@ export interface HintSkeleton {
   contextSummary: string; // Gemini 프롬프트 생성용 (마스킹된 요약)
 }
 
+// hero 콘텐츠타입 섹션 = 표지급 키비주얼. 별도 무조건 항목을 두지 않고, 이
+// 목록에 포함되면 "새 이미지 필요" 기본 체크값(true)에 반영된다(P7 — 확정된
+// 섹션+필요 선택 없이는 표지 이미지도 생성되지 않는다).
 const SECTION_IMAGE_TYPES = ["hero", "case-study", "history", "vision", "cta"];
 const ICON_IMAGE_TYPES = ["feature", "team", "pricing"];
 
-// 표지 = hero 1개 + 선택 페이지의 이미지성 섹션 = section + 카드형 섹션 = icon
+// "새 이미지 필요" 체크박스의 기본값(휴리스틱) — 저장된 사용자 결정이 없을 때만 쓴다.
+// 사용자가 명시적으로 끈 결정(references.imageNeedByKey[key] === false)은 여기로
+// 절대 되돌아가지 않는다(호출부에서 `?? defaultImageNeed(...)`로만 결합).
+export function defaultImageNeed(contentType: string): boolean {
+  return SECTION_IMAGE_TYPES.includes(contentType) || ICON_IMAGE_TYPES.includes(contentType);
+}
+
+export function scaleFor(contentType: string): {
+  scale: HintSkeleton["scale"];
+  aspectRatio: string;
+} {
+  if (contentType === "hero") return { scale: "hero", aspectRatio: "16:9" };
+  if (ICON_IMAGE_TYPES.includes(contentType)) return { scale: "icon", aspectRatio: "1:1" };
+  return { scale: "section", aspectRatio: "4:3" };
+}
+
+// 확정 섹션 중 "새 이미지 필요"로 결정된 것만 스켈레톤을 만든다(P7) — contentType
+// 휴리스틱은 기본 체크값에만 쓰이고, 실제 포함 여부는 항상 이 결정을 거친다.
+// 표지 키비주얼도 예외 없이 이 조건을 통과해야 한다(무조건 포함하던 이전 동작 제거).
 export function buildHintSkeletons(
   analysis: ProjectAnalysis,
+  references: Pick<ReferenceResult, "imageNeedByKey">,
   mood?: MoodOption,
 ): HintSkeleton[] {
   const direction = decideDirection(analysis.domain, analysis.tags, mood);
-  const skeletons: HintSkeleton[] = [
-    {
-      area: "표지 키비주얼",
-      scale: "hero",
-      direction,
-      aspectRatio: "16:9",
-      contextSummary: `${analysis.title} — ${analysis.description}`,
-    },
-  ];
+  const skeletons: HintSkeleton[] = [];
 
-  for (const page of analysis.pages.filter((p) => p.selected)) {
+  outer: for (const page of analysis.pages.filter((p) => p.selected)) {
     for (const s of page.sections) {
-      if (skeletons.length >= 8) break; // 볼륨 제한
-      if (SECTION_IMAGE_TYPES.includes(s.contentType)) {
-        skeletons.push({
-          area: `${page.pageTitle} — ${s.sectionTitle}`,
-          scale: "section",
-          direction,
-          aspectRatio: "4:3",
-          contextSummary: s.contentSummary,
-        });
-      } else if (ICON_IMAGE_TYPES.includes(s.contentType)) {
-        skeletons.push({
-          area: `${page.pageTitle} — ${s.sectionTitle} (아이콘 세트)`,
-          scale: "icon",
-          direction: direction === "사진형" ? "라인 일러스트" : direction,
-          aspectRatio: "1:1",
-          contextSummary: s.contentSummary,
-        });
-      }
+      if (s.status !== "confirmed") continue;
+      const key = sectionKey(page.pageId, s.sectionId);
+      const required = references.imageNeedByKey?.[key] ?? defaultImageNeed(s.contentType);
+      if (!required) continue;
+      if (skeletons.length >= 8) break outer; // 볼륨 제한
+
+      const { scale, aspectRatio } = scaleFor(s.contentType);
+      skeletons.push({
+        key,
+        pageId: page.pageId,
+        sectionId: s.sectionId,
+        area:
+          scale === "icon"
+            ? `${page.pageTitle} — ${s.sectionTitle} (아이콘 세트)`
+            : `${page.pageTitle} — ${s.sectionTitle}`,
+        scale,
+        direction: scale === "icon" && direction === "사진형" ? "라인 일러스트" : direction,
+        aspectRatio,
+        contextSummary: s.contentSummary,
+      });
     }
   }
   return skeletons;
+}
+
+// 이미지 힌트 생성 게이팅(P7) — UI의 버튼 비활성화와 테스트가 같은 기준을
+// 공유하도록 순수 함수로 분리한다. 최소 조건: 방향 확정 + 그 방향의 무드 존재 +
+// 팔레트 확정 + "새 이미지 필요"인 확정 섹션 최소 1개.
+export function canGenerateImageHints(
+  analysis: ProjectAnalysis,
+  references: Pick<
+    ReferenceResult,
+    "directionOptions" | "selectedDirectionId" | "moodOptions" | "editedPaletteOption" | "imageNeedByKey"
+  >,
+): { ok: boolean; reason?: string } {
+  const direction = references.directionOptions?.find(
+    (d) => d.directionId === references.selectedDirectionId,
+  );
+  if (!direction) return { ok: false, reason: "글로벌 방향을 먼저 확정하세요." };
+  const mood = references.moodOptions?.find((m) => m.id === direction.moodOptionId);
+  if (!mood) return { ok: false, reason: "선택한 방향의 무드를 찾을 수 없습니다." };
+  if (!references.editedPaletteOption) {
+    return { ok: false, reason: "팔레트를 먼저 확정하세요." };
+  }
+  const anyRequired = analysis.pages
+    .filter((p) => p.selected)
+    .some((p) =>
+      p.sections.some(
+        (s) =>
+          s.status === "confirmed" &&
+          (references.imageNeedByKey?.[sectionKey(p.pageId, s.sectionId)] ??
+            defaultImageNeed(s.contentType)),
+      ),
+    );
+  if (!anyRequired) {
+    return { ok: false, reason: "새 이미지가 필요한 섹션이 없습니다." };
+  }
+  return { ok: true };
 }
 
 // 대표 페이지 추천 (Step 11) — "표지 ≠ 대표". cover는 내용 대표로 쓰지 않는다(내용 빈약).
@@ -101,6 +156,28 @@ export function recommendRepresentativePages(
     visualPageId: visual?.pageId,
     contentPageId: content?.pageId,
   };
+}
+
+// 대표 페이지 추천 이유 한 줄(P7 item 4) — RepresentativePages에 저장하지 않고
+// 매번 계산한다. 현재 선택값이 휴리스틱 추천과 같으면 추천 근거를, 사용자가
+// 다른 페이지로 바꿨으면 "직접 지정"을 보여준다(저장했다면 사용자가 다시 바꿔도
+// 낡은 문구가 남는 문제가 생긴다 — 그래서 파생값으로만 유지).
+export function representativePageReason(
+  analysis: ProjectAnalysis,
+  rep: RepresentativePages,
+): { visualReason: string; contentReason: string } {
+  const recommended = recommendRepresentativePages(analysis);
+  const visualReason =
+    rep.visualPageId && rep.visualPageId === recommended.visualPageId
+      ? "표지 역할 페이지라 첫인상 대표로 추천"
+      : "사용자가 직접 지정";
+  const contentReason =
+    rep.contentPageId && rep.contentPageId === recommended.contentPageId
+      ? analysis.domain === "document"
+        ? "성과·본문 데이터가 정보구조를 가장 잘 보여줌"
+        : "본문 콘텐츠 구조가 가장 잘 드러남"
+      : "사용자가 직접 지정";
+  return { visualReason, contentReason };
 }
 
 // 이미지 실제 생성용 크기 매핑 (Step 19) — "16:9" 같은 비율 문자열을

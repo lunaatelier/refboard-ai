@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, Info, Sparkles } from "lucide-react";
+import { Check, Copy, Info, Sparkles, Wand2 } from "lucide-react";
 import type { DocumentPurpose } from "@/lib/analysis/documentPurpose";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
 import {
   buildHintSkeletons,
+  canGenerateImageHints,
   recommendRepresentativePages,
+  representativePageReason,
 } from "@/lib/reference/imageHints";
 import type {
   ImageHint,
@@ -19,7 +21,9 @@ import {
 } from "@/lib/state/imageAssetStore";
 import { ErrorState } from "../shell/PageLayout";
 
-// [이미지 힌트] 탭 (Step 11 + Step 19) — scale + 방향 + 프롬프트 표출.
+// [이미지 힌트] 탭 (Step 11 + Step 19 + P7) — scale + 방향 + 프롬프트 표출.
+// P7: 관련 없는 모든 섹션에 일괄 생성하지 않는다 — [섹션별 레퍼런스] 탭에서
+// "새 이미지 필요"로 켜진 확정 섹션만 대상이며, 표지 키비주얼도 예외가 아니다.
 // Step 19: NVIDIA_API_KEY가 설정되면 프롬프트로 실제 이미지 생성까지 지원.
 // 키가 없으면 기존처럼 프롬프트 복사만 (버튼 비활성 + 안내).
 
@@ -64,13 +68,15 @@ export default function ImageHintsTab({
 }: ImageHintsTabProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [copied, setCopied] = useState<number>();
+  const [copied, setCopied] = useState<string>();
+  const [refiningKey, setRefiningKey] = useState<string>();
+  const [refineError, setRefineError] = useState<string>();
 
   // 이미지 실제 생성 (Step 19) — 서버에 키가 있어야 활성화
   const [genEnabled, setGenEnabled] = useState(false);
-  const [generating, setGenerating] = useState<number>();
+  const [generating, setGenerating] = useState<string>();
   const [genError, setGenError] = useState<string>();
-  const [genErrorIndex, setGenErrorIndex] = useState<number>();
+  const [genErrorKey, setGenErrorKey] = useState<string>();
 
   useEffect(() => {
     let cancelled = false;
@@ -85,10 +91,13 @@ export default function ImageHintsTab({
     };
   }, []);
 
-  // 대표 페이지 — 추천값으로 초기화, 사용자 변경 가능
-  const rep =
-    references.representative ?? recommendRepresentativePages(analysis);
+  // 대표 페이지 — 추천값으로 초기화, 사용자 변경 가능. 추천 이유는 저장하지 않고
+  // 매번 계산한다(§P0 검토 — 저장하면 사용자가 바꾼 뒤에도 낡은 문구가 남는다).
+  const rep = references.representative ?? recommendRepresentativePages(analysis);
+  const { visualReason, contentReason } = representativePageReason(analysis, rep);
   const selectedPages = analysis.pages.filter((p) => p.selected);
+  const [splitRoles, setSplitRoles] = useState(rep.visualPageId !== rep.contentPageId);
+  const showSplit = splitRoles || rep.visualPageId !== rep.contentPageId;
 
   // 템플릿 문서는 원본 이미지 무시가 기본 (실사용#20)
   const defaultMode: ImageHint["sourceReferenceMode"] =
@@ -106,27 +115,44 @@ export default function ImageHintsTab({
       },
     }));
 
+  const selectedDirection = references.directionOptions?.find(
+    (d) => d.directionId === references.selectedDirectionId,
+  );
+  const mood = references.moodOptions?.find((m) => m.id === selectedDirection?.moodOptionId);
+  const avoidDirections = selectedDirection?.avoidDirections ?? [];
+  const primaryColor =
+    references.editedPaletteOption?.[references.paletteMode ?? "light"].primary;
+
+  // 지금 조건(새 이미지 필요 + 확정 섹션)을 만족하는 스켈레톤 — 이 키 집합에 없는
+  // 기존 힌트는 화면에서 숨긴다(섹션을 껐다고 데이터를 바로 지우진 않는다).
+  const skeletons = buildHintSkeletons(analysis, references, mood);
+  const requiredKeys = new Set(skeletons.map((s) => s.key));
+  const visibleHints = (references.imageHints ?? []).filter((h) => requiredKeys.has(h.key));
+
+  const gate = canGenerateImageHints(analysis, references);
+
   const generate = async () => {
+    if (!gate.ok) return;
     setBusy(true);
     setError(undefined);
     try {
-      const selectedDirection = references.directionOptions?.find(
-        (d) => d.directionId === references.selectedDirectionId,
-      );
-      const mood = references.moodOptions?.find(
-        (m) => m.id === selectedDirection?.moodOptionId,
-      );
-      const skeletons = buildHintSkeletons(analysis, mood);
+      const existingByKey = new Map((references.imageHints ?? []).map((h) => [h.key, h]));
+      // 새로 체크됐거나 프롬프트가 비어 있는 힌트만 채운다 — 기존 편집값을
+      // 전체 재생성이 덮어쓰지 않는다(§P0 검토).
+      const toFill = skeletons.filter((s) => !existingByKey.get(s.key)?.prompt);
+      if (toFill.length === 0) {
+        setBusy(false);
+        return;
+      }
       const res = await fetch("/api/image-hints", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          skeletons,
+          skeletons: toFill,
           directives,
           moodKeywords: mood?.keywords ?? [],
-          primaryColor:
-            references.editedPaletteOption?.[references.paletteMode ?? "light"]
-              .primary,
+          primaryColor,
+          avoidDirections,
           sourceReferenceMode: sourceMode,
         }),
       });
@@ -134,7 +160,8 @@ export default function ImageHintsTab({
       if (!res.ok || !Array.isArray(body?.prompts)) {
         throw new Error(body?.error ?? "프롬프트 생성에 실패했습니다.");
       }
-      const hints: ImageHint[] = skeletons.map((s, i) => ({
+      const built: ImageHint[] = toFill.map((s, i) => ({
+        key: s.key,
         area: s.area,
         scale: s.scale,
         direction: s.direction,
@@ -142,11 +169,19 @@ export default function ImageHintsTab({
         prompt: body.prompts[i] ?? "",
         sourceReferenceMode: sourceMode,
       }));
-      onChange((prev) => ({
-        ...prev,
-        imageHints: hints,
-        representative: prev.representative ?? rep,
-      }));
+      onChange((prev) => {
+        const merged = [...(prev.imageHints ?? [])];
+        for (const hint of built) {
+          const idx = merged.findIndex((h) => h.key === hint.key);
+          if (idx >= 0) merged[idx] = { ...merged[idx], ...hint };
+          else merged.push(hint);
+        }
+        return {
+          ...prev,
+          imageHints: merged,
+          representative: prev.representative ?? rep,
+        };
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "프롬프트 생성에 실패했습니다.");
     } finally {
@@ -154,24 +189,62 @@ export default function ImageHintsTab({
     }
   };
 
-  const patchHint = (index: number, patch: Partial<ImageHint>) =>
+  const patchHint = (key: string, patch: Partial<ImageHint>) =>
     onChange((prev) => ({
       ...prev,
-      imageHints: (prev.imageHints ?? []).map((h, i) =>
-        i === index ? { ...h, ...patch } : h,
-      ),
+      imageHints: (prev.imageHints ?? []).map((h) => (h.key === key ? { ...h, ...patch } : h)),
     }));
 
-  const copy = async (index: number, text: string) => {
+  const copy = async (key: string, text: string) => {
     await navigator.clipboard.writeText(text);
-    setCopied(index);
+    setCopied(key);
     setTimeout(() => setCopied(undefined), 1500);
   };
 
-  const generateOne = async (index: number, hint: ImageHint) => {
-    setGenerating(index);
+  // "프롬프트 다듬기" — /api/image-hints를 다시 호출해 이 힌트만 재작성한다.
+  // 이미지 자체를 다시 만드는 generateOne(/api/generate-image)과는 별개 동작이다.
+  const refinePrompt = async (hint: ImageHint) => {
+    setRefiningKey(hint.key);
+    setRefineError(undefined);
+    try {
+      const skeleton = skeletons.find((s) => s.key === hint.key);
+      const res = await fetch("/api/image-hints", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          skeletons: [
+            {
+              area: hint.area,
+              scale: hint.scale,
+              direction: hint.direction,
+              aspectRatio: hint.aspectRatio,
+              contextSummary: skeleton?.contextSummary ?? hint.area,
+              priorPrompt: hint.prompt,
+            },
+          ],
+          directives,
+          moodKeywords: mood?.keywords ?? [],
+          primaryColor,
+          avoidDirections,
+          sourceReferenceMode: hint.sourceReferenceMode,
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !Array.isArray(body?.prompts)) {
+        throw new Error(body?.error ?? "프롬프트 다듬기에 실패했습니다.");
+      }
+      patchHint(hint.key, { prompt: body.prompts[0] ?? hint.prompt });
+    } catch (e) {
+      setRefineError(e instanceof Error ? e.message : "프롬프트 다듬기에 실패했습니다.");
+    } finally {
+      setRefiningKey(undefined);
+    }
+  };
+
+  const generateOne = async (hint: ImageHint) => {
+    setGenerating(hint.key);
     setGenError(undefined);
-    setGenErrorIndex(undefined);
+    setGenErrorKey(undefined);
     try {
       const res = await fetch("/api/generate-image", {
         method: "POST",
@@ -188,12 +261,12 @@ export default function ImageHintsTab({
       // data URL을 워크플로 상태에 직접 넣지 않는다(§6.6) — Blob store에 저장하고
       // assetId만 보관한다.
       const assetId = await saveImageAssetFromDataUrl(body.dataUrl);
-      patchHint(index, { generatedImageAssetId: assetId });
+      patchHint(hint.key, { generatedImageAssetId: assetId });
     } catch (e) {
       setGenError(
         e instanceof Error ? e.message : "이미지 생성에 실패했습니다.",
       );
-      setGenErrorIndex(index);
+      setGenErrorKey(hint.key);
     } finally {
       setGenerating(undefined);
     }
@@ -215,32 +288,26 @@ export default function ImageHintsTab({
       >
         <Info size={18} color="var(--primary)" />
         <span style={{ fontWeight: 700, color: "var(--primary)", fontSize: 14 }}>
-          대표 페이지를 확인하고, 이미지 힌트를 생성해 다른 생성 도구에
-          쓸 프롬프트를 준비하세요
+          대표 페이지를 확인하고, [섹션별 레퍼런스] 탭에서 새 이미지가 필요한
+          섹션을 체크한 뒤 힌트를 생성하세요
         </span>
       </div>
 
-      {/* ── 대표 페이지 (표지 ≠ 대표) ── */}
+      {/* ── 대표 페이지 ── */}
       <div style={card}>
         <h3 style={{ fontSize: 18, fontWeight: 600 }}>
-          대표 페이지 추천{" "}
+          대표 페이지{" "}
           <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 14 }}>
-            표지(첫인상)와 내용 대표(정보구조)를 분리합니다 — 컨셉서 구성에
-            사용
+            표지(첫인상)와 본문(정보구조)의 대표 페이지 — 컨셉서 구성에 사용
           </span>
         </h3>
-        <div style={{ display: "flex", gap: "var(--space-lg)", flexWrap: "wrap" }}>
-          {(
-            [
-              ["visualPageId", "시각 대표 (키비주얼·표지)"],
-              ["contentPageId", "내용 대표 (정보구조·섹션 배치)"],
-            ] as const
-          ).map(([key, label]) => (
-            <label key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontWeight: 600, fontSize: 14 }}>{label}</span>
+        {!showSplit ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>표지·키비주얼 및 본문 레이아웃 기준 페이지</span>
               <select
-                value={rep[key] ?? ""}
-                onChange={(e) => setRep({ [key]: e.target.value })}
+                value={rep.visualPageId ?? ""}
+                onChange={(e) => setRep({ visualPageId: e.target.value, contentPageId: e.target.value })}
                 className="select-box"
               >
                 {selectedPages.map((p) => (
@@ -250,8 +317,56 @@ export default function ImageHintsTab({
                 ))}
               </select>
             </label>
-          ))}
-        </div>
+            <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{visualReason}</p>
+            <button
+              onClick={() => setSplitRoles(true)}
+              className="btn-tertiary"
+              style={{
+                alignSelf: "flex-start",
+                border: "none",
+                padding: 0,
+                fontSize: 13,
+                fontWeight: 600,
+                color: "var(--primary)",
+              }}
+            >
+              역할별로 다르게 지정
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: "var(--space-lg)", flexWrap: "wrap" }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>표지·키비주얼 기준 페이지</span>
+              <select
+                value={rep.visualPageId ?? ""}
+                onChange={(e) => setRep({ visualPageId: e.target.value })}
+                className="select-box"
+              >
+                {selectedPages.map((p) => (
+                  <option key={p.pageId} value={p.pageId}>
+                    {p.pageTitle} ({p.pageRole})
+                  </option>
+                ))}
+              </select>
+              <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{visualReason}</span>
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>본문 레이아웃 기준 페이지</span>
+              <select
+                value={rep.contentPageId ?? ""}
+                onChange={(e) => setRep({ contentPageId: e.target.value })}
+                className="select-box"
+              >
+                {selectedPages.map((p) => (
+                  <option key={p.pageId} value={p.pageId}>
+                    {p.pageTitle} ({p.pageRole})
+                  </option>
+                ))}
+              </select>
+              <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{contentReason}</span>
+            </label>
+          </div>
+        )}
       </div>
 
       {/* ── 이미지 힌트 ── */}
@@ -259,8 +374,8 @@ export default function ImageHintsTab({
         <h3 style={{ fontSize: 18, fontWeight: 600 }}>
           이미지 힌트{" "}
           <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 14 }}>
-            도메인+무드로 타입·스케일 자동 판정 — 프롬프트는 다른 생성 도구에
-            바로 사용 가능
+            [섹션별 레퍼런스] 탭에서 "새 이미지 필요"로 켠 확정 섹션만 대상 —
+            프롬프트는 다른 생성 도구에 바로 사용 가능
           </span>
         </h3>
         <label style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
@@ -283,7 +398,8 @@ export default function ImageHintsTab({
         </label>
         <button
           onClick={generate}
-          disabled={busy}
+          disabled={busy || !gate.ok}
+          title={gate.ok ? undefined : gate.reason}
           className={references.imageHints ? "btn-weak-primary" : "btn-primary"}
           style={{
             alignSelf: "flex-start",
@@ -294,6 +410,7 @@ export default function ImageHintsTab({
             color: busy ? "var(--on-primary)" : undefined,
             fontWeight: 600,
             fontSize: 14,
+            opacity: !busy && !gate.ok ? 0.6 : 1,
           }}
         >
           {busy
@@ -302,6 +419,9 @@ export default function ImageHintsTab({
               ? "다시 생성"
               : "이미지 힌트 생성"}
         </button>
+        {!gate.ok && (
+          <p style={{ fontSize: 13, color: "var(--warning-weak-text)" }}>{gate.reason}</p>
+        )}
         {error && (
           <ErrorState
             title="이미지 힌트 생성에 실패했어요"
@@ -311,8 +431,8 @@ export default function ImageHintsTab({
         )}
       </div>
 
-      {(references.imageHints ?? []).map((h, i) => (
-        <div key={i} style={{ ...card, padding: "var(--space-base)" }}>
+      {visibleHints.map((h) => (
+        <div key={h.key} style={{ ...card, padding: "var(--space-base)" }}>
           <b style={{ fontSize: 16 }}>{h.area}</b>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
             <span
@@ -330,7 +450,7 @@ export default function ImageHintsTab({
             </span>
             <select
               value={h.direction}
-              onChange={(e) => patchHint(i, { direction: e.target.value })}
+              onChange={(e) => patchHint(h.key, { direction: e.target.value })}
               className="select-box"
             >
               {[...new Set([h.direction, ...DIRECTIONS])].map((d) => (
@@ -349,71 +469,104 @@ export default function ImageHintsTab({
             )}
           </div>
           <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "flex-start" }}>
-            <p
+            <textarea
+              value={h.prompt}
+              onChange={(e) => patchHint(h.key, { prompt: e.target.value })}
+              rows={3}
               style={{
                 flex: 1,
                 fontSize: 14,
-                color: "var(--text-muted)",
+                color: "var(--foreground)",
                 fontFamily: "monospace",
                 background: "var(--surface)",
-                borderRadius: "var(--radius-md)",
-                padding: "8px 12px",
-              }}
-            >
-              {h.prompt || "(프롬프트 없음)"}
-            </p>
-            <button
-              onClick={() => copy(i, h.prompt)}
-              className="btn-tertiary"
-              style={{
                 border: "1px solid var(--border)",
                 borderRadius: "var(--radius-md)",
-                padding: "6px 12px",
-                fontSize: 14,
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
+                padding: "8px 12px",
+                resize: "vertical",
               }}
-            >
-              {copied === i ? (
-                <Check size={16} color="var(--success)" />
-              ) : (
-                <Copy size={16} color="var(--text-muted)" />
-              )}
-              {copied === i ? "복사됨" : "복사"}
-            </button>
-            <button
-              onClick={() => generateOne(i, h)}
-              disabled={!genEnabled || generating != null || !h.prompt}
-              title={
-                genEnabled
-                  ? "NVIDIA NIM으로 이 프롬프트의 이미지를 생성"
-                  : "NVIDIA_API_KEY 미설정 — .env.local에 추가하면 활성화됩니다"
-              }
-              className="btn-weak-primary"
-              style={{
-                border: "none",
-                borderRadius: "var(--radius-md)",
-                padding: "6px 12px",
-                fontSize: 14,
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-                opacity: genEnabled ? 1 : 0.6,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <Sparkles size={16} color={genEnabled ? "var(--primary-hover)" : "var(--text-muted)"} />
-              {generating === i
-                ? "생성 중…"
-                : h.generatedImageAssetId
-                  ? "다시 생성"
-                  : "이미지 생성"}
-            </button>
+              placeholder="(프롬프트 없음)"
+            />
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <button
+                onClick={() => copy(h.key, h.prompt)}
+                className="btn-tertiary"
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "6px 12px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                {copied === h.key ? (
+                  <Check size={16} color="var(--success)" />
+                ) : (
+                  <Copy size={16} color="var(--text-muted)" />
+                )}
+                {copied === h.key ? "복사됨" : "복사"}
+              </button>
+              <button
+                onClick={() => refinePrompt(h)}
+                disabled={refiningKey != null}
+                title="편집한 내용과 방향 제외 키워드를 반영해 이 프롬프트만 다시 다듬습니다"
+                className="btn-tertiary"
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "6px 12px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Wand2 size={16} color="var(--text-muted)" />
+                {refiningKey === h.key ? "다듬는 중…" : "프롬프트 다듬기"}
+              </button>
+              <button
+                onClick={() => generateOne(h)}
+                disabled={!genEnabled || generating != null || !h.prompt}
+                title={
+                  genEnabled
+                    ? "NVIDIA NIM으로 이 프롬프트의 이미지를 생성"
+                    : "NVIDIA_API_KEY 미설정 — .env.local에 추가하면 활성화됩니다"
+                }
+                className="btn-weak-primary"
+                style={{
+                  border: "none",
+                  borderRadius: "var(--radius-md)",
+                  padding: "6px 12px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  opacity: genEnabled ? 1 : 0.6,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Sparkles size={16} color={genEnabled ? "var(--primary-hover)" : "var(--text-muted)"} />
+                {generating === h.key
+                  ? "생성 중…"
+                  : h.generatedImageAssetId
+                    ? "다시 생성"
+                    : "이미지 생성"}
+              </button>
+            </div>
           </div>
+          {refineError && refiningKey == null && (
+            <ErrorState
+              title="프롬프트 다듬기에 실패했어요"
+              detail={refineError}
+              onRetry={() => refinePrompt(h)}
+            />
+          )}
           {h.generatedImageAssetId && (
             <GeneratedImagePreview
               assetId={h.generatedImageAssetId}
@@ -424,17 +577,18 @@ export default function ImageHintsTab({
       ))}
       {genError &&
         generating == null &&
-        genErrorIndex != null &&
-        (references.imageHints ?? [])[genErrorIndex] && (
-          <ErrorState
-            title="이미지 생성에 실패했어요"
-            description="서버 응답이 지연되었거나 요청이 처리되지 않았을 수 있습니다."
-            detail={genError}
-            onRetry={() =>
-              generateOne(genErrorIndex, (references.imageHints ?? [])[genErrorIndex])
-            }
-          />
-        )}
+        genErrorKey != null &&
+        (() => {
+          const failedHint = visibleHints.find((h) => h.key === genErrorKey);
+          return failedHint ? (
+            <ErrorState
+              title="이미지 생성에 실패했어요"
+              description="서버 응답이 지연되었거나 요청이 처리되지 않았을 수 있습니다."
+              detail={genError}
+              onRetry={() => generateOne(failedHint)}
+            />
+          ) : null;
+        })()}
     </div>
   );
 }
