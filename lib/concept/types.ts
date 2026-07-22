@@ -25,7 +25,18 @@ export interface ConceptJson {
   options: ConceptOption[]; // 3안
   outputSelection: ConceptOutputSelection;
   baseContentVariantId?: string; // 콘텐츠 변형이 있을 때 구조 3안 생성에 쓴 기준 변형(§6.7)
+  // 서버 계약에는 없다 — 클라이언트가 "컨셉 3안 생성" 응답을 받을 때마다 1회
+  // 새로 발급해 붙인다(P1 item12 보완). 같은 브리프로 다시 생성해도 매번 새
+  // 값이라, briefHash만으로는 구분 못 하는 "동일 입력 재생성"까지 구분해낸다.
+  generationId?: string;
 }
+
+// React의 setState처럼 "현재 값을 함수로 받아 다음 값을 반환"하는 형태도 허용한다.
+// 온디맨드 콘텐츠 매핑(§6.7, P1 item12)처럼 await 이후 onChange를 호출하는 지점이
+// 요청 시작 시점의 스냅샷이 아니라 flush 시점의 최신 concept을 기준으로 병합하게
+// 하기 위함 — lib/reference/types.ts의 ReferenceResultUpdater와 같은 이유
+// (§2.9/§6.5 — 늦게 도착한 응답이 그 사이 재생성된 컨셉을 덮어쓰는 문제 방지).
+export type ConceptJsonUpdater = ConceptJson | ((prev: ConceptJson) => ConceptJson);
 
 // Gemini 프롬프트에 실제로 들어가는 내용의 형태(내부 문서화·해시 계산용) —
 // buildSafeConceptAnalysisInput()의 출력. 클라이언트→서버는 같은 신뢰 경계라
@@ -78,11 +89,14 @@ export interface ContentVariantMappingRequest {
   pages: ConceptPage[];
 }
 
-// 캐시 키 개념: conceptOptionId + contentVariantId + briefHash. 실제로는 결과를
+// 캐시 키 개념: conceptOptionId + contentVariantId + generationId. 실제로는 결과를
 // ConceptOption.contentVariantMappings[contentVariantId]에 저장하므로(옵션으로
-// 이미 스코프됨), 브리프가 바뀌어 컨셉 전체가 재생성되면 sourceBasis와 함께
-// contentVariantMappings도 통째로 교체돼 자연히 무효화된다 — 별도 캐시 저장소를
-// 두지 않는다.
+// 이미 스코프됨), 컨셉 전체가 재생성되면(같은 브리프로 다시 생성해도 generationId는
+// 매번 새로 발급된다) contentVariantMappings도 통째로 교체돼 자연히 무효화된다 —
+// 별도 캐시 저장소를 두지 않는다. 단, "요청 시작 ~ 응답 도착" 사이에 재생성이
+// 끼어드는 경우까지는 이 구조적 교체만으로 막을 수 없어(응답이 함수형 onChange로
+// 늦게 병합될 때는 이미 새 컨셉이 들어와 있음) generationId를 요청 시점에 같이
+// 캡처해 응답 병합 시점에 비교한다(ConceptWorkspace.tsx의 isStaleContentVariantResult).
 
 // 표지(비주얼 대표)와 내용 대표를 분리 — "표지 ≠ 대표" (Step 11 계승)
 export interface ConceptOutputSelection {
@@ -104,8 +118,10 @@ export interface ConceptOption {
   pages: ConceptPage[];
   // 웹+모바일 별도 산출물 요구 대응 (실사용#25). 미지정 시 pages = 웹 단일 세트.
   platforms?: { web?: ConceptPage[]; mobile?: ConceptPage[] };
-  // key: contentVariantId — 온디맨드로 생성한 비기준 변형의 페이지만 누적(§6.7)
-  contentVariantMappings?: Record<string, ConceptPage[]>;
+  // key: contentVariantId — 온디맨드로 생성한 비기준 변형의 페이지만 누적(§6.7).
+  // promptVersion을 함께 저장해, 배포로 콘텐츠 변형 프롬프트가 바뀐 뒤 IndexedDB에서
+  // 복구된 옛 매핑을 새 프롬프트 버전 없이 그대로 재사용하지 않게 한다.
+  contentVariantMappings?: Record<string, { pages: ConceptPage[]; promptVersion: string }>;
 }
 
 export interface ConceptAxis {

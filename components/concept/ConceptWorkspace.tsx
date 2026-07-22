@@ -4,7 +4,12 @@ import { useState } from "react";
 import { Check, Download, Printer, Smartphone } from "lucide-react";
 import ConceptPreview from "./ConceptPreview";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
-import type { ConceptJson, OutputPreset } from "@/lib/concept/types";
+import {
+  buildContentVariantCacheKey,
+  CONTENT_VARIANT_PROMPT_VERSION,
+  isStaleContentVariantResult,
+} from "@/lib/concept/contentVariantCache";
+import type { ConceptJson, ConceptJsonUpdater, OutputPreset } from "@/lib/concept/types";
 import { recommendRepresentativePages } from "@/lib/reference/imageHints";
 import type { ReferenceResult } from "@/lib/reference/types";
 import {
@@ -24,7 +29,7 @@ interface ConceptWorkspaceProps {
   directives: ProjectDirective[];
   references: ReferenceResult;
   concept?: ConceptJson;
-  onChange: (next: ConceptJson) => void;
+  onChange: (next: ConceptJsonUpdater) => void;
   canRestore: boolean; // 복원키가 메모리에 있을 때만 실명본 가능
   makeTransform: (restored: boolean) => TextTransform;
   confirmed: boolean;
@@ -67,7 +72,13 @@ export default function ConceptWorkspace({
   // 미리보기에서 확인할 콘텐츠 변형 — 기준 변형이 아닌 걸 고르면 온디맨드로
   // contentMapping만 다시 받아온다(§6.7, P1 item 12).
   const [previewContentVariantId, setPreviewContentVariantId] = useState<string>();
-  const [variantMappingBusy, setVariantMappingBusy] = useState(false);
+  // 진행 중인 콘텐츠 변형 요청의 캐시 키 집합 — 여러 (옵션, 변형) 조합이 동시에
+  // 진행될 수 있어 boolean 하나로는 서로 다른 요청의 busy 상태가 섞인다(P1 item12
+  // 보완: 먼저 끝난 요청이 다른 요청의 busy 표시를 꺼버리는 문제 방지). 같은 키가
+  // 이미 있으면 중복 요청도 막는다(더블클릭 등).
+  const [variantMappingBusyKeys, setVariantMappingBusyKeys] = useState<Set<string>>(
+    new Set(),
+  );
   const [variantMappingError, setVariantMappingError] = useState<string>();
 
   const representative =
@@ -98,13 +109,16 @@ export default function ConceptWorkspace({
       if (!res.ok || !body?.concept) {
         throw new Error(body?.error ?? "컨셉 생성에 실패했습니다.");
       }
-      onChange(body.concept as ConceptJson);
-      const first = (body.concept as ConceptJson).options[0];
+      // generationId는 서버 계약에 없다 — "같은 브리프로 다시 생성"까지 구분해야
+      // 하는 클라이언트 전용 표식이라 여기서 매번 새로 발급한다(P1 item12 보완).
+      const generatedConcept: ConceptJson = {
+        ...(body.concept as ConceptJson),
+        generationId: crypto.randomUUID(),
+      };
+      onChange(generatedConcept);
+      const first = generatedConcept.options[0];
       setSelectedOptionId(first?.optionId);
-      setPreviewPageId(
-        (body.concept as ConceptJson).outputSelection
-          .contentRepresentativePageId,
-      );
+      setPreviewPageId(generatedConcept.outputSelection.contentRepresentativePageId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "컨셉 생성에 실패했습니다.");
     } finally {
@@ -121,7 +135,7 @@ export default function ConceptWorkspace({
     activeVariantId && activeVariantId !== concept?.baseContentVariantId,
   );
   const variantPages = isNonBaseVariant
-    ? selected?.contentVariantMappings?.[activeVariantId!]
+    ? selected?.contentVariantMappings?.[activeVariantId!]?.pages
     : undefined;
   // 웹+모바일 세트가 있으면 토글로 전환, 없으면 pages 단일 세트. 비기준 변형을
   // 고르고 온디맨드 매핑이 이미 받아져 있으면 그걸 우선한다(§6.7).
@@ -144,11 +158,21 @@ export default function ConceptWorkspace({
     if (!selected || !concept) return;
     // 기준 변형으로 되돌아가면 이미 있는 pages를 그대로 쓰면 되니 호출하지 않는다.
     if (!variantId || variantId === concept.baseContentVariantId) return;
-    // 이미 이 옵션에 이 변형의 매핑이 있으면(캐시) 다시 부르지 않는다 — 캐시 키는
-    // conceptOptionId(옵션에 스코프됨) + contentVariantId(맵 키)이고, briefHash는
-    // 컨셉 전체가 재생성될 때 sourceBasis와 함께 자연히 무효화된다(§6.7).
-    if (selected.contentVariantMappings?.[variantId]) return;
-    setVariantMappingBusy(true);
+    // 이미 이 옵션에 이 변형의 매핑이 있으면(캐시) 다시 부르지 않는다 — 단,
+    // 배포로 content-variant 프롬프트가 바뀌었으면(CONTENT_VARIANT_PROMPT_VERSION
+    // 상승) IndexedDB에서 복구된 옛 매핑이어도 재사용하지 않고 다시 받는다.
+    const cached = selected.contentVariantMappings?.[variantId];
+    if (cached && cached.promptVersion === CONTENT_VARIANT_PROMPT_VERSION) return;
+    const optionId = selected.optionId;
+    const generationId = concept.generationId;
+    const cacheKey = buildContentVariantCacheKey({
+      conceptOptionId: optionId,
+      contentVariantId: variantId,
+      generationId,
+    });
+    // 같은 조합 요청이 이미 in-flight면 중복 호출하지 않는다(더블클릭 등).
+    if (variantMappingBusyKeys.has(cacheKey)) return;
+    setVariantMappingBusyKeys((prev) => new Set(prev).add(cacheKey));
     try {
       const res = await fetch("/api/concept/content-variant", {
         method: "POST",
@@ -164,27 +188,43 @@ export default function ConceptWorkspace({
       if (!res.ok || !Array.isArray(body?.pages)) {
         throw new Error(body?.error ?? "콘텐츠 매핑 생성에 실패했습니다.");
       }
-      const optionId = selected.optionId;
-      onChange({
-        ...concept,
-        options: concept.options.map((o) =>
-          o.optionId === optionId
-            ? {
-                ...o,
-                contentVariantMappings: {
-                  ...(o.contentVariantMappings ?? {}),
-                  [variantId]: body.pages,
-                },
-              }
-            : o,
-        ),
+      // 최신 concept을 기준으로 병합한다(prev 함수형) — await 도중 컨셉이
+      // 재생성됐으면 이 응답은 버린다. generationId는 같은 브리프로 다시 생성해도
+      // 매번 새로 발급되므로, briefHash만 비교했다면 놓쳤을 "동일 입력 재생성"도
+      // 여기서 잡아낸다. 클로저로 캡처한 concept에 그대로 합치면 새로 생성된
+      // 컨셉을 옛 결과로 덮어쓸 수 있다.
+      onChange((prevConcept) => {
+        if (isStaleContentVariantResult(generationId, prevConcept.generationId)) {
+          return prevConcept;
+        }
+        return {
+          ...prevConcept,
+          options: prevConcept.options.map((o) =>
+            o.optionId === optionId
+              ? {
+                  ...o,
+                  contentVariantMappings: {
+                    ...(o.contentVariantMappings ?? {}),
+                    [variantId]: {
+                      pages: body.pages,
+                      promptVersion: CONTENT_VARIANT_PROMPT_VERSION,
+                    },
+                  },
+                }
+              : o,
+          ),
+        };
       });
     } catch (e) {
       setVariantMappingError(
         e instanceof Error ? e.message : "콘텐츠 매핑 생성에 실패했습니다.",
       );
     } finally {
-      setVariantMappingBusy(false);
+      setVariantMappingBusyKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(cacheKey);
+        return next;
+      });
     }
   };
 
@@ -354,6 +394,7 @@ export default function ConceptWorkspace({
                     <select
                       value={activeVariantId ?? ""}
                       onChange={(e) => void selectPreviewVariant(e.target.value)}
+                      disabled={variantMappingBusyKeys.size > 0}
                       className="select-box"
                     >
                       {variants.map((v) => (
@@ -365,7 +406,7 @@ export default function ConceptWorkspace({
                     </select>
                   </label>
                 )}
-                {variantMappingBusy && (
+                {variantMappingBusyKeys.size > 0 && (
                   <span style={{ fontSize: 14, color: "var(--text-muted)" }}>
                     다른 원고 적용 중…
                   </span>
@@ -420,7 +461,7 @@ function OutputPanel({
   analysis: ProjectAnalysis;
   references: ReferenceResult;
   concept: ConceptJson;
-  onChange: (next: ConceptJson) => void;
+  onChange: (next: ConceptJsonUpdater) => void;
   canRestore: boolean;
   makeTransform: (restored: boolean) => TextTransform;
   confirmed: boolean;

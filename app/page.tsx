@@ -969,7 +969,15 @@ export default function Home() {
             references={workflow.references ?? {}}
             concept={workflow.conceptJson}
             onChange={(next) =>
-              setWorkflow((prev) => ({ ...prev, conceptJson: next }))
+              setWorkflow((prev) => ({
+                ...prev,
+                conceptJson:
+                  typeof next === "function"
+                    ? prev.conceptJson
+                      ? next(prev.conceptJson)
+                      : prev.conceptJson
+                    : next,
+              }))
             }
             canRestore={secureMappingsRef.current.length > 0}
             makeTransform={(restored) =>
