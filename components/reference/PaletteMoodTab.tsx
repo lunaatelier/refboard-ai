@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Info } from "lucide-react";
 import SkinPreview from "./SkinPreview";
 import { pickBackgroundColorRequirement } from "@/lib/analysis/requirements";
@@ -19,6 +19,7 @@ import {
   hexToHsl,
   regenerateBrandOption,
 } from "@/lib/reference/palette";
+import { RequestGuard } from "@/lib/reference/requestGuard";
 import type {
   DirectionOption,
   ImageRole,
@@ -83,12 +84,16 @@ interface MoodImageQuery {
   page?: number;
 }
 
-async function fetchMoodImages(params: MoodImageQuery): Promise<SearchedImageLike[]> {
+async function fetchMoodImages(
+  params: MoodImageQuery,
+  signal?: AbortSignal,
+): Promise<SearchedImageLike[]> {
   try {
     const res = await fetch("/api/mood-images", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(params),
+      signal,
     });
     const body = await res.json().catch(() => null);
     return Array.isArray(body?.images) ? body.images : [];
@@ -129,6 +134,16 @@ export default function PaletteMoodTab({
   const [regenError, setRegenError] = useState<string>();
   const [replaceBusyUrl, setReplaceBusyUrl] = useState<string>();
   const [selectionNotice, setSelectionNotice] = useState<string>();
+
+  // 방향 3안 전체를 다루는 모든 비동기 작업(재생성/이미지 교체/커스텀 컬러
+  // 재생성)이 공유하는 늦은 응답 가드(P10-A) — 하나의 key("directions")로
+  // 묶어, 방향 전체가 다시 만들어지는 순간 그 이전에 진행 중이던 요청(다른
+  // 이미지 교체 등)은 전부 취소되고 응답이 와도 무시된다.
+  const directionGuard = useRef(new RequestGuard()).current;
+  // 이 탭이 언마운트되면(다른 탭으로 이동) 남아있는 요청은 전부 취소하고 늦게
+  // 도착해도 무시한다 — epoch 비교만으로는 "같은 탭 안의 새 요청"만 잡아내고
+  // "탭을 아예 떠남"은 잡지 못한다.
+  useEffect(() => () => directionGuard.cancelAll(), [directionGuard]);
 
   const mode = references.paletteMode ?? "light";
   const edited = references.editedPaletteOption;
@@ -187,13 +202,20 @@ export default function PaletteMoodTab({
   const replaceOneImage = async (direction: DirectionOption, url: string) => {
     setReplaceBusyUrl(url);
     setRegenError(undefined);
+    const { epoch, signal } = directionGuard.begin("directions");
     try {
-      const images = await fetchMoodImages({
-        query: queryFor(direction),
-        colorHex: keepColor ? currentPalette?.primary : undefined,
-        excludeKeywords,
-        page: regenPage,
-      });
+      const images = await fetchMoodImages(
+        {
+          query: queryFor(direction),
+          colorHex: keepColor ? currentPalette?.primary : undefined,
+          excludeKeywords,
+          page: regenPage,
+        },
+        signal,
+      );
+      // 그 사이 방향 3안이 재생성/재선택돼 이 응답이 더 이상 유효하지 않으면
+      // (§P10-A) 조용히 버린다 — busy 해제만 finally에서 계속 수행한다.
+      if (!directionGuard.isCurrent("directions", epoch)) return;
       setRegenPage((p) => p + 1);
       const existingUrls = new Set(direction.imageCandidates.map((c) => c.url));
       const fresh = images.find((img) => !existingUrls.has(img.url));
@@ -210,13 +232,18 @@ export default function PaletteMoodTab({
   const regenerateDirectionImages = async (direction: DirectionOption) => {
     setRegenBusy(true);
     setRegenError(undefined);
+    const { epoch, signal } = directionGuard.begin("directions");
     try {
-      const images = await fetchMoodImages({
-        query: queryFor(direction),
-        colorHex: keepColor ? currentPalette?.primary : undefined,
-        excludeKeywords,
-        page: regenPage,
-      });
+      const images = await fetchMoodImages(
+        {
+          query: queryFor(direction),
+          colorHex: keepColor ? currentPalette?.primary : undefined,
+          excludeKeywords,
+          page: regenPage,
+        },
+        signal,
+      );
+      if (!directionGuard.isCurrent("directions", epoch)) return;
       setRegenPage((p) => p + 1);
       if (images.length === 0) {
         setRegenError("이미지를 찾지 못했습니다. 검색어를 바꿔보세요.");
@@ -253,6 +280,9 @@ export default function PaletteMoodTab({
       return;
     }
     setCustomHexError(undefined);
+    // 방향 3안 전체를 새로 만드므로, 진행 중이던 이미지 교체/재생성 요청은
+    // 지금 취소하고 그 응답이 나중에 와도 무시한다(P10-A).
+    directionGuard.begin("directions");
     const brand = customHex.trim();
     onChange({
       ...references,
@@ -299,6 +329,10 @@ export default function PaletteMoodTab({
     }
     setDirectionBusy(true);
     setError(undefined);
+    // 방향 3안을 통째로 새로 만드는 작업(P10-A) — 진행 중이던 이미지 교체/재생성
+    // 요청을 취소하고, 이 요청보다 나중에 시작된 다른 재생성이 먼저 끝나면
+    // 이 결과는 버린다.
+    const { epoch, signal } = directionGuard.begin("directions");
     try {
       const res = await fetch("/api/mood", {
         method: "POST",
@@ -312,6 +346,7 @@ export default function PaletteMoodTab({
           directives,
           paletteOptions,
         }),
+        signal,
       });
       const body = await res.json().catch(() => null);
       if (!res.ok || !Array.isArray(body?.moods)) {
@@ -321,8 +356,9 @@ export default function PaletteMoodTab({
 
       // 방향 3안 각각의 대표 이미지 — 배치로 한 번에 가져온다 (§P4 "약 3회").
       const imageLists = await Promise.all(
-        moods.map((m) => fetchMoodImages({ query: m.imageQuery })),
+        moods.map((m) => fetchMoodImages({ query: m.imageQuery }, signal)),
       );
+      if (!directionGuard.isCurrent("directions", epoch)) return;
       const imagesByMoodId = Object.fromEntries(
         moods.map((m, i) => [m.id, imageLists[i]]),
       );
@@ -337,6 +373,9 @@ export default function PaletteMoodTab({
         paletteMode: undefined,
       }));
     } catch (e) {
+      // AbortError는 다른 재생성이 이걸 대체했다는 뜻 — 사용자가 이미 다음
+      // 행동을 시작한 것이므로 에러로 보여주지 않는다.
+      if (e instanceof DOMException && e.name === "AbortError") return;
       setError(e instanceof Error ? e.message : "방향 생성에 실패했습니다.");
     } finally {
       setDirectionBusy(false);
@@ -358,6 +397,13 @@ export default function PaletteMoodTab({
         prev.paletteMode ?? (analysis.domain === "dashboard-ops" ? "dark" : "light"),
     }));
   };
+
+  // 방향 3안 전체를 다루는 비동기 작업들은 전부 같은 "directions" 리소스를
+  // 공유한다(P10-A) — 하나라도 진행 중이면 서로 겹쳐 시작하지 못하게 막아서,
+  // 겹쳐 시작됐을 때 busy 표시가 실제 진행 상태와 어긋나는 걸 UI 단에서부터
+  // 방지한다(개별 요청의 결과 자체는 어차피 directionGuard가 막지만, 그와
+  // 별개로 사용자에게 보이는 버튼 상태도 정확해야 한다).
+  const anyDirectionOpBusy = directionBusy || regenBusy || Boolean(replaceBusyUrl);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)" }}>
@@ -406,6 +452,7 @@ export default function PaletteMoodTab({
           />
           <button
             onClick={regenerateWithCustomColor}
+            disabled={anyDirectionOpBusy}
             className="btn-weak-primary"
             style={{
               padding: "6px 14px",
@@ -427,7 +474,7 @@ export default function PaletteMoodTab({
         {directions.length === 0 ? (
           <button
             onClick={generateDirections}
-            disabled={directionBusy}
+            disabled={anyDirectionOpBusy}
             className="btn-weak-primary"
             style={{
               alignSelf: "flex-start",
@@ -446,7 +493,7 @@ export default function PaletteMoodTab({
           <>
             <button
               onClick={generateDirections}
-              disabled={directionBusy}
+              disabled={anyDirectionOpBusy}
               style={{
                 alignSelf: "flex-start",
                 padding: "6px 14px",
@@ -848,7 +895,7 @@ export default function PaletteMoodTab({
 
           <button
             onClick={() => regenerateDirectionImages(selectedDirection)}
-            disabled={regenBusy}
+            disabled={regenBusy || directionBusy}
             className="btn-weak-primary"
             style={{
               alignSelf: "flex-start",
@@ -948,7 +995,7 @@ export default function PaletteMoodTab({
                     )}
                     <button
                       onClick={() => replaceOneImage(selectedDirection, c.url)}
-                      disabled={replaceBusyUrl === c.url}
+                      disabled={Boolean(replaceBusyUrl) || regenBusy || directionBusy}
                       style={{
                         marginLeft: "auto",
                         border: "1px solid var(--border)",

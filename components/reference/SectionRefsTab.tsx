@@ -21,6 +21,7 @@ import {
   buildSectionQueriesCacheKey,
   SessionRequestCache,
 } from "@/lib/reference/requestCache";
+import { RequestGuard } from "@/lib/reference/requestGuard";
 import {
   resolveSectionPriority,
   seedSectionPriorities,
@@ -122,6 +123,14 @@ export default function SectionRefsTab({
       { sectionId: string; searchQuery: string; queriesByPlatform?: Record<string, string> }[]
     >(),
   );
+  // 섹션별 이미지 검색의 늦은 응답 가드(P10-A) — 같은 섹션에서 검색어를 바꿔
+  // 다시 요청했을 때, 먼저 보낸 옛 검색어의 응답이 나중에 도착해 최신 결과를
+  // 덮어쓰지 않게 한다. key = section.sectionId(섹션마다 독립적인 리소스이므로
+  // 한 섹션의 재요청이 다른 섹션의 in-flight 요청에 영향을 주지 않는다).
+  const imageRequestGuard = useRef(new RequestGuard()).current;
+  // 이 탭이 언마운트되면(다른 탭으로 이동) 남아있는 이미지 검색 요청은 전부
+  // 늦은 응답으로 처리한다 — epoch 비교만으로는 "탭을 아예 떠남"을 잡지 못한다.
+  useEffect(() => () => imageRequestGuard.cancelAll(), [imageRequestGuard]);
 
   const focusedPage = selectedPages.find((p) => p.pageId === focusedPageId);
   const bySectionId = references.bySectionId ?? {};
@@ -235,6 +244,12 @@ export default function SectionRefsTab({
   const fetchSectionImages = async (section: Section, query: string) => {
     if (!query.trim()) return;
     setImagesBusy((b) => ({ ...b, [section.sectionId]: true }));
+    // begin()의 signal은 의도적으로 아래 fetch에 넘기지 않는다 — imageCacheRef는
+    // 같은 query 키를 요청한 다른 호출자와 Promise를 공유하므로(SessionRequestCache
+    // in-flight dedupe), 여기서 요청을 실제로 취소하면 그 다른 호출자의 요청까지
+    // 함께 취소돼버린다. 이 요청은 "취소 불가"로 두고, epoch 비교로 늦은 응답만
+    // 버리는 방식만 적용한다.
+    const { epoch } = imageRequestGuard.begin(section.sectionId);
     try {
       const key = buildImageQueryCacheKey({ query });
       const images = await imageCacheRef.current.get(key, async () => {
@@ -246,6 +261,9 @@ export default function SectionRefsTab({
         const body = await res.json().catch(() => null);
         return Array.isArray(body?.images) ? (body.images as MoodImage[]) : [];
       });
+      // 같은 섹션에서 그 사이 다른 검색어로 다시 요청했으면(§P10-A) 이 응답은
+      // 더 이상 최신이 아니므로 버린다.
+      if (!imageRequestGuard.isCurrent(section.sectionId, epoch)) return;
       patchRef(section, { images });
     } finally {
       setImagesBusy((b) => ({ ...b, [section.sectionId]: false }));
