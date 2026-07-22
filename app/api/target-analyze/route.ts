@@ -2,11 +2,18 @@ import { NextResponse } from "next/server";
 import { generateGroundedJson } from "@/lib/ai/client";
 import { buildDirectiveBlock } from "@/lib/ai/prompts";
 import { buildVerifiedSources } from "@/lib/reference/sourceVerification";
+import {
+  ANONYMOUS_PROJECT_ID,
+  budgetStore,
+  FEATURE_LIMITS,
+} from "@/lib/reference/providerBudget";
 
 // 분석 대상 브랜드 2단계 깊은 분석 (Step 10-c) — 7개 축을 구조화 질문으로 강제.
 // grounding으로 출처 URL 확보 (환각 방지). 결과는 "추천/추정 포함" 배지로 표기.
 
 export const runtime = "nodejs";
+
+const FEATURE = "target-analyze";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -18,6 +25,23 @@ export async function POST(req: Request) {
     );
   }
   const directives = Array.isArray(body?.directives) ? body.directives : [];
+
+  // 입력 검증을 통과한 뒤에만 예산을 소진한다 — 캐시 적중·입력 거절은 차감하지
+  // 않는다(P10-B). 프로젝트 ID가 없는 호출은 공용 폴백 키로 묶는다.
+  const projectId = req.headers.get("x-project-id") || ANONYMOUS_PROJECT_ID;
+  const budget = budgetStore.reserveAttempt(projectId, FEATURE, FEATURE_LIMITS[FEATURE]);
+  if (!budget.ok) {
+    return NextResponse.json(
+      {
+        error:
+          budget.reason === "PROJECT_BUDGET_EXHAUSTED"
+            ? "이 프로젝트에서 브랜드 심층 분석을 이미 최대 개수만큼 사용했습니다."
+            : "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.",
+        reason: budget.reason,
+      },
+      { status: 429 },
+    );
+  }
 
   const prompt = `당신은 시니어 프로덕트 디자이너다. 웹 검색을 활용해 "${name}" (${url})의 디자인을 깊게 분석하라.
 ${buildDirectiveBlock(directives, "reference")}
@@ -45,6 +69,7 @@ ${buildDirectiveBlock(directives, "reference")}
       Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
     const modelStatedUrl = str(raw?.sourceUrl) || undefined;
     const verifiedSources = await buildVerifiedSources(url, sources, modelStatedUrl);
+    budgetStore.recordSuccess(projectId, FEATURE);
     return NextResponse.json({
       analysis: {
         layoutStrategy: str(raw?.layoutStrategy),

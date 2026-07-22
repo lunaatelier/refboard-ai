@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { generateImage, isImageGenerationEnabled } from "@/lib/ai/client";
 import { aspectRatioToSize } from "@/lib/reference/imageHints";
+import {
+  ANONYMOUS_PROJECT_ID,
+  budgetStore,
+  FEATURE_LIMITS,
+} from "@/lib/reference/providerBudget";
 
 // 이미지 실제 생성 (Step 19) — NVIDIA NIM. 키가 없으면 비활성(GET으로 노출).
 // 입력은 image-hints가 만든 "마스킹 토큰 없는 영어 프롬프트"만 — 방어적으로 한 번 더 제거.
 
 export const runtime = "nodejs";
+
+const FEATURE = "generate-image";
 
 export async function GET() {
   return NextResponse.json({ enabled: isImageGenerationEnabled() });
@@ -29,8 +36,26 @@ export async function POST(req: Request) {
     typeof body?.aspectRatio === "string" ? body.aspectRatio : undefined,
   );
 
+  // 입력 검증을 통과한 뒤에만 예산을 소진한다(P10-B) — 캐시 적중·입력 거절은
+  // 차감하지 않는다. 프로젝트 ID가 없는 호출은 공용 폴백 키로 묶는다.
+  const projectId = req.headers.get("x-project-id") || ANONYMOUS_PROJECT_ID;
+  const budget = budgetStore.reserveAttempt(projectId, FEATURE, FEATURE_LIMITS[FEATURE]);
+  if (!budget.ok) {
+    return NextResponse.json(
+      {
+        error:
+          budget.reason === "PROJECT_BUDGET_EXHAUSTED"
+            ? "이 프로젝트에서 이미지 생성을 이미 최대 장수만큼 사용했습니다."
+            : "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.",
+        reason: budget.reason,
+      },
+      { status: 429 },
+    );
+  }
+
   try {
     const image = await generateImage(prompt, size);
+    budgetStore.recordSuccess(projectId, FEATURE);
     return NextResponse.json({
       dataUrl: `data:${image.mimeType};base64,${image.base64}`,
     });

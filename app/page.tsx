@@ -542,6 +542,7 @@ export default function Home() {
           if (prev.currentStep !== "upload" || prev.analysis) return prev;
           return {
             ...prev,
+            projectId: snapshot.projectId,
             sourceType: snapshot.sourceType,
             documentPurpose: snapshot.documentPurpose,
             projectDirective: snapshot.projectDirective,
@@ -579,6 +580,18 @@ export default function Home() {
     }, 500);
     return () => clearTimeout(timer);
   }, [workflow]);
+
+  // 프로젝트별 서버 호출 예산(P10-B)을 세는 데 쓰는 비식별 키를 한 번만 발급한다.
+  // 복구된 세션이면 위 restore 효과가 이미 채워뒀을 수 있으니 그때는 새로 만들지
+  // 않는다 — 새로고침해도 같은 프로젝트로 이어져야 예산이 의미 있다.
+  useEffect(() => {
+    if (!hasAttemptedRestoreRef.current) return;
+    if (workflow.projectId) return;
+    if (workflow.currentStep === "upload" && !workflow.analysis) return;
+    setWorkflow((prev) =>
+      prev.projectId ? prev : { ...prev, projectId: crypto.randomUUID() },
+    );
+  }, [workflow.projectId, workflow.currentStep, workflow.analysis]);
 
   const handleConfirmAnalysis = () => {
     setWorkflow((prev) => {
@@ -872,6 +885,7 @@ export default function Home() {
             extractedTargets={workflow.extractedAnalysisTargets ?? []}
             documentPurpose={workflow.documentPurpose}
             references={workflow.references ?? {}}
+            projectId={workflow.projectId}
             onChange={(next) =>
               setWorkflow((prev) => ({
                 ...prev,

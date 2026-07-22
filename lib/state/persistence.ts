@@ -11,6 +11,7 @@ import type { WorkflowState } from "./workflow";
 //   data URL 자체는 여기 들어오지 않는다.
 
 export interface SafeWorkflowSnapshot {
+  projectId?: WorkflowState["projectId"];
   sourceType?: WorkflowState["sourceType"];
   documentPurpose?: WorkflowState["documentPurpose"];
   projectDirective?: WorkflowState["projectDirective"];
@@ -25,6 +26,7 @@ export interface SafeWorkflowSnapshot {
 
 export function toSafeSnapshot(state: WorkflowState): SafeWorkflowSnapshot {
   return {
+    projectId: state.projectId,
     sourceType: state.sourceType,
     documentPurpose: state.documentPurpose,
     projectDirective: state.projectDirective,

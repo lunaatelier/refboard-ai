@@ -39,6 +39,10 @@ import type { ReferenceResult } from "../reference/types";
 export interface WorkflowState {
   currentStep: Step;
   completedSteps: Step[];
+  // 프로젝트별 서버 호출 예산(P10-B)을 세는 데 쓰는 비식별 키. 분석 착수 시
+  // 한 번만 발급되고 이후 계속 유지된다 — 새로고침해도 같은 프로젝트로 이어지게
+  // IndexedDB 스냅샷에도 포함한다(lib/state/persistence.ts). 민감 정보 아님.
+  projectId?: string;
   // 재활용 모드 (Step 13). 미설정 = "raw-document" (일반 경로).
   // "analysis-json" = 저장된 분석 JSON으로 시작 → 마스킹 건너뛰고 ④ 직행, 복원키 없음.
   sourceType?: "raw-document" | "analysis-json";

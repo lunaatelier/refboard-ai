@@ -39,6 +39,7 @@ interface TargetsTabProps {
   extractedTargets: ExtractedAnalysisTarget[];
   references: ReferenceResult;
   onChange: (next: ReferenceResultUpdater) => void;
+  projectId?: string;
 }
 
 const card: React.CSSProperties = {
@@ -97,6 +98,7 @@ export default function TargetsTab({
   extractedTargets,
   references,
   onChange,
+  projectId,
 }: TargetsTabProps) {
   const [listBusy, setListBusy] = useState(false);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
@@ -291,7 +293,10 @@ export default function TargetsTab({
     try {
       const res = await fetch("/api/target-analyze", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(projectId ? { "x-project-id": projectId } : {}),
+        },
         body: JSON.stringify({
           name: item.name,
           url: item.url,

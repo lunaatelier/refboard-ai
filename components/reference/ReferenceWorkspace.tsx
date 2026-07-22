@@ -37,6 +37,7 @@ interface ReferenceWorkspaceProps {
   references: ReferenceResult;
   onChange: (next: ReferenceResultUpdater) => void;
   onConfirm: () => void;
+  projectId?: string;
 }
 
 export default function ReferenceWorkspace({
@@ -47,6 +48,7 @@ export default function ReferenceWorkspace({
   references,
   onChange,
   onConfirm,
+  projectId,
 }: ReferenceWorkspaceProps) {
   const [tab, setTab] = useState<TabId>("palette-mood");
 
@@ -123,6 +125,7 @@ export default function ReferenceWorkspace({
           extractedTargets={extractedTargets}
           references={references}
           onChange={onChange}
+          projectId={projectId}
         />
       )}
       {tab === "image-hints" && (
@@ -132,6 +135,7 @@ export default function ReferenceWorkspace({
           documentPurpose={documentPurpose}
           references={references}
           onChange={onChange}
+          projectId={projectId}
         />
       )}
       {tab === "review" && (

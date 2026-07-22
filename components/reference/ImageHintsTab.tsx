@@ -33,6 +33,7 @@ interface ImageHintsTabProps {
   documentPurpose?: DocumentPurpose;
   references: ReferenceResult;
   onChange: (next: ReferenceResultUpdater) => void;
+  projectId?: string;
 }
 
 const card: React.CSSProperties = {
@@ -65,6 +66,7 @@ export default function ImageHintsTab({
   documentPurpose,
   references,
   onChange,
+  projectId,
 }: ImageHintsTabProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -248,7 +250,10 @@ export default function ImageHintsTab({
     try {
       const res = await fetch("/api/generate-image", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(projectId ? { "x-project-id": projectId } : {}),
+        },
         body: JSON.stringify({
           prompt: hint.prompt,
           aspectRatio: hint.aspectRatio,
