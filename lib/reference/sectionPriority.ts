@@ -35,6 +35,27 @@ export function recommendHighImpactSectionIds(page: Page): string[] {
   return [...matched, ...remaining].slice(0, target);
 }
 
+// 섹션 하나의 유효 우선순위를 판정하는 단일 지점 (P8 보완) — sectionDecisionsByKey에
+// 명시적 결정이 있으면 그걸 쓰고, 없으면 규칙 추천(recommendHighImpactSectionIds)으로
+// 즉석 계산한다. SectionRefsTab(표시)·confirmBrief.ts(확정 스냅샷)·reviewStatus.ts(검토
+// 판정) 세 곳이 반드시 이 함수 하나만 써야 한다 — 이전엔 confirmBrief.ts가 "적용
+// 레퍼런스가 있으면 고영향"이라는 별도 휴리스틱을 썼고, SectionRefsTab은 페이지를
+// 열어야만(seedSectionPriorities) sectionDecisionsByKey를 채웠다. 사용자가 아직 열어
+// 보지 않은 페이지는 두 곳이 서로 다른 값을 보여줄 수 있었다.
+export function resolveSectionPriority(
+  page: Page,
+  section: Section,
+  sectionDecisionsByKey: Record<string, SectionPriorityEntry> = {},
+): SectionPriorityEntry {
+  const explicit = sectionDecisionsByKey[sectionKey(page.pageId, section.sectionId)];
+  if (explicit) return explicit;
+  const recommended = new Set(recommendHighImpactSectionIds(page));
+  return {
+    priority: recommended.has(section.sectionId) ? "high-impact" : "inherited",
+    source: "rule",
+  };
+}
+
 // 아직 명시적 결정이 없는 확정 섹션에만 규칙 추천을 채워 넣는다. 이미 존재하는
 // 항목(사용자 승격/강등 포함)은 그대로 둔다 — 페이지를 다시 열 때마다 호출해도
 // 안전하다(멱등).

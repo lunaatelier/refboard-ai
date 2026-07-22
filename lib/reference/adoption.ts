@@ -61,6 +61,11 @@ interface SetAdoptionInput {
   status: AdoptionStatus;
   aspects?: AdoptionAspect[];
   note?: string;
+  // 이 채택이 어떤 분석/방향 스냅샷을 근거로 만들어졌는지(P8 보완) —
+  // lib/reference/confirmBrief.ts의 computeAdoptionBasisHash(analysis, references)로
+  // 호출부에서 계산해 넘긴다. 이후 분석·방향이 바뀌면 이 값과 현재 기준 해시를
+  // 비교해 "오래된 근거" 여부를 판정한다(reviewStatus.ts).
+  basedOnHash: string;
 }
 
 // 사용자가 버튼을 눌러 만드는 결정이므로 source는 항상 "user"(직접 채택 —
@@ -81,7 +86,7 @@ export function setAdoption(
     status: input.status,
     aspects: input.aspects ?? existing?.aspects ?? [],
     note: input.note ?? existing?.note ?? "",
-    decision: { source: "user", freshness: "current", basedOnHash: "" },
+    decision: { source: "user", freshness: "current", basedOnHash: input.basedOnHash },
   };
   return {
     ...references,

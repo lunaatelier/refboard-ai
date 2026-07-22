@@ -166,6 +166,29 @@ function makeReferences(overrides: Partial<ReferenceResult> = {}): ReferenceResu
   };
 }
 
+// recommendHighImpactSectionIds는 확정 섹션이 적으면(페이지당 최소 min(3,개수)까지)
+// 패턴에 안 걸리는 섹션도 "부족분 채우기"로 고영향에 포함시킨다. 그래서 "규칙에
+// 안 걸리면 inherited"를 검증하려면 패딩이 소진되고 남는 섹션이 있도록 확정 섹션을
+// 충분히 늘려야 한다 — p1-s1(hero, 매칭) + 일반 섹션 3개 중 마지막 하나만 제외됨.
+function makeAnalysisWithNonHighImpactTail(): ProjectAnalysis {
+  const analysis = makeAnalysis();
+  const generic = (n: number) => ({
+    sectionId: `p1-generic-${n}`,
+    sectionTitle: `일반 섹션 ${n}`,
+    contentSummary: "설명 텍스트",
+    contentType: "content",
+    recommendedLayout: "text-block",
+    status: "confirmed" as const,
+  });
+  analysis.pages[0].sections = [
+    analysis.pages[0].sections[0], // p1-s1 (hero, 패턴 매칭)
+    generic(1),
+    generic(2),
+    generic(3), // 패딩 대상(min(3,4)=3)에서 밀려나 inherited로 남는다
+  ];
+  return analysis;
+}
+
 function makeAdoption(overrides: Partial<ReferenceAdoption> = {}): ReferenceAdoption {
   return {
     adoptionId: "adopt-1",
@@ -288,21 +311,42 @@ describe("confirmBrief — 섹션 우선순위 (P5-2)", () => {
     assert.equal(brief.pages[0].sections[0].decision.source, "rule");
   });
 
-  it("명시적 결정이 없으면(레거시 데이터) 기존 휴리스틱으로 폴백한다", () => {
+  it("명시적 결정이 없으면 SectionRefsTab과 동일한 규칙 추천(resolveSectionPriority)으로 떨어진다 (P8 보완 — 채택 여부와 무관)", () => {
+    // p1-s1은 recommendedLayout="hero"라 규칙 추천이 원래도 고영향으로 판단한다.
+    // 채택(adoption) 유무는 더 이상 이 판단에 관여하지 않는다 — 있어도(makeAdoption)
+    // 없어도 같은 결과여야 한다(이전엔 "적용 레퍼런스가 있으면 고영향"이라는 별도
+    // 휴리스틱이 있어 sectionDecisionsByKey 미시딩 시 SectionRefsTab 표시와
+    // 어긋날 수 있었다).
     const refs = makeReferences({
       referenceAdoptions: { a: makeAdoption() },
     });
     const brief = buildConfirmedBrief(makeAnalysis(), refs, { now: fixedNow });
     assert.equal(brief.pages[0].sections[0].priority, "high-impact");
-    assert.equal(brief.pages[0].sections[0].decision.source, "user");
+    assert.equal(brief.pages[0].sections[0].decision.source, "rule");
   });
 
-  it("적용 레퍼런스도 명시적 결정도 없으면 inherited/inherited로 떨어진다", () => {
-    const brief = buildConfirmedBrief(makeAnalysis(), makeReferences(), {
+  it("규칙 추천과 무관하게 채택 유무만으로 고영향 여부가 바뀌지 않는다", () => {
+    const withAdoption = buildConfirmedBrief(
+      makeAnalysis(),
+      makeReferences({ referenceAdoptions: { a: makeAdoption() } }),
+      { now: fixedNow },
+    );
+    const withoutAdoption = buildConfirmedBrief(makeAnalysis(), makeReferences(), {
       now: fixedNow,
     });
-    assert.equal(brief.pages[0].sections[0].priority, "inherited");
-    assert.equal(brief.pages[0].sections[0].decision.source, "inherited");
+    assert.equal(withAdoption.pages[0].sections[0].priority, withoutAdoption.pages[0].sections[0].priority);
+    assert.equal(
+      withAdoption.pages[0].sections[0].decision.source,
+      withoutAdoption.pages[0].sections[0].decision.source,
+    );
+  });
+
+  it("규칙 추천에 걸리지 않고 패딩 대상에서도 밀려난 섹션은 inherited/rule로 떨어진다", () => {
+    const analysis = makeAnalysisWithNonHighImpactTail();
+    const brief = buildConfirmedBrief(analysis, makeReferences(), { now: fixedNow });
+    const tail = brief.pages[0].sections.find((s) => s.sectionId === "p1-generic-3");
+    assert.equal(tail?.priority, "inherited");
+    assert.equal(tail?.decision.source, "rule");
   });
 });
 
@@ -344,12 +388,12 @@ describe("confirmBrief — 채택 상태별 필터링", () => {
     assert.equal(section.priority, "high-impact");
   });
 
-  it("채택이 없으면 섹션은 inherited로 표시된다", () => {
-    const brief = buildConfirmedBrief(makeAnalysis(), makeReferences(), {
-      now: fixedNow,
-    });
-    assert.equal(brief.pages[0].sections[0].priority, "inherited");
-    assert.equal(brief.pages[0].sections[0].decision.source, "inherited");
+  it("채택도 없고 규칙 추천 패딩에서도 밀려난 섹션은 inherited로 표시된다", () => {
+    const analysis = makeAnalysisWithNonHighImpactTail();
+    const brief = buildConfirmedBrief(analysis, makeReferences(), { now: fixedNow });
+    const tail = brief.pages[0].sections.find((s) => s.sectionId === "p1-generic-3");
+    assert.equal(tail?.priority, "inherited");
+    assert.equal(tail?.decision.source, "rule");
   });
 });
 

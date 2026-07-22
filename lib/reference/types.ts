@@ -343,6 +343,32 @@ export interface ReferenceResult {
   // 섹션은 lib/reference/imageHints.ts의 defaultImageNeed(contentType) 휴리스틱을
   // 그대로 표시값으로 쓴다 — 그래서 사용자가 끈 false는 휴리스틱이 절대 되살리지 않는다.
   imageNeedByKey?: Record<string, boolean>;
+  // ── 결정 검토 — 출처 미확인 인지 (P8) ── key: AnalysisTargetListItem.id
+  // 값은 boolean이 아니라 lib/reference/reviewStatus.ts의
+  // unverifiedSourceFingerprint(verifiedSources) 결과 문자열이다. 재분석으로 출처
+  // 구성이 바뀌면 지문이 달라져 예전 인지가 자동으로 무효화된다.
+  unverifiedSourceAcks?: Record<string, string>;
+}
+
+// 결정 검토 화면 (P8) — evaluateReviewStatus의 결과. required는 확정을 막고,
+// stale은 안내만 하며 재확정 버튼 자체는 막지 않는다(재확정하면 해결되므로),
+// optional은 정보 제공용으로 확정에 영향을 주지 않는다.
+export type ReviewIssueSeverity = "required" | "stale" | "optional";
+
+export interface ReviewIssue {
+  id: string;
+  severity: ReviewIssueSeverity;
+  message: string;
+  tabId?: "palette-mood" | "section-refs" | "targets" | "image-hints";
+  targetId?: string; // 출처 인지 이슈에서 Review 탭의 인지 체크박스와 연결
+}
+
+export interface ReviewStatus {
+  issues: ReviewIssue[];
+  canConfirm: boolean;
+  // references.confirmedBrief가 이미 있고, 그 이후 상태가 바뀌어 재확정이 필요함
+  // (차단 아님 — 재확정 버튼을 누르면 그대로 해소된다).
+  priorConfirmationStale: boolean;
 }
 
 // 페이지 보드 목적/핵심 대상 요약의 사용자 덮어쓰기 (P5-1) — Page 원본(분석 결과,

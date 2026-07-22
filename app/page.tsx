@@ -21,6 +21,7 @@ import Workspace from "@/components/shell/Workspace";
 import { classifyDocumentPurpose } from "@/lib/analysis/documentPurpose";
 import { addDictionaryEntry, listDictionary } from "@/lib/dictionary/store";
 import { buildConfirmedBrief } from "@/lib/reference/confirmBrief";
+import { evaluateReviewStatus } from "@/lib/reference/reviewStatus";
 import {
   loadWorkflowSnapshot,
   saveWorkflowSnapshot,
@@ -882,6 +883,19 @@ export default function Home() {
             }
             onConfirm={() => {
               if (!workflow.analysis) return;
+              // Review 탭의 버튼 disabled만 믿지 않는다(P8 보완) — 여기서 다시
+              // evaluateReviewStatus를 돌려 필수 미결정이 있으면 확정 자체를 막는다.
+              const reviewStatus = evaluateReviewStatus(
+                workflow.analysis,
+                workflow.references ?? {},
+              );
+              if (!reviewStatus.canConfirm) {
+                setConfirmBriefError(
+                  reviewStatus.issues.find((i) => i.severity === "required")?.message ??
+                    "필수 미결정 항목이 남아있습니다.",
+                );
+                return;
+              }
               // ConfirmedReferenceBrief 스냅샷 생성 (P9-A) — 편집 중 상태에서 사용자가
               // 실제로 채택한 결정만 남긴 불변 스냅샷을 여기서 확정한다(§6.4).
               try {

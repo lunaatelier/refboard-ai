@@ -21,7 +21,12 @@ import {
   buildSectionQueriesCacheKey,
   SessionRequestCache,
 } from "@/lib/reference/requestCache";
-import { seedSectionPriorities, sectionKey } from "@/lib/reference/sectionPriority";
+import {
+  resolveSectionPriority,
+  seedSectionPriorities,
+  sectionKey,
+} from "@/lib/reference/sectionPriority";
+import { computeAdoptionBasisHash } from "@/lib/reference/confirmBrief";
 import { buildSectionQuerySet, type SectionQueryAxis } from "@/lib/reference/sectionQuery";
 import type {
   AdoptionAspect,
@@ -93,6 +98,9 @@ export default function SectionRefsTab({
   onChange,
 }: SectionRefsTabProps) {
   const selectedPages = analysis.pages.filter((p) => p.selected);
+  // 적용한 레퍼런스가 오래된 근거로 채택됐는지 배지로 보여주기 위한 현재 기준
+  // 해시(P8 보완) — 결정 검토 화면(evaluateReviewStatus)과 완전히 같은 계산.
+  const currentBasisHash = computeAdoptionBasisHash(analysis, references);
 
   const [focusedPageId, setFocusedPageId] = useState<string | undefined>(
     selectedPages[0]?.pageId,
@@ -119,8 +127,7 @@ export default function SectionRefsTab({
   const bySectionId = references.bySectionId ?? {};
 
   const priorityOf = (page: Page, section: Section): SectionReferencePriority =>
-    references.sectionDecisionsByKey?.[sectionKey(page.pageId, section.sectionId)]?.priority ??
-    "inherited";
+    resolveSectionPriority(page, section, references.sectionDecisionsByKey ?? {}).priority;
 
   // 페이지를 처음 열 때 로컬 규칙(§P5-2)으로 우선순위를 채운다 — 이미 사용자가
   // 정한 결정은 seedSectionPriorities가 절대 덮어쓰지 않는다(멱등).
@@ -346,6 +353,7 @@ export default function SectionRefsTab({
         sectionId: section.sectionId,
         collected,
         status,
+        basedOnHash: computeAdoptionBasisHash(analysis, prev),
         ...extra,
       }),
     );
@@ -593,6 +601,7 @@ export default function SectionRefsTab({
               onSetAdoption={(collected, status, extra) =>
                 setReferenceAdoption(focusedPage, focusedSection, collected, status, extra)
               }
+              currentBasisHash={currentBasisHash}
             />
           ) : (
             <p style={{ color: "var(--text-muted)" }}>왼쪽에서 섹션을 선택하세요.</p>
@@ -635,6 +644,7 @@ interface SectionDecisionPanelProps {
     status: AdoptionStatus,
     extra?: { aspects?: AdoptionAspect[]; note?: string },
   ) => void;
+  currentBasisHash: string;
 }
 
 // "새 이미지 필요" 토글(P7) — 우선순위(고영향/상속/선택)와 무관하게 모든 확정
@@ -686,6 +696,7 @@ function SectionDecisionPanel({
   onUpdateCollectedReference,
   adoptions,
   onSetAdoption,
+  currentBasisHash,
 }: SectionDecisionPanelProps) {
   if (priority !== "high-impact") {
     return (
@@ -930,6 +941,7 @@ function SectionDecisionPanel({
         onRemove={onRemoveCollectedReference}
         onUpdate={onUpdateCollectedReference}
         onSetAdoption={onSetAdoption}
+        currentBasisHash={currentBasisHash}
       />
     </div>
   );
@@ -1022,6 +1034,7 @@ function CollectedReferences({
   onRemove,
   onUpdate,
   onSetAdoption,
+  currentBasisHash,
 }: {
   items: CollectedReference[];
   adoptions: ReferenceAdoption[];
@@ -1033,6 +1046,7 @@ function CollectedReferences({
     status: AdoptionStatus,
     extra?: { aspects?: AdoptionAspect[]; note?: string },
   ) => void;
+  currentBasisHash: string;
 }) {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
@@ -1098,6 +1112,7 @@ function CollectedReferences({
               onRemove={() => onRemove(r.id)}
               onUpdate={(patch) => onUpdate(r.id, patch)}
               onSetAdoption={(status, extra) => onSetAdoption(r, status, extra)}
+              currentBasisHash={currentBasisHash}
             />
           ))}
         </ul>
@@ -1194,16 +1209,21 @@ function CollectedReferenceRow({
   onRemove,
   onUpdate,
   onSetAdoption,
+  currentBasisHash,
 }: {
   item: CollectedReference;
   adoption: ReferenceAdoption | undefined;
   onRemove: () => void;
   onUpdate: (patch: Partial<CollectedReference>) => void;
   onSetAdoption: (status: AdoptionStatus, extra?: { aspects?: AdoptionAspect[]; note?: string }) => void;
+  currentBasisHash: string;
 }) {
   const [note, setNote] = useState(adoption?.note ?? "");
   const applied = adoption?.status === "applied";
   const aspects = adoption?.aspects ?? [];
+  // 오래된 근거로 채택됐는지(P8 보완) — 확정 검토 화면과 같은 판정을 여기서도
+  // 바로 보여줘, 검토 탭까지 가지 않아도 재확인 대상을 알 수 있게 한다.
+  const stale = applied && adoption.decision.basedOnHash !== currentBasisHash;
 
   const toggleAspect = (aspect: AdoptionAspect) => {
     const next = aspects.includes(aspect)
@@ -1322,6 +1342,24 @@ function CollectedReferenceRow({
             {opt.label}
           </button>
         ))}
+        {stale && (
+          <span
+            title="분석 또는 방향이 바뀐 뒤 채택되었습니다. 적용 버튼을 다시 눌러 확인하세요."
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "4px var(--space-sm)",
+              borderRadius: "var(--radius-full)",
+              fontSize: 13,
+              fontWeight: 600,
+              background: "var(--warning-weak-bg)",
+              color: "var(--warning-weak-text)",
+            }}
+          >
+            재확인 필요
+          </span>
+        )}
       </div>
 
       {applied && (

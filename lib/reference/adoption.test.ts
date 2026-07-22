@@ -58,6 +58,7 @@ describe("setAdoption / adoptionForCollected / adoptionsForSection", () => {
         status: "applied",
         aspects: ["layout", "color"],
         note: "hero 참고",
+        basedOnHash: "basis-1",
       },
       fixedNow,
     );
@@ -66,18 +67,19 @@ describe("setAdoption / adoptionForCollected / adoptionsForSection", () => {
     assert.deepEqual(found?.aspects, ["layout", "color"]);
     assert.equal(found?.note, "hero 참고");
     assert.equal(found?.decision.source, "user");
+    assert.equal(found?.decision.basedOnHash, "basis-1");
     assert.equal(found?.reference.provider, "manual");
   });
 
   it("같은 키를 다시 호출하면 항목이 늘지 않고 갱신된다", () => {
     let references: ReferenceResult = setAdoption(
       {},
-      { pageId: "p1", sectionId: "s1", collected, status: "applied" },
+      { pageId: "p1", sectionId: "s1", collected, status: "applied", basedOnHash: "basis-1" },
       fixedNow,
     );
     references = setAdoption(
       references,
-      { pageId: "p1", sectionId: "s1", collected, status: "excluded" },
+      { pageId: "p1", sectionId: "s1", collected, status: "excluded", basedOnHash: "basis-1" },
       fixedNow,
     );
     assert.equal(Object.keys(references.referenceAdoptions ?? {}).length, 1);
@@ -87,29 +89,44 @@ describe("setAdoption / adoptionForCollected / adoptionsForSection", () => {
   it("이후 호출에서 aspects/note를 생략하면 이전 값을 보존한다", () => {
     let references: ReferenceResult = setAdoption(
       {},
-      { pageId: "p1", sectionId: "s1", collected, status: "applied", aspects: ["layout"], note: "메모" },
+      {
+        pageId: "p1",
+        sectionId: "s1",
+        collected,
+        status: "applied",
+        aspects: ["layout"],
+        note: "메모",
+        basedOnHash: "basis-1",
+      },
       fixedNow,
     );
     references = setAdoption(
       references,
-      { pageId: "p1", sectionId: "s1", collected, status: "reference-only" },
+      { pageId: "p1", sectionId: "s1", collected, status: "reference-only", basedOnHash: "basis-2" },
       fixedNow,
     );
     const found = adoptionForCollected(references, "p1", "s1", "col-1");
     assert.equal(found?.status, "reference-only");
     assert.deepEqual(found?.aspects, ["layout"]);
     assert.equal(found?.note, "메모");
+    assert.equal(found?.decision.basedOnHash, "basis-2");
   });
 
   it("adoptionsForSection은 해당 페이지+섹션만 골라낸다", () => {
     let references: ReferenceResult = setAdoption(
       {},
-      { pageId: "p1", sectionId: "s1", collected, status: "applied" },
+      { pageId: "p1", sectionId: "s1", collected, status: "applied", basedOnHash: "basis-1" },
       fixedNow,
     );
     references = setAdoption(
       references,
-      { pageId: "p1", sectionId: "s2", collected: { ...collected, id: "col-2" }, status: "applied" },
+      {
+        pageId: "p1",
+        sectionId: "s2",
+        collected: { ...collected, id: "col-2" },
+        status: "applied",
+        basedOnHash: "basis-1",
+      },
       fixedNow,
     );
     assert.equal(adoptionsForSection(references, "p1", "s1").length, 1);
@@ -122,7 +139,7 @@ describe("removeAdoption", () => {
   it("항목을 완전히 지운다", () => {
     let references: ReferenceResult = setAdoption(
       {},
-      { pageId: "p1", sectionId: "s1", collected, status: "applied" },
+      { pageId: "p1", sectionId: "s1", collected, status: "applied", basedOnHash: "basis-1" },
       fixedNow,
     );
     references = removeAdoption(references, "p1", "s1", "col-1");
