@@ -53,11 +53,11 @@ export async function buildVerifiedSources(
   const targetHost = safeHost(targetUrl);
 
   const seen = new Set<string>();
-  const candidates: { url: string; groundingCited: boolean }[] = [];
+  const candidates: { url: string; title?: string; groundingCited: boolean }[] = [];
   for (const s of groundingSources) {
     if (!s.url || seen.has(s.url)) continue;
     seen.add(s.url);
-    candidates.push({ url: s.url, groundingCited: true });
+    candidates.push({ url: s.url, title: s.title, groundingCited: true });
   }
   // 모델이 직접 적은 sourceUrl은 실제 grounding에 없으면 groundingCited:false로
   // 남긴다 — 버리지 않고 "미확인" 후보로 검증 대상에는 포함한다(item 3).
@@ -99,6 +99,7 @@ export async function buildVerifiedSources(
       const domainVerified = hostsRelated(resolvedHost ?? safeHost(c.url), targetHost);
       return {
         url: c.url,
+        title: c.title,
         status: classifySourceStatus({ domainVerified, groundingCited: c.groundingCited, fetchOk }),
         groundingCited: c.groundingCited,
         domainVerified,

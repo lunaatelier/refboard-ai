@@ -276,6 +276,10 @@ export interface DirectionOption {
 // 브랜드 분석 출처 검증 (P6) — 모델이 JSON에 쓴 sourceUrl 문자열을 그대로 신뢰하지 않는다.
 export interface VerifiedSource {
   url: string;
+  // Gemini grounding citation title (groundingChunks[].web.title). 리다이렉트
+  // 프록시 URL(vertexaisearch.cloud.google.com/...)이 사람이 읽을 수 없어서,
+  // 있으면 화면에는 url 대신 이 title을 우선 표시한다.
+  title?: string;
   status: "official" | "supporting" | "unverified";
   groundingCited: boolean;
   domainVerified: boolean;

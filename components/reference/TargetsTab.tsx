@@ -661,6 +661,7 @@ export default function TargetsTab({
                                 href={s.url}
                                 target="_blank"
                                 rel="noreferrer noopener"
+                                title={s.title ? s.url : undefined}
                                 style={{
                                   fontSize: 14,
                                   color: "var(--primary)",
@@ -670,7 +671,7 @@ export default function TargetsTab({
                                   maxWidth: 360,
                                 }}
                               >
-                                {s.url}
+                                {s.title || s.url}
                               </a>
                             </li>
                           );

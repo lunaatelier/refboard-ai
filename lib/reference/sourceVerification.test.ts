@@ -88,6 +88,31 @@ describe("buildVerifiedSources", () => {
     assert.equal(result[0].groundingCited, true);
     assert.equal(result[0].domainVerified, true);
     assert.equal(result[0].fetchedAt, "2026-07-21T00:00:00.000Z");
+    assert.equal(result[0].title, "About");
+  });
+
+  it("grounding citation에 title이 없으면 undefined로 남는다 (url로 폴백은 화면 쪽 책임)", async () => {
+    const fetchImpl: FetchLike = async () => okResponse();
+    const result = await buildVerifiedSources(
+      "https://example.com",
+      [{ url: "https://example.com/about" }],
+      undefined,
+      fetchImpl,
+      fixedNow,
+    );
+    assert.equal(result[0].title, undefined);
+  });
+
+  it("모델이 적은 sourceUrl 후보는 title이 없다 (모델 JSON엔 title 필드가 없음)", async () => {
+    const fetchImpl: FetchLike = async () => okResponse();
+    const result = await buildVerifiedSources(
+      "https://example.com",
+      [],
+      "https://example.com/model-claimed",
+      fetchImpl,
+      fixedNow,
+    );
+    assert.equal(result[0].title, undefined);
   });
 
   it("grounding citation이 vertexaisearch 리다이렉트 프록시여도, 실제 리다이렉트 도착지 도메인으로 검증한다 (실측 사례)", async () => {
