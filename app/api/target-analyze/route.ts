@@ -7,6 +7,7 @@ import {
   budgetStore,
   FEATURE_LIMITS,
 } from "@/lib/reference/providerBudget";
+import { classifyError, logProviderEvent } from "@/lib/reference/observability";
 
 // 분석 대상 브랜드 2단계 깊은 분석 (Step 10-c) — 7개 축을 구조화 질문으로 강제.
 // grounding으로 출처 URL 확보 (환각 방지). 결과는 "추천/추정 포함" 배지로 표기.
@@ -29,8 +30,20 @@ export async function POST(req: Request) {
   // 입력 검증을 통과한 뒤에만 예산을 소진한다 — 캐시 적중·입력 거절은 차감하지
   // 않는다(P10-B). 프로젝트 ID가 없는 호출은 공용 폴백 키로 묶는다.
   const projectId = req.headers.get("x-project-id") || ANONYMOUS_PROJECT_ID;
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
   const budget = budgetStore.reserveAttempt(projectId, FEATURE, FEATURE_LIMITS[FEATURE]);
   if (!budget.ok) {
+    logProviderEvent({
+      feature: FEATURE,
+      event: budget.reason === "PROJECT_BUDGET_EXHAUSTED" ? "budget_exhausted" : "rate_limited",
+      projectId,
+      requestId,
+      statusCode: 429,
+      latencyMs: Date.now() - startedAt,
+      remainingResults: budget.remainingResults,
+      remainingAttempts: budget.remainingAttempts,
+    });
     return NextResponse.json(
       {
         error:
@@ -76,6 +89,14 @@ ${buildDirectiveBlock(directives, "reference")}
     const modelStatedUrl = str(raw?.sourceUrl) || undefined;
     const verifiedSources = await buildVerifiedSources(url, sources, modelStatedUrl);
     budgetStore.recordSuccess(projectId, FEATURE);
+    logProviderEvent({
+      feature: FEATURE,
+      event: "success",
+      projectId,
+      requestId,
+      statusCode: 200,
+      latencyMs: Date.now() - startedAt,
+    });
     return NextResponse.json({
       analysis: {
         layoutStrategy: str(raw?.layoutStrategy),
@@ -90,6 +111,15 @@ ${buildDirectiveBlock(directives, "reference")}
       },
     });
   } catch (e) {
+    logProviderEvent({
+      feature: FEATURE,
+      event: "failure",
+      projectId,
+      requestId,
+      statusCode: 502,
+      latencyMs: Date.now() - startedAt,
+      errorCode: classifyError(e),
+    });
     const message = e instanceof Error ? e.message : "분석에 실패했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });
   }

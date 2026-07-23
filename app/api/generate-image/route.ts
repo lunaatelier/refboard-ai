@@ -6,6 +6,7 @@ import {
   budgetStore,
   FEATURE_LIMITS,
 } from "@/lib/reference/providerBudget";
+import { classifyError, logProviderEvent } from "@/lib/reference/observability";
 
 // 이미지 실제 생성 (Step 19) — NVIDIA NIM. 키가 없으면 비활성(GET으로 노출).
 // 입력은 image-hints가 만든 "마스킹 토큰 없는 영어 프롬프트"만 — 방어적으로 한 번 더 제거.
@@ -39,8 +40,20 @@ export async function POST(req: Request) {
   // 입력 검증을 통과한 뒤에만 예산을 소진한다(P10-B) — 캐시 적중·입력 거절은
   // 차감하지 않는다. 프로젝트 ID가 없는 호출은 공용 폴백 키로 묶는다.
   const projectId = req.headers.get("x-project-id") || ANONYMOUS_PROJECT_ID;
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
   const budget = budgetStore.reserveAttempt(projectId, FEATURE, FEATURE_LIMITS[FEATURE]);
   if (!budget.ok) {
+    logProviderEvent({
+      feature: FEATURE,
+      event: budget.reason === "PROJECT_BUDGET_EXHAUSTED" ? "budget_exhausted" : "rate_limited",
+      projectId,
+      requestId,
+      statusCode: 429,
+      latencyMs: Date.now() - startedAt,
+      remainingResults: budget.remainingResults,
+      remainingAttempts: budget.remainingAttempts,
+    });
     return NextResponse.json(
       {
         error:
@@ -62,10 +75,27 @@ export async function POST(req: Request) {
   try {
     const image = await generateImage(prompt, size);
     budgetStore.recordSuccess(projectId, FEATURE);
+    logProviderEvent({
+      feature: FEATURE,
+      event: "success",
+      projectId,
+      requestId,
+      statusCode: 200,
+      latencyMs: Date.now() - startedAt,
+    });
     return NextResponse.json({
       dataUrl: `data:${image.mimeType};base64,${image.base64}`,
     });
   } catch (e) {
+    logProviderEvent({
+      feature: FEATURE,
+      event: "failure",
+      projectId,
+      requestId,
+      statusCode: 502,
+      latencyMs: Date.now() - startedAt,
+      errorCode: classifyError(e),
+    });
     const message =
       e instanceof Error ? e.message : "이미지 생성에 실패했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });
