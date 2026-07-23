@@ -8,8 +8,12 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node"],
+    "jsx": "react-jsx",
+    "lib": ["ES2019", "DOM", "DOM.Iterable"],
+    "baseUrl": ".",
+    "paths": { "@/*": ["./*"] }
   },
-  "include": ["lib/**/*.test.ts"],
+  "include": ["lib/**/*.test.ts", "components/**/*.test.tsx"],
   "exclude": ["node_modules", ".next", ".test-dist"]
 }

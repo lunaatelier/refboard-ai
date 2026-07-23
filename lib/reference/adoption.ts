@@ -31,7 +31,9 @@ export function buildReferenceCandidate(
     patterns: [],
     colors: [],
     usage: "inspiration-only",
-    fetchedAt: now(),
+    // collected.fetchedAt이 있으면 진짜 수집(붙여넣기) 시각을 쓴다 — 없으면(이 필드가
+    // 생기기 전 저장된 구버전 데이터) 변환 시각(now())으로 폴백(기존 동작 유지).
+    fetchedAt: collected.fetchedAt ?? now(),
   };
 }
 

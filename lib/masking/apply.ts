@@ -4,7 +4,6 @@ import type {
   DraftMaskResult,
   FinalMaskResult,
   MaskingGroupSummary,
-  MaskingTokenContext,
   MaskMapping,
   NumericDetection,
 } from "./types";
@@ -178,13 +177,16 @@ function maskWindow(text: string, from: number, to: number, replacements: Replac
   return prefix + out.trim() + suffix;
 }
 
-// 확정 직전(원문·raw 폐기 전)에 호출 — kind별 카드 골격을 유지하기 위한
-// 비민감 요약을 만든다. raw는 절대 포함하지 않는다(토큰·개수·마스킹된 문맥만).
-export function summarizeMasking(
+// summarizeMasking의 실제 계산부 — replacements를 파라미터로 받는다(호출자가 이미
+// buildMask를 한 번 돌렸다면 그 결과를 그대로 넘겨 재계산을 피할 수 있다). 이 함수
+// 자체는 비공개로 두고, 아래 summarizeMasking(공개, 하위호환)과
+// createMaskingReviewSummary가 각자의 상황에 맞게 buildMask를 몇 번 부를지 결정한다.
+function summarizeMaskingCore(
   text: string,
   detections: Detection[],
   numericDetections: NumericDetection[],
   mappings: MaskMapping[],
+  replacements: Replacement[],
 ): MaskingGroupSummary[] {
   const groups = new Map<string, MaskingGroupSummary>();
 
@@ -237,10 +239,8 @@ export function summarizeMasking(
     }
   }
 
-  // 토큰별 컨텍스트(P2) — 같은 (kind, raw) 매핑 시드를 넘겨 실제 확정 시와
-  // 동일한 토큰이 재생성되도록 한 뒤, replacements로 문맥 창을 마스킹한다.
-  const { replacements } = buildMask(text, detections, numericDetections, mappings);
-
+  // 토큰별 컨텍스트(P2) — replacements(호출자가 넘긴, 이미 계산된 치환 목록)로
+  // 문맥 창을 마스킹한다.
   for (const m of mappings) {
     const applied = detections.filter(
       (d) => d.kind === m.kind && d.raw === m.raw && isMaskable(d),
@@ -277,4 +277,87 @@ export function summarizeMasking(
   }
 
   return [...groups.values()];
+}
+
+// 확정 직전(원문·raw 폐기 전)에 호출 — kind별 카드 골격을 유지하기 위한
+// 비민감 요약을 만든다. raw는 절대 포함하지 않는다(토큰·개수·마스킹된 문맥만).
+// (2026-07-23 리팩터) replacements 계산(buildMask)을 core로 옮기고 여기서 한 번만
+// 호출한다 — 이전에는 이 함수가 buildMask를 호출해 mappings를 받아놓고, 내부에서
+// replacements를 구하려고 buildMask를 또 호출했다(외부 리뷰로 지적됨, 긴 문서에서
+// 불필요한 재계산).
+export function summarizeMasking(
+  text: string,
+  detections: Detection[],
+  numericDetections: NumericDetection[],
+  mappings: MaskMapping[],
+): MaskingGroupSummary[] {
+  const { replacements } = buildMask(text, detections, numericDetections, mappings);
+  return summarizeMaskingCore(text, detections, numericDetections, mappings, replacements);
+}
+
+// 항목 하나(kind+raw)의 위치 정보 — 마스킹 적용 여부와 무관하게 항상 존재한다.
+// 공개 유지·제외로 바꿔도 슬라이드 번호·발생횟수까지 사라지면 안 된다(외부 리뷰로
+// 지적됨) — 사용자가 왜 이 값을 유지/제외했는지 다시 확인하려 해도 위치 정보 자체가
+// 없으면 문서를 다시 훑어야 한다. maskedExcerpt만 "실제로 마스킹 적용된 상태"일 때만
+// 있다 — 공개 유지 항목의 원문 조각을 "마스킹된 문맥"이라는 이름으로 보여주면
+// 상태를 오해하게 만들 수 있어서다.
+export interface ReviewItemContext {
+  slide?: number;
+  occurrenceCount: number;
+  maskedExcerpt?: string;
+}
+
+export interface MaskingReviewSummary {
+  previewMaskedText: string;
+  summary: MaskingGroupSummary[];
+  // 엔티티형 탐지(person/company/client/product/email/phone 등) 항목별 위치 정보 조회용
+  // — key: `${kind}::${raw}`. range-generalize 처리된 수치 항목은 포함되지 않는다
+  // (수치 UI는 이번 범위 밖).
+  contextByKey: Record<string, ReviewItemContext>;
+}
+
+// 검수 중(확정 전) 화면 전용 진입점(P2.1) — buildMask를 정확히 한 번만 호출해
+// previewMaskedText·요약(MaskingGroupSummary[])·항목별 위치 정보를 함께 만든다.
+// 이전에는 검수 화면이 "탐지됨/마스킹 적용/공개 유지/제외" 4개 요약과 슬라이드·문맥
+// 정보를 확정(confirmed) 후에만 계산했는데, 이 요약을 만드는 데 필요한 값(text/
+// detections/numericDetections)은 검수 중에도 이미 다 있어서 계산 자체는 언제든
+// 가능했다 — 그냥 UI가 확정 이후에만 값을 요청했을 뿐이다(외부 리뷰로 지적됨).
+// buildMask 자체는 여전히 비공개로 두고, 이 함수만 외부에 노출한다.
+export function createMaskingReviewSummary(
+  text: string,
+  detections: Detection[],
+  numericDetections: NumericDetection[] = [],
+): MaskingReviewSummary {
+  const { maskedText, mappings, replacements } = buildMask(text, detections, numericDetections);
+  const summary = summarizeMaskingCore(text, detections, numericDetections, mappings, replacements);
+
+  // 토큰이 있는(=실제로 마스킹 적용된) 항목만 maskedExcerpt를 붙일 수 있다.
+  const excerptByToken = new Map<string, string>();
+  for (const group of summary) {
+    for (const ctx of group.tokenContexts) {
+      excerptByToken.set(`${ctx.kind}::${ctx.token}`, ctx.maskedExcerpt);
+    }
+  }
+  const tokenByRawKey = new Map<string, string>();
+  for (const m of mappings) tokenByRawKey.set(`${m.kind}::${m.raw}`, m.token);
+
+  // 마스킹 적용 여부와 무관하게 detections에 있는 모든 (kind, raw)에 대해 위치
+  // 정보를 만든다 — 공개 유지·제외 항목도 슬라이드·발생횟수는 유지되게(위 주석 참고).
+  const contextByKey: Record<string, ReviewItemContext> = {};
+  const seen = new Set<string>();
+  for (const d of detections) {
+    const key = `${d.kind}::${d.raw}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const sameRaw = detections.filter((x) => x.kind === d.kind && x.raw === d.raw);
+    const first = sameRaw.reduce((a, b) => (a.start < b.start ? a : b));
+    const token = tokenByRawKey.get(key);
+    contextByKey[key] = {
+      slide: slideAt(text, first.start),
+      occurrenceCount: sameRaw.length,
+      maskedExcerpt: token ? excerptByToken.get(`${d.kind}::${token}`) : undefined,
+    };
+  }
+
+  return { previewMaskedText: maskedText, summary, contextByKey };
 }

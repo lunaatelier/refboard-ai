@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowRight, Check, Info } from "lucide-react";
 import DictionaryManager from "./DictionaryManager";
 import PageLayout, { PageCta } from "./shell/PageLayout";
 import TokenText from "./TokenText";
-import { createDraft } from "@/lib/masking/apply";
+import { createMaskingReviewSummary } from "@/lib/masking/apply";
 import {
   ENTITY_KIND_LABELS,
   ENTITY_KIND_SHORT_LABELS,
@@ -146,16 +146,18 @@ export default function MaskingReview({
     useState<DictionaryEntry["kind"]>("company");
   const [manualToDict, setManualToDict] = useState(false);
   const [notice, setNotice] = useState<string>();
+  // 검수 중에도 확정 후와 같은 요약(4개 배지·슬라이드·문맥)을 보여주기 위한 라이브 계산
+  // (P2.1) — 원문·Detection이 아직 있을 때만 가능하므로 확정 전 화면 전용이다.
+  const [reviewOnlyUncertain, setReviewOnlyUncertain] = useState(false);
 
-  const preview = useMemo(
-    () =>
-      createDraft(parsedText, detections, numericDetections).previewMaskedText,
+  const {
+    previewMaskedText: preview,
+    summary: liveSummary,
+    contextByKey: liveContextByKey,
+  } = useMemo(
+    () => createMaskingReviewSummary(parsedText, detections, numericDetections),
     [parsedText, detections, numericDetections],
   );
-
-  const enabledCount = detections.filter(
-    (d) => d.enabled && !d.keepPlaintext,
-  ).length;
 
   // "유지"로 태깅된 공개 엔티티 이름 → URL 도메인 대조에 사용 (실사용#1/#6)
   const keptBrandNames = useMemo(
@@ -222,10 +224,15 @@ export default function MaskingReview({
     setManualWord("");
   };
 
+  // 확정 전에는 방금 계산한 liveSummary, 확정 후에는 상위가 저장해둔 maskingSummary —
+  // 둘 다 같은 MaskingGroupSummary[] 모양이라 이후 집계 로직을 공유한다(P2.1 — 검수 중
+  // 요약이 확정 후 요약과 같은 소스를 쓰게 통일).
+  const activeSummary = confirmed ? (maskingSummary ?? []) : liveSummary;
+
   // 확정 후 요약 카드도 검수 중과 동일하게 인명/회사명/고객사/제품을 "민감정보"
   // 하나로 합쳐서 보여준다 (bucketFor/bucketTitle — 검수 중 그룹핑과 동일 기준).
   const entitySummaryGroups = (() => {
-    const raw = (maskingSummary ?? []).filter((g) => !NUMERIC_KIND_SET.has(g.kind));
+    const raw = activeSummary.filter((g) => !NUMERIC_KIND_SET.has(g.kind));
     const byBucket = new Map<string, MaskingGroupSummary[]>();
     for (const g of raw) {
       const bucket = bucketFor(g.kind);
@@ -244,35 +251,20 @@ export default function MaskingReview({
       tokenContexts: groups.flatMap((g) => g.tokenContexts),
     }));
   })();
-  const numericSummaryGroups = (maskingSummary ?? []).filter((g) =>
+  const numericSummaryGroups = activeSummary.filter((g) =>
     NUMERIC_KIND_SET.has(g.kind),
   );
-  const totalDetected = (maskingSummary ?? []).reduce(
-    (sum, g) => sum + g.totalCount,
-    0,
-  );
-  const totalApplied = (maskingSummary ?? []).reduce(
-    (sum, g) => sum + g.appliedCount,
-    0,
-  );
-  const totalKept = (maskingSummary ?? []).reduce(
-    (sum, g) => sum + g.keptCount,
-    0,
-  );
-  const totalSkipped = (maskingSummary ?? []).reduce(
-    (sum, g) => sum + g.skippedCount,
-    0,
-  );
+  const totalDetected = activeSummary.reduce((sum, g) => sum + g.totalCount, 0);
+  const totalApplied = activeSummary.reduce((sum, g) => sum + g.appliedCount, 0);
+  const totalKept = activeSummary.reduce((sum, g) => sum + g.keptCount, 0);
+  const totalSkipped = activeSummary.reduce((sum, g) => sum + g.skippedCount, 0);
   // 경고는 무조건 뜨지 않는다 — "공개 유지"·"제외" 자체는 정상 상태다.
   // 아래 두 케이스(불확실+실명유지 / 미검토 불확실 항목)만 검토를 촉구한다.
-  const uncertainKeptTotal = (maskingSummary ?? []).reduce(
+  const uncertainKeptTotal = activeSummary.reduce(
     (sum, g) => sum + g.uncertainKeptCount,
     0,
   );
-  const uncertainTotal = (maskingSummary ?? []).reduce(
-    (sum, g) => sum + g.uncertainCount,
-    0,
-  );
+  const uncertainTotal = activeSummary.reduce((sum, g) => sum + g.uncertainCount, 0);
 
   const card: React.CSSProperties = {
     background: "var(--canvas)",
@@ -341,44 +333,31 @@ export default function MaskingReview({
           ? "마스킹 검수 완료 — 확정된 텍스트만 다음 단계로 전달됩니다"
           : "탐지 항목을 확인한 뒤 마스킹을 확정하세요."}
       </span>
-      {confirmed ? (
-        <div style={{ display: "flex", gap: "var(--space-xs)", flexWrap: "wrap" }}>
-          {[
-            ["탐지됨", totalDetected],
-            ["마스킹 적용", totalApplied],
-            ["공개 유지", totalKept],
-            ["제외", totalSkipped],
-          ].map(([label, count]) => (
-            <span
-              key={label}
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: "var(--success)",
-                background: "var(--canvas)",
-                borderRadius: "var(--radius-full)",
-                padding: "4px 12px",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {label} {count}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <span
-          style={{
-            fontSize: 14,
-            fontWeight: 600,
-            color: "var(--primary)",
-            background: "var(--canvas)",
-            borderRadius: "var(--radius-full)",
-            padding: "4px 14px",
-          }}
-        >
-          {`${enabledCount}건 적용 예정`}
-        </span>
-      )}
+      {/* 검수 중에도 확정 후와 동일한 4개 요약 배지를 보여준다(P2.1) — 실제로 무엇을
+          결정하는지는 확정 전에 파악해야 의미가 있다. */}
+      <div style={{ display: "flex", gap: "var(--space-xs)", flexWrap: "wrap" }}>
+        {[
+          ["탐지됨", totalDetected],
+          ["마스킹 적용", totalApplied],
+          ["공개 유지", totalKept],
+          ["제외", totalSkipped],
+        ].map(([label, count]) => (
+          <span
+            key={label}
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: confirmed ? "var(--success)" : "var(--primary)",
+              background: "var(--canvas)",
+              borderRadius: "var(--radius-full)",
+              padding: "4px 12px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {label} {count}
+          </span>
+        ))}
+      </div>
     </div>
   );
 
@@ -390,13 +369,36 @@ export default function MaskingReview({
         </p>
       )}
 
+      {!confirmed && (
+        <label style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", fontSize: 14 }}>
+          <input
+            type="checkbox"
+            checked={reviewOnlyUncertain}
+            onChange={(e) => setReviewOnlyUncertain(e.target.checked)}
+          />
+          검토 필요 항목만 보기 (더미인지 확실하지 않은 항목)
+        </label>
+      )}
+
       {!confirmed &&
-        grouped.map(({ bucket, title, items, rawGroups }) => (
+        grouped
+          .map(({ bucket, title, rawGroups }) => ({
+            bucket,
+            title,
+            rawGroups: reviewOnlyUncertain
+              ? rawGroups.filter((group) => group.some((d) => d.dummyConfidence === "uncertain"))
+              : rawGroups,
+          }))
+          .filter(({ rawGroups }) => rawGroups.length > 0)
+          .map(({ bucket, title, rawGroups }) => (
           <div key={bucket} style={card}>
             <h3 style={{ fontSize: 18, fontWeight: 600 }}>
               {title}{" "}
               <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
-                {items.length}건
+                {/* 필터가 켜져 있으면 지금 실제로 보이는 건수를 보여준다(전체 건수 아님) —
+                    외부 리뷰로 지적됨: 필터 켠 상태에서 숫자만 안 바뀌면 몇 건이
+                    숨겨졌는지 헷갈린다. */}
+                {rawGroups.reduce((sum, g) => sum + g.length, 0)}건
               </span>
             </h3>
             <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
@@ -405,6 +407,7 @@ export default function MaskingReview({
                 const ids = group.map((g) => g.id);
                 const count = group.length;
                 const allEnabled = group.every((g) => g.enabled);
+                const liveContext = liveContextByKey[`${d.kind}::${d.raw}`];
                 return (
                 <li
                   key={d.id}
@@ -568,6 +571,36 @@ export default function MaskingReview({
                       </button>
                     )}
                   </div>
+                  {/* 슬라이드 번호는 마스킹 적용/공개 유지/제외 상태와 무관하게 항상
+                      보인다 — 결정을 바꿔도 이 항목이 어디 있었는지는 알 수 있어야
+                      한다(외부 리뷰로 지적됨). 마스킹된 문맥은 실제로 마스킹이
+                      적용된 상태일 때만 있다(liveContext.maskedExcerpt) — 공개
+                      유지 항목의 원문을 "마스킹된 문맥"이라는 이름으로 보여주면
+                      상태를 오해하게 만들 수 있어서, 그 경우엔 아예 안 보여준다. */}
+                  {liveContext?.slide != null && (
+                    <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                      슬라이드 {liveContext.slide}
+                    </p>
+                  )}
+                  {liveContext?.maskedExcerpt && (
+                    <details className="accordion-row">
+                      <summary
+                        style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)", cursor: "pointer" }}
+                      >
+                        마스킹된 문맥 보기
+                      </summary>
+                      <p
+                        style={{
+                          fontSize: 14,
+                          color: "var(--text-muted)",
+                          wordBreak: "break-word",
+                          marginTop: "var(--space-xs)",
+                        }}
+                      >
+                        {liveContext.maskedExcerpt}
+                      </p>
+                    </details>
+                  )}
                 </li>
                 );
               })}
@@ -823,28 +856,12 @@ export default function MaskingReview({
             </button>
           )}
         </div>
-        {confirmed ? (
-          <details className="accordion-row">
-            <summary style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)", cursor: "pointer" }}>
-              전체 텍스트 펼쳐보기
-            </summary>
-            <pre
-              style={{
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                fontFamily: "inherit",
-                background: "var(--surface)",
-                borderRadius: "var(--radius-md)",
-                padding: "var(--space-base)",
-                marginTop: "var(--space-sm)",
-                maxHeight: 400,
-                overflowY: "auto",
-              }}
-            >
-              <TokenText text={maskedText ?? ""} />
-            </pre>
-          </details>
-        ) : (
+        {/* 검수 중이든 확정 후든 전체 텍스트는 기본 접힘 — 한 번에 다 펼쳐놓으면
+            정작 위쪽 요약·항목별 정보를 보기도 전에 화면을 다 채워버린다(P2.1). */}
+        <details className="accordion-row">
+          <summary style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)", cursor: "pointer" }}>
+            전체 텍스트 펼쳐보기
+          </summary>
           <pre
             style={{
               whiteSpace: "pre-wrap",
@@ -853,13 +870,20 @@ export default function MaskingReview({
               background: "var(--surface)",
               borderRadius: "var(--radius-md)",
               padding: "var(--space-base)",
-              maxHeight: 320,
+              marginTop: "var(--space-sm)",
+              maxHeight: 400,
               overflowY: "auto",
             }}
           >
-            {showOriginal ? parsedText : <TokenText text={preview} />}
+            {confirmed ? (
+              <TokenText text={maskedText ?? ""} />
+            ) : showOriginal ? (
+              parsedText
+            ) : (
+              <TokenText text={preview} />
+            )}
           </pre>
-        )}
+        </details>
         {confirmed && (
           <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
             원문은 폐기되었습니다. 복원 매핑은 세션 메모리에만 있으므로

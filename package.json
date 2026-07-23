@@ -6,7 +6,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "next build",
     "start": "next start",
-    "test": "tsc -p tsconfig.test.json && node --test \".test-dist/**/*.test.js\""
+    "test": "tsc -p tsconfig.test.json && node --require ./scripts/register-test-paths.cjs --test \".test-dist/**/*.test.js\""
   },
   "dependencies": {
     "jszip": "^3.10.1",
@@ -19,9 +19,14 @@
     "unpdf": "^1.6.2"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "global-jsdom": "^29.0.0",
+    "jsdom": "^29.1.1",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5"
   }
 }

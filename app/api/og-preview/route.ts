@@ -8,6 +8,8 @@ import {
   TooManyRedirectsError,
 } from "@/lib/parse/link";
 import { getCachedOgMeta, setCachedOgMeta } from "@/lib/reference/ogCache";
+import { logProviderEvent } from "@/lib/reference/observability";
+import { ANONYMOUS_PROJECT_ID } from "@/lib/reference/providerBudget";
 
 // URL 붙여넣기 OG 미리보기 (P5-5, 개선 지시서 P5 item 14) — 사용자가 수집한
 // 레퍼런스 URL 자체의 공개 메타데이터(제목/썸네일)만 가져온다. 프로젝트 원문이
@@ -39,8 +41,20 @@ export async function POST(req: Request) {
     );
   }
 
+  // OG 캐시 관측 보완(P2.1 부속) — 예산(checkBudget)은 붙이지 않는다. og-preview는
+  // AI/유료 provider 호출이 아니라 단순 fetch라 budget 대상 라우트 목록에 없었고,
+  // 이번 변경 범위는 "캐시 적중 로그"뿐이다. cache_hit 외 이벤트(attempt/success/failure
+  // 등)는 여전히 이 라우트에서 기록하지 않는다.
+  const projectId = req.headers.get("x-project-id") || ANONYMOUS_PROJECT_ID;
   const cached = getCachedOgMeta(rawUrl);
   if (cached) {
+    logProviderEvent({
+      feature: "og-preview",
+      event: "cache_hit",
+      projectId,
+      requestId: crypto.randomUUID(),
+      statusCode: 200,
+    });
     return NextResponse.json(cached);
   }
 

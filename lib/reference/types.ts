@@ -87,6 +87,10 @@ export interface ReferenceQuery {
 // P5 kickoff 리뷰(§[[refboard-ai-pending-work]]) 결정: 배열 인덱스로 mutate하던 옛
 // ReferenceItem[] 대신 안정 id를 가진다 — 채택(ReferenceAdoption) 생성 시 이 id가
 // ReferenceCandidate.providerId로 그대로 흘러가 재적용/해제를 안정적으로 추적한다.
+// (2026-07-23 수정) provider/fetchedAt 추가 — P10 라이선스·출처 규칙("모든 외부 후보에
+// provider, sourceUrl, usage, fetchedAt을 저장한다")을 CollectedReference만 못 지키고
+// 있었다(외부 리뷰로 지적됨). 둘 다 optional — 이 필드가 생기기 전 저장된 항목(IndexedDB
+// 스냅샷)엔 없으므로, 읽을 때는 아래 resolveCollectedReferenceProvider를 거친다.
 export interface CollectedReference {
   id: string; // 안정 식별자 — 배열 위치가 바뀌어도 유지
   platform: string; // URL에서 자동 인식 (등록 플랫폼 매칭, 아니면 호스트명)
@@ -95,6 +99,13 @@ export interface CollectedReference {
   usage: "inspiration-only" | "embeddable"; // 참고만(기본·안전) / 산출물 삽입 가능
   licenseNote?: string; // embeddable일 때 라이선스 확인 근거 기록 권장
   thumbnail?: string;
+  provider?: string; // 항상 "manual" — 크롤러 없이 사용자가 URL을 직접 붙여 수집(§7)
+  fetchedAt?: string; // 이 항목을 수집(붙여넣기)한 시각
+}
+
+// 구버전 데이터(provider 필드 생기기 전)는 platform 값을 provider처럼 취급한다.
+export function resolveCollectedReferenceProvider(item: CollectedReference): string {
+  return item.provider ?? item.platform;
 }
 
 // 섹션별 결정 (Step 10-b)

@@ -8,6 +8,7 @@ import {
   removeAdoption,
   setAdoption,
 } from "./adoption";
+import { resolveCollectedReferenceProvider } from "./types";
 import type { CollectedReference, ReferenceResult } from "./types";
 
 const collected: CollectedReference = {
@@ -19,6 +20,19 @@ const collected: CollectedReference = {
 };
 
 const fixedNow = () => "2026-07-21T00:00:00.000Z";
+
+describe("resolveCollectedReferenceProvider", () => {
+  it("provider가 있으면 그 값을 쓴다", () => {
+    assert.equal(
+      resolveCollectedReferenceProvider({ ...collected, provider: "manual" }),
+      "manual",
+    );
+  });
+
+  it("provider가 없는 구버전 데이터는 platform 값으로 폴백한다", () => {
+    assert.equal(resolveCollectedReferenceProvider(collected), "Dribbble");
+  });
+});
 
 describe("adoptionKey", () => {
   it("동일한 (페이지,섹션,수집id) 조합이면 항상 같다", () => {
@@ -44,6 +58,20 @@ describe("buildReferenceCandidate", () => {
       usage: "inspiration-only",
       fetchedAt: "2026-07-21T00:00:00.000Z",
     });
+  });
+
+  it("collected.fetchedAt이 있으면 변환 시각(now)이 아니라 그 값을 그대로 쓴다", () => {
+    const withFetchedAt: CollectedReference = {
+      ...collected,
+      fetchedAt: "2026-07-01T00:00:00.000Z",
+    };
+    const candidate = buildReferenceCandidate(withFetchedAt, fixedNow);
+    assert.equal(candidate.fetchedAt, "2026-07-01T00:00:00.000Z");
+  });
+
+  it("fetchedAt이 없는 구버전 데이터는 여전히 now()로 폴백한다", () => {
+    const candidate = buildReferenceCandidate(collected, fixedNow);
+    assert.equal(candidate.fetchedAt, fixedNow());
   });
 });
 

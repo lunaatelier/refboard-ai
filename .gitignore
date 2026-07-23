@@ -31,3 +31,4 @@ next-env.d.ts
 
 # 실사용 문서 검증용 원본 샘플 — 실제 회사 민감정보 포함, 커밋 금지
 /docs/sample/
+.claude/tmp/

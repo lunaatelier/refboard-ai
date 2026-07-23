@@ -628,6 +628,7 @@ export default function SectionRefsTab({
                 setReferenceAdoption(focusedPage, focusedSection, collected, status, extra)
               }
               currentBasisHash={currentBasisHash}
+              projectId={projectId}
             />
           ) : (
             <p style={{ color: "var(--text-muted)" }}>왼쪽에서 섹션을 선택하세요.</p>
@@ -671,6 +672,7 @@ interface SectionDecisionPanelProps {
     extra?: { aspects?: AdoptionAspect[]; note?: string },
   ) => void;
   currentBasisHash: string;
+  projectId?: string;
 }
 
 // "새 이미지 필요" 토글(P7) — 우선순위(고영향/상속/선택)와 무관하게 모든 확정
@@ -723,6 +725,7 @@ function SectionDecisionPanel({
   adoptions,
   onSetAdoption,
   currentBasisHash,
+  projectId,
 }: SectionDecisionPanelProps) {
   if (priority !== "high-impact") {
     return (
@@ -975,6 +978,7 @@ function SectionDecisionPanel({
         onUpdate={onUpdateCollectedReference}
         onSetAdoption={onSetAdoption}
         currentBasisHash={currentBasisHash}
+        projectId={projectId}
       />
     </div>
   );
@@ -1068,6 +1072,7 @@ function CollectedReferences({
   onUpdate,
   onSetAdoption,
   currentBasisHash,
+  projectId,
 }: {
   items: CollectedReference[];
   adoptions: ReferenceAdoption[];
@@ -1080,6 +1085,7 @@ function CollectedReferences({
     extra?: { aspects?: AdoptionAspect[]; note?: string },
   ) => void;
   currentBasisHash: string;
+  projectId?: string;
 }) {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
@@ -1101,6 +1107,8 @@ function CollectedReferences({
       platform,
       sourceUrl: trimmed,
       usage: "inspiration-only",
+      provider: "manual",
+      fetchedAt: new Date().toISOString(),
       ...(manualTitle ? { title: manualTitle } : {}),
     });
     setUrl("");
@@ -1108,7 +1116,7 @@ function CollectedReferences({
     // OG 미리보기(P5-5, 개선 지시서 P5 item 14) — 실패해도 조용히 무시한다.
     // CollectedReferenceRow는 thumbnail이 없으면 원래대로 텍스트 링크만 보여주므로
     // 이 fetch가 실패하는 것 자체가 "텍스트 링크로 유지"라는 폴백이다.
-    fetchOgPreview(trimmed).then((meta) => {
+    fetchOgPreview(trimmed, projectId).then((meta) => {
       if (!meta) return;
       const patch: Partial<CollectedReference> = {};
       if (meta.image) patch.thumbnail = meta.image;
@@ -1212,11 +1220,15 @@ function makeCollectedReferenceId(): string {
 
 async function fetchOgPreview(
   url: string,
+  projectId?: string,
 ): Promise<{ title?: string; image?: string } | null> {
   try {
     const res = await fetch("/api/og-preview", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(projectId ? { "x-project-id": projectId } : {}),
+      },
       body: JSON.stringify({ url }),
     });
     if (!res.ok) return null;

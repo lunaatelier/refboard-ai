@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createDraft, finalizeMask, summarizeMasking } from "./apply";
+import { createDraft, createMaskingReviewSummary, finalizeMask, summarizeMasking } from "./apply";
 import { detect } from "./detect";
 import { maskFileName } from "./filename";
 import { detectWordOccurrences } from "./manual";
@@ -410,6 +410,62 @@ describe("summarizeMasking — 토큰별 컨텍스트 (P2)", () => {
     const summary = summarizeMasking(sample, [], ns, mappings);
     const g = summary.find((x) => x.kind === "financialMetric");
     assert.equal(g?.tokenContexts[0]?.token, "[투자금A]");
+  });
+});
+
+describe("createMaskingReviewSummary — 검수 중(확정 전) 요약 (P2.1)", () => {
+  it("previewMaskedText는 createDraft의 previewMaskedText와 같다(같은 buildMask 결과 공유)", () => {
+    const text = "가상전자 담당 hong@example.com";
+    const ds = detect(text, dict);
+    const draft = createDraft(text, ds);
+    const review = createMaskingReviewSummary(text, ds);
+    assert.equal(review.previewMaskedText, draft.previewMaskedText);
+  });
+
+  it("summary(4개 집계)는 확정 후 summarizeMasking과 동일한 값을 낸다", () => {
+    const text = "가상전자 담당 hong@example.com";
+    const ds = detect(text, dict);
+    const { mappings } = finalizeMask(text, ds);
+    const confirmedSummary = summarizeMasking(text, ds, [], mappings);
+    const review = createMaskingReviewSummary(text, ds);
+    const totalOf = (s: typeof confirmedSummary) => s.reduce((sum, g) => sum + g.totalCount, 0);
+    assert.equal(totalOf(review.summary), totalOf(confirmedSummary));
+  });
+
+  it("항목을 제외(enabled=false)해도 contextByKey의 슬라이드·발생횟수는 남고, maskedExcerpt만 사라진다", () => {
+    const text =
+      "--- 슬라이드 1 ---\n표지\n--- 슬라이드 2 ---\n문의 hong@example.com";
+    const ds = detect(text, dict);
+    const applied = createMaskingReviewSummary(text, ds);
+    const key = "email::hong@example.com";
+    assert.equal(applied.contextByKey[key]?.slide, 2);
+    assert.equal(applied.contextByKey[key]?.occurrenceCount, 1);
+    assert.ok(applied.contextByKey[key]?.maskedExcerpt);
+
+    const excluded = ds.map((d) => (d.kind === "email" ? { ...d, enabled: false } : d));
+    const afterExclude = createMaskingReviewSummary(text, excluded);
+    assert.equal(afterExclude.contextByKey[key]?.slide, 2, "제외해도 슬라이드 번호는 남아야 한다");
+    assert.equal(
+      afterExclude.contextByKey[key]?.occurrenceCount,
+      1,
+      "제외해도 발생 횟수는 남아야 한다",
+    );
+    assert.equal(
+      afterExclude.contextByKey[key]?.maskedExcerpt,
+      undefined,
+      "제외된 항목은 더 이상 마스킹되지 않으므로 마스킹된 문맥이 없어야 한다",
+    );
+  });
+
+  it("공개 유지(keepPlaintext=true)로 바꿔도 슬라이드·발생횟수는 남고, maskedExcerpt만 사라진다", () => {
+    const text = "가상전자 담당 hong@example.com";
+    const ds = detect(text, dict).map((d) =>
+      d.kind === "company" ? { ...d, keepPlaintext: true } : d,
+    );
+    const review = createMaskingReviewSummary(text, ds);
+    const key = "company::가상전자";
+    assert.ok(review.contextByKey[key]?.occurrenceCount === 1);
+    assert.equal(review.contextByKey[key]?.maskedExcerpt, undefined);
   });
 });
 
