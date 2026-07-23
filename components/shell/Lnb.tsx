@@ -19,8 +19,10 @@ type StepStatus = "done" | "current" | "available" | "locked";
 
 function stepStatus(step: Step, state: WorkflowState): StepStatus {
   if (step === state.currentStep) return "current";
+  const accessible = canAccessStep(step, state);
+  if (!accessible) return "locked";
   if (state.completedSteps.includes(step)) return "done";
-  return canAccessStep(step, state) ? "available" : "locked";
+  return "available";
 }
 
 // 1024px 미만(모바일·태블릿)에서는 고정 사이드바 대신 상단 바 + 슬라이드 드로어로

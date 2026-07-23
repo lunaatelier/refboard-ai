@@ -18,6 +18,29 @@ const analysis = normalizeAnalysis({
 });
 
 describe("Step 13 — 가드 확장 (재활용 모드)", () => {
+  it("복구된 원문 프로젝트는 업로드를 다시 열 수 있지만 빈 마스킹 화면은 차단", () => {
+    const restored: WorkflowState = {
+      currentStep: "reference",
+      completedSteps: ["upload", "masking", "analysis"],
+      sourceType: "raw-document",
+      analysis,
+    };
+    assert.equal(canAccessStep("upload", restored), true);
+    assert.equal(canAccessStep("masking", restored), false);
+    assert.equal(canAccessStep("analysis", restored), true);
+  });
+
+  it("같은 세션에 maskedText가 남아 있으면 완료된 마스킹 화면 재방문 허용", () => {
+    const live: WorkflowState = {
+      currentStep: "analysis",
+      completedSteps: ["upload", "masking"],
+      sourceType: "raw-document",
+      maskedText: "[고객사A] 텍스트",
+      analysis,
+    };
+    assert.equal(canAccessStep("masking", live), true);
+  });
+
   it("일반 모드: maskedText 없으면 analysis 이후 차단 (기존 동작 유지)", () => {
     const s: WorkflowState = {
       currentStep: "masking",

@@ -29,6 +29,34 @@ const TABS: { id: TabId; label: string; ready: boolean }[] = [
   { id: "review", label: "결정 검토", ready: true },
 ];
 
+const WORKFLOW_GUIDE: { id: TabId; title: string; description: string }[] = [
+  {
+    id: "palette-mood",
+    title: "1. 전체 디자인 방향",
+    description: "문서 전체에 사용할 색상과 분위기 1안을 선택합니다.",
+  },
+  {
+    id: "section-refs",
+    title: "2. 핵심 섹션 참고 사례",
+    description: "중요한 화면만 사례를 찾고 적용 여부를 결정합니다.",
+  },
+  {
+    id: "targets",
+    title: "3. 비교 브랜드 (선택)",
+    description: "참고하거나 피할 브랜드가 있을 때만 정리합니다.",
+  },
+  {
+    id: "image-hints",
+    title: "4. 새 이미지 계획 (선택)",
+    description: "새 이미지가 필요한 섹션의 생성 방향을 확인합니다.",
+  },
+  {
+    id: "review",
+    title: "5. 최종 확인",
+    description: "빠진 필수 결정을 확인한 뒤 이 단계를 확정합니다.",
+  },
+];
+
 interface ReferenceWorkspaceProps {
   analysis: ProjectAnalysis;
   directives: ProjectDirective[];
@@ -101,6 +129,70 @@ export default function ReferenceWorkspace({
           </button>
         ))}
       </div>
+
+      <section
+        aria-label="레퍼런스·무드 사용 순서"
+        style={{
+          padding: "var(--space-base)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-lg)",
+          background: "var(--surface)",
+          display: "grid",
+          gap: "var(--space-sm)",
+        }}
+      >
+        <div>
+          <strong style={{ display: "block", marginBottom: 4 }}>
+            무엇을 해야 하나요?
+          </strong>
+          <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
+            아래 순서대로 진행하세요. 1·2는 핵심 작업이고, 3·4는 필요한 경우에만
+            확인하면 됩니다.
+          </span>
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+            gap: "var(--space-sm)",
+          }}
+        >
+          {WORKFLOW_GUIDE.map((step) => (
+            <button
+              key={step.id}
+              type="button"
+              onClick={() => setTab(step.id)}
+              aria-current={tab === step.id ? "step" : undefined}
+              style={{
+                padding: "var(--space-sm)",
+                border: `1px solid ${
+                  tab === step.id ? "var(--primary)" : "var(--border)"
+                }`,
+                borderRadius: "var(--radius-md)",
+                background:
+                  tab === step.id ? "var(--primary-soft)" : "var(--canvas)",
+                color: "var(--foreground)",
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              <strong style={{ display: "block", fontSize: 13, marginBottom: 4 }}>
+                {step.title}
+              </strong>
+              <span
+                style={{
+                  display: "block",
+                  color: "var(--text-muted)",
+                  fontSize: 12,
+                  lineHeight: 1.45,
+                }}
+              >
+                {step.description}
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
 
       {tab === "palette-mood" && (
         <PaletteMoodTab

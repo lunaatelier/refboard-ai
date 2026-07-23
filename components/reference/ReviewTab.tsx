@@ -200,7 +200,7 @@ export default function ReviewTab({ analysis, references, onChange, onNavigateTa
                     <li key={section.sectionId} style={{ fontSize: 14, color: "var(--text-muted)" }}>
                       {section.sectionTitle}
                       {" · "}
-                      {resolved.priority === "high-impact" ? "고영향" : resolved.priority === "optional" ? "선택" : "상속"}
+                      {resolved.priority === "high-impact" ? "핵심 섹션" : resolved.priority === "optional" ? "선택 작업" : "기본 방향 적용"}
                       {layoutPattern && ` · 레이아웃: ${layoutPattern}`}
                       {appliedCount > 0 && ` · 적용 레퍼런스 ${appliedCount}개`}
                     </li>

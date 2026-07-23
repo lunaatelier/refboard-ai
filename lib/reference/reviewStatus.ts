@@ -62,7 +62,7 @@ export function evaluateReviewStatus(
         issues.push({
           id: `section-decision-missing:${page.pageId}:${section.sectionId}`,
           severity: "required",
-          message: `"${page.pageTitle} > ${section.sectionTitle}"는 고영향 섹션인데 레이아웃도, 적용한 레퍼런스도 아직 없습니다. 이동 후 레이아웃을 고르거나 레퍼런스를 적용하세요.`,
+          message: `"${page.pageTitle} > ${section.sectionTitle}"는 핵심 섹션인데 레이아웃도, 적용한 레퍼런스도 아직 없습니다. 이동 후 레이아웃을 고르거나 레퍼런스를 적용하세요.`,
           tabId: "section-refs",
         });
       }

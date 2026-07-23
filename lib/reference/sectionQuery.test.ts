@@ -83,6 +83,20 @@ describe("buildSectionQuerySet — 로컬 3축 검색어", () => {
     assert.equal(pattern!.query, "hero section");
   });
 
+  it("서비스 분야 검색을 기본값으로 두고 영문 태그와 산출물 형식을 함께 반영한다", () => {
+    const set = buildSectionQuerySet(
+      makeSection(),
+      makeAnalysis({
+        businessDomains: ["영상 분석", "시맨틱 검색"],
+        tags: ["VLM", "AI", "한글 태그"],
+        domain: "document",
+      }),
+    );
+    assert.equal(set.designIntents[0].axis, "industry");
+    assert.equal(set.designIntents[0].query, "VLM AI business presentation");
+    assert.equal(set.designIntents[0].label, "서비스 분야 · 영상 분석 시맨틱 검색");
+  });
+
   it("imageQueries에는 hero/section/dashboard 같은 UI 용어가 절대 섞이지 않는다", () => {
     const set = buildSectionQuerySet(
       makeSection({ recommendedLayout: "hero-section" }),

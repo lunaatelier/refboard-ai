@@ -546,6 +546,15 @@ export default function Home() {
         if (cancelled || !snapshot) return;
         setWorkflow((prev) => {
           if (prev.currentStep !== "upload" || prev.analysis) return prev;
+          // 원문과 마스킹 초안은 저장하지 않으므로 masking 화면 자체는 복구할 수
+          // 없다. 오래된 스냅샷이 그 단계를 가리키면 안전하게 남아 있는 분석
+          // 결과로 이동하고, 분석도 없으면 새 업로드 화면으로 돌아온다.
+          const restoredStep =
+            snapshot.currentStep === "masking"
+              ? snapshot.analysis
+                ? "analysis"
+                : "upload"
+              : snapshot.currentStep;
           return {
             ...prev,
             projectId: snapshot.projectId,
@@ -556,7 +565,7 @@ export default function Home() {
             analysis: snapshot.analysis,
             references: snapshot.references,
             conceptJson: snapshot.conceptJson,
-            currentStep: snapshot.currentStep,
+            currentStep: restoredStep,
             completedSteps: snapshot.completedSteps,
           };
         });
@@ -617,27 +626,15 @@ export default function Home() {
   return (
     <Workspace state={workflow} onNavigate={handleNavigate}>
       {restoreNotice && <Alert tone="info">{restoreNotice}</Alert>}
-      {workflow.currentStep === "upload" &&
-        (workflow.completedSteps.includes("upload") ? (
-          <Panel title="업로드 (완료)">
-            <p style={{ color: "var(--text-muted)" }}>
-              업로드된 파일: <b>{fileDisplayName ?? "(알 수 없음)"}</b>
-            </p>
-            <p style={{ color: "var(--text-muted)" }}>
-              새로고침해도 분석·레퍼런스·컨셉 진행 상태는 복구됩니다. 다만
-              원문·복원키는 메모리에서만 유지되므로 새로고침 시 소멸합니다 —
-              실명 복원이 다시 필요하면 원본을 재업로드하세요.
-            </p>
-          </Panel>
-        ) : (
-          <LandingUpload
-            onFile={handleFile}
-            onLink={handleLink}
-            error={uploadError}
-            jsonError={jsonImportError}
-            parsing={parsing}
-          />
-        ))}
+      {workflow.currentStep === "upload" && (
+        <LandingUpload
+          onFile={handleFile}
+          onLink={handleLink}
+          error={uploadError}
+          jsonError={jsonImportError}
+          parsing={parsing}
+        />
+      )}
 
       {workflow.currentStep === "masking" &&
         (() => {

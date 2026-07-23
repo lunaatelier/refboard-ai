@@ -54,9 +54,15 @@ import { ErrorState } from "../shell/PageLayout";
 const PROMPT_VERSION = "v1";
 
 const PRIORITY_LABEL: Record<SectionReferencePriority, string> = {
-  "high-impact": "고영향",
-  inherited: "상속",
-  optional: "선택",
+  "high-impact": "핵심 섹션",
+  inherited: "기본 방향 적용",
+  optional: "선택 작업",
+};
+
+const AXIS_HELP: Record<SectionQueryAxis, string> = {
+  industry: "이 프로젝트가 다루는 서비스·업종과 비슷한 사례를 찾습니다.",
+  pattern: "이 섹션의 배치 방식과 비슷한 화면을 찾습니다.",
+  mood: "앞에서 선택한 컬러·무드와 비슷한 인상의 사례를 찾습니다.",
 };
 
 const ASPECT_LABEL: Record<AdoptionAspect, string> = {
@@ -316,22 +322,29 @@ export default function SectionRefsTab({
         }
         return body.queries;
       });
-      const next: Record<string, SectionReference> = {};
-      for (const q of queries) {
-        const section = highImpact.find((s) => s.sectionId === q.sectionId);
-        if (!section) continue;
-        next[q.sectionId] = {
-          sectionId: q.sectionId,
-          layoutPattern: section.recommendedLayout,
-          searchQuery: q.searchQuery,
-          platformQueries: buildProfiledPlatformQueries(
-            q.queriesByPlatform ?? {},
-            analysis.domain,
-            q.searchQuery,
-          ),
-        };
-      }
-      onChange((prev) => ({ ...prev, bySectionId: { ...(prev.bySectionId ?? {}), ...next } }));
+      // 검색어만 갱신하고 이미 수집한 URL·이미지·사용자 레이아웃 결정은 보존한다.
+      // 비동기 응답이 돌아온 시점의 최신 prev를 기준으로 합쳐야 그 사이의 편집도
+      // 덮어쓰지 않는다.
+      onChange((prev) => {
+        const bySectionId = { ...(prev.bySectionId ?? {}) };
+        for (const q of queries) {
+          const section = highImpact.find((s) => s.sectionId === q.sectionId);
+          if (!section) continue;
+          const existing = bySectionId[q.sectionId];
+          bySectionId[q.sectionId] = {
+            ...existing,
+            sectionId: q.sectionId,
+            layoutPattern: existing?.layoutPattern ?? section.recommendedLayout,
+            searchQuery: q.searchQuery,
+            platformQueries: buildProfiledPlatformQueries(
+              q.queriesByPlatform ?? {},
+              analysis.domain,
+              q.searchQuery,
+            ),
+          };
+        }
+        return { ...prev, bySectionId };
+      });
     } catch (e) {
       setRefineError(e instanceof Error ? e.message : "검색어 다듬기에 실패했습니다.");
     } finally {
@@ -413,31 +426,71 @@ export default function SectionRefsTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-base)" }}>
-      <div
-        style={{
-          ...card,
-          padding: "var(--space-base) var(--space-md)",
-          background: "var(--primary-soft)",
-          border: "none",
-          flexDirection: "row",
-          alignItems: "center",
-          gap: "var(--space-md)",
-          flexWrap: "wrap",
-        }}
-      >
-        <span
+      <div style={{ ...card, background: "var(--primary-soft)", border: "none" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-sm)" }}>
+          <Info size={18} color="var(--primary-hover)" style={{ marginTop: 2, flexShrink: 0 }} />
+          <div>
+            <strong style={{ color: "var(--primary-hover)", fontSize: 15 }}>
+              이 화면에서는 섹션별로 참고할 디자인을 찾고, 실제 적용 여부를 결정합니다
+            </strong>
+            <p style={{ marginTop: 4, color: "var(--text-muted)", fontSize: 13 }}>
+              모든 섹션을 조사할 필요는 없습니다. 전체 인상을 좌우하는 핵심 섹션부터
+              진행하세요.
+            </p>
+          </div>
+        </div>
+        <ol
           style={{
-            display: "flex",
-            alignItems: "center",
+            listStyle: "none",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
             gap: "var(--space-sm)",
-            fontWeight: 600,
-            fontSize: 14,
-            color: "var(--primary-hover)",
+            margin: 0,
+            padding: 0,
           }}
         >
-          <Info size={18} color="var(--primary-hover)" />
-          페이지를 선택하고, 고영향 섹션 위주로 레퍼런스를 정리하세요
-        </span>
+          {[
+            ["1", "페이지 선택", "왼쪽에서 작업할 페이지를 고릅니다."],
+            ["2", "핵심 섹션 선택", "가운데에서 직접 참고 사례를 찾을 섹션을 고릅니다."],
+            ["3", "검색·URL 수집", "검색 기준을 고르고 찾은 디자인 URL을 붙여넣습니다."],
+            ["4", "적용 여부 결정", "레이아웃·컬러 등 가져올 부분을 선택합니다."],
+          ].map(([number, title, description]) => (
+            <li
+              key={number}
+              style={{
+                display: "flex",
+                gap: "var(--space-sm)",
+                padding: "var(--space-sm)",
+                borderRadius: "var(--radius-md)",
+                background: "var(--canvas)",
+              }}
+            >
+              <span
+                style={{
+                  width: 24,
+                  height: 24,
+                  flexShrink: 0,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "var(--radius-full)",
+                  background: "var(--primary)",
+                  color: "white",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                {number}
+              </span>
+              <span>
+                <strong style={{ display: "block", fontSize: 13 }}>{title}</strong>
+                <span style={{ display: "block", marginTop: 2, color: "var(--text-muted)", fontSize: 12 }}>
+                  {description}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ol>
       </div>
 
       <div
@@ -450,7 +503,9 @@ export default function SectionRefsTab({
       >
         {/* 왼쪽: 페이지 내비게이션 */}
         <div style={{ ...column, padding: "var(--space-md)" }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-muted)" }}>페이지</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-muted)" }}>
+            1. 페이지 선택
+          </h3>
           {selectedPages.map((p) => {
             const confirmedCount = p.sections.filter((s) => s.status === "confirmed").length;
             const active = p.pageId === focusedPageId;
@@ -493,6 +548,9 @@ export default function SectionRefsTab({
         <div style={{ ...column, padding: "var(--space-md)" }}>
           {focusedPage && pageSummary && (
             <>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-muted)" }}>
+                2. 핵심 섹션 선택
+              </span>
               <div>
                 <h3 style={{ fontSize: 16, fontWeight: 700 }}>{focusedPage.pageTitle}</h3>
                 <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
@@ -516,9 +574,12 @@ export default function SectionRefsTab({
                 }}
               >
                 {refineBusyPageId === focusedPage.pageId
-                  ? "AI로 다듬는 중…"
-                  : `고영향 섹션 검색어 AI로 다듬기 (${highImpactCount}개)`}
+                  ? "플랫폼별 검색어 생성 중…"
+                  : `플랫폼별 검색어 생성 (핵심 섹션 ${highImpactCount}개)`}
               </button>
+              <p style={{ marginTop: -6, color: "var(--text-muted)", fontSize: 12 }}>
+                누르면 Dribbble·Behance 등 각 사이트에 맞는 검색어를 따로 만듭니다.
+              </p>
               {refineError && (
                 <ErrorState
                   title="검색어 다듬기에 실패했어요"
@@ -568,9 +629,9 @@ export default function SectionRefsTab({
                           className="select-box"
                           style={{ fontSize: 12, fontWeight: 600 }}
                         >
-                          <option value="high-impact">고영향</option>
-                          <option value="inherited">상속</option>
-                          <option value="optional">선택</option>
+                          <option value="high-impact">핵심 — 직접 찾기</option>
+                          <option value="inherited">기본 — 전체 방향 적용</option>
+                          <option value="optional">선택 — 필요할 때</option>
                         </select>
                       </li>
                     );
@@ -583,53 +644,66 @@ export default function SectionRefsTab({
         {/* 오른쪽: 선택 섹션 결정 패널 */}
         <div style={{ ...column, padding: "var(--space-md)" }}>
           {focusedPage && focusedSection ? (
-            <SectionDecisionPanel
-              page={focusedPage}
-              section={focusedSection}
-              priority={priorityOf(focusedPage, focusedSection)}
-              onPromote={() => setPriority(focusedPage, focusedSection, "high-impact")}
-              imageNeeded={imageNeedOf(focusedPage, focusedSection)}
-              onSetImageNeed={(v) => setImageNeed(focusedPage, focusedSection, v)}
-              domain={analysis.domain}
-              intent={activeIntentFor(focusedSection)}
-              querySet={querySetFor(focusedSection)}
-              selectedAxis={
-                selectedAxisBySection[focusedSection.sectionId] ??
-                querySetFor(focusedSection).designIntents[0]?.axis
-              }
-              onSelectAxis={(axis) =>
-                setSelectedAxisBySection((m) => ({ ...m, [focusedSection.sectionId]: axis }))
-              }
-              sectionRef={bySectionId[focusedSection.sectionId]}
-              morePlatformsOpen={Boolean(morePlatformsOpen[focusedSection.sectionId])}
-              onToggleMorePlatforms={() =>
-                setMorePlatformsOpen((o) => ({
-                  ...o,
-                  [focusedSection.sectionId]: !o[focusedSection.sectionId],
-                }))
-              }
-              imagesBusy={Boolean(imagesBusy[focusedSection.sectionId])}
-              copied={copied}
-              copiedMain={copiedMain}
-              onCopy={copy}
-              onCopyMain={copyMain}
-              onUpdateQuery={(q) => updateQuery(focusedSection, q)}
-              onSetLayout={(l) => setLayout(focusedSection, l)}
-              onFetchImages={(q) => fetchSectionImages(focusedSection, q)}
-              onAddCollectedReference={(item) => addCollectedReference(focusedSection, item)}
-              onRemoveCollectedReference={(id) =>
-                removeCollectedReference(focusedPage, focusedSection, id)
-              }
-              onUpdateCollectedReference={(id, patch) =>
-                updateCollectedReference(focusedSection, id, patch)
-              }
-              adoptions={adoptionsForSection(references, focusedPage.pageId, focusedSection.sectionId)}
-              onSetAdoption={(collected, status, extra) =>
-                setReferenceAdoption(focusedPage, focusedSection, collected, status, extra)
-              }
-              currentBasisHash={currentBasisHash}
-              projectId={projectId}
-            />
+            <>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-muted)" }}>
+                3. 검색하고 참고 URL 모으기
+              </span>
+              <SectionDecisionPanel
+                page={focusedPage}
+                section={focusedSection}
+                priority={priorityOf(focusedPage, focusedSection)}
+                onPromote={() => setPriority(focusedPage, focusedSection, "high-impact")}
+                imageNeeded={imageNeedOf(focusedPage, focusedSection)}
+                onSetImageNeed={(v) => setImageNeed(focusedPage, focusedSection, v)}
+                domain={analysis.domain}
+                intent={activeIntentFor(focusedSection)}
+                querySet={querySetFor(focusedSection)}
+                selectedAxis={
+                  selectedAxisBySection[focusedSection.sectionId] ??
+                  querySetFor(focusedSection).designIntents[0]?.axis
+                }
+                onSelectAxis={(axis) => {
+                  setSelectedAxisBySection((m) => ({ ...m, [focusedSection.sectionId]: axis }));
+                  const nextIntent = querySetFor(focusedSection).designIntents.find(
+                    (candidate) => candidate.axis === axis,
+                  );
+                  if (nextIntent) updateQuery(focusedSection, nextIntent.query);
+                }}
+                sectionRef={bySectionId[focusedSection.sectionId]}
+                morePlatformsOpen={Boolean(morePlatformsOpen[focusedSection.sectionId])}
+                onToggleMorePlatforms={() =>
+                  setMorePlatformsOpen((o) => ({
+                    ...o,
+                    [focusedSection.sectionId]: !o[focusedSection.sectionId],
+                  }))
+                }
+                imagesBusy={Boolean(imagesBusy[focusedSection.sectionId])}
+                copied={copied}
+                copiedMain={copiedMain}
+                onCopy={copy}
+                onCopyMain={copyMain}
+                onUpdateQuery={(q) => updateQuery(focusedSection, q)}
+                onSetLayout={(l) => setLayout(focusedSection, l)}
+                onFetchImages={(q) => fetchSectionImages(focusedSection, q)}
+                onAddCollectedReference={(item) => addCollectedReference(focusedSection, item)}
+                onRemoveCollectedReference={(id) =>
+                  removeCollectedReference(focusedPage, focusedSection, id)
+                }
+                onUpdateCollectedReference={(id, patch) =>
+                  updateCollectedReference(focusedSection, id, patch)
+                }
+                adoptions={adoptionsForSection(
+                  references,
+                  focusedPage.pageId,
+                  focusedSection.sectionId,
+                )}
+                onSetAdoption={(collected, status, extra) =>
+                  setReferenceAdoption(focusedPage, focusedSection, collected, status, extra)
+                }
+                currentBasisHash={currentBasisHash}
+                projectId={projectId}
+              />
+            </>
           ) : (
             <p style={{ color: "var(--text-muted)" }}>왼쪽에서 섹션을 선택하세요.</p>
           )}
@@ -750,7 +824,7 @@ function SectionDecisionPanel({
             fontSize: 13,
           }}
         >
-          심층 탐색 시작 (고영향으로 전환)
+          이 섹션도 개별 레퍼런스 찾기
         </button>
       </div>
     );
@@ -762,6 +836,9 @@ function SectionDecisionPanel({
   const topPlatforms = platformQueries.slice(0, 5);
   const morePlatforms = platformQueries.slice(5);
   const imageQuery = querySet.imageQueries[0] ?? "";
+  const platformQueriesCustomized =
+    new Set(platformQueries.map((query) => query.query)).size > 1 ||
+    platformQueries.some((query) => query.query !== searchQuery);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
@@ -792,9 +869,14 @@ function SectionDecisionPanel({
           </button>
         ))}
       </div>
+      {selectedAxis && (
+        <p style={{ marginTop: -8, color: "var(--text-muted)", fontSize: 12 }}>
+          {AXIS_HELP[selectedAxis]} 기준을 바꾸면 아래 대표 검색어도 함께 바뀝니다.
+        </p>
+      )}
 
       <label style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
-        <span style={{ fontSize: 14, fontWeight: 600 }}>검색어</span>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>대표 검색어</span>
         <input
           value={searchQuery}
           onChange={(e) => onUpdateQuery(e.target.value)}
@@ -906,7 +988,33 @@ function SectionDecisionPanel({
       </div>
 
       <div>
-        <span style={{ fontSize: 14, fontWeight: 600 }}>플랫폼별 검색 경로</span>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>디자인 사이트에서 찾아보기</span>
+        <div
+          style={{
+            marginTop: "var(--space-xs)",
+            padding: "var(--space-sm)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--surface-alt)",
+            color: "var(--text-muted)",
+            fontSize: 12,
+          }}
+        >
+          {platformQueriesCustomized ? (
+            <>
+              <strong style={{ color: "var(--foreground)" }}>플랫폼별 맞춤 검색어 적용됨</strong>
+              <span> — 사이트 특성에 맞게 서로 다른 검색어를 사용합니다.</span>
+            </>
+          ) : (
+            <>
+              <strong style={{ color: "var(--foreground)" }}>현재는 대표 검색어 공통 적용 중</strong>
+              <span>
+                {" "}
+                — 가운데의 ‘플랫폼별 검색어 생성’ 버튼을 누르면 사이트마다 다르게
+                만들어집니다.
+              </span>
+            </>
+          )}
+        </div>
         <ul
           style={{
             listStyle: "none",
@@ -1136,12 +1244,19 @@ function CollectedReferences({
       }}
     >
       <span style={{ fontSize: 14, fontWeight: 600 }}>
-        수집한 레퍼런스{" "}
+        4. 찾은 레퍼런스 저장·적용{" "}
         <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 14 }}>
-          — 검색에서 찾은 URL을 붙여 기록. 기본은 참고용이며, 라이선스를
-          확인한 것만 &ldquo;삽입 가능&rdquo;으로 바꾸세요
+          — 마음에 드는 디자인 URL을 붙여넣고, 어떤 점을 가져올지 결정하세요
         </span>
       </span>
+
+      {items.length === 0 && (
+        <p style={{ margin: 0, color: "var(--text-muted)", fontSize: 12 }}>
+          아직 저장한 항목이 없습니다. 위의 ‘바로 검색’으로 디자인을 찾은 뒤 주소를
+          복사해 아래에 붙여넣으세요. 기본은 참고용이며, 라이선스를 확인한 것만
+          ‘삽입 가능’으로 바꿉니다.
+        </p>
+      )}
 
       {items.length > 0 && (
         <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>

@@ -51,19 +51,29 @@ function patternIntent(section: Section): SectionQueryIntent {
   const slug = section.recommendedLayout || section.contentType || "content";
   const label = section.recommendedLayoutLabel || humanizeSlug(slug);
   const query = slug.replace(/-/g, " ").toLowerCase().trim();
-  return { axis: "pattern", label: `패턴 · ${label}`, query };
+  return { axis: "pattern", label: `레이아웃 · ${label}`, query };
 }
 
 function moodIntent(direction: DirectionOption): SectionQueryIntent {
   const query = direction.keywords.slice(0, 2).join(" ").trim() || direction.label;
-  return { axis: "mood", label: `무드 · ${direction.label}`, query };
+  return { axis: "mood", label: `분위기 · ${direction.label}`, query };
 }
 
 function industryIntent(analysis: ProjectAnalysis): SectionQueryIntent {
-  const query = DOMAIN_DESIGN_QUERY[analysis.domain] ?? DOMAIN_DESIGN_QUERY.generic;
-  const label = analysis.businessDomains?.[0]
-    ? `업종 · ${analysis.businessDomains[0]}`
-    : `업종 · ${query}`;
+  const formatQuery = DOMAIN_DESIGN_QUERY[analysis.domain] ?? DOMAIN_DESIGN_QUERY.generic;
+  // 레이아웃 용어만 검색되는 문제를 피하려고, 분석 태그 중 영문 키워드(VLM, AI,
+  // SaaS 등)를 우선 결합한다. 영문 태그가 없으면 사용자가 확인한 업무 영역을 쓴다.
+  const englishContext = analysis.tags
+    .filter((tag) => /^[\x20-\x7E]+$/.test(tag.trim()))
+    .slice(0, 2)
+    .join(" ")
+    .trim();
+  const businessContext = analysis.businessDomains?.slice(0, 2).join(" ").trim() ?? "";
+  const context = englishContext || businessContext;
+  const query = [context, formatQuery].filter(Boolean).join(" ");
+  const label = businessContext
+    ? `서비스 분야 · ${businessContext}`
+    : `서비스 분야 · ${context || formatQuery}`;
   return { axis: "industry", label, query };
 }
 
@@ -75,10 +85,13 @@ export function buildSectionQuerySet(
   direction?: DirectionOption,
 ): SectionQuerySet {
   const pattern = patternIntent(section);
+  const industry = industryIntent(analysis);
   const designIntents: SectionQueryIntent[] = [
+    // 첫 화면에서는 배치 방식만 보여주는 pattern보다 프로젝트 내용이 들어간
+    // 서비스 분야 검색을 기본값으로 사용한다.
+    industry,
     pattern,
     ...(direction ? [moodIntent(direction)] : []),
-    industryIntent(analysis),
   ];
 
   const imageCandidates = [

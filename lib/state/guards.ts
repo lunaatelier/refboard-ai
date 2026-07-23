@@ -5,6 +5,21 @@ import { STEP_ORDER, type Step, type WorkflowState } from "./workflow";
 // - 미완료 단계는 모든 선행 단계가 완료됐을 때만 진입 가능.
 // - 보안 게이트: maskedText 없이는 analysis 이후 전부 차단 (마스킹 하드 게이트).
 export function canAccessStep(target: Step, state: WorkflowState): boolean {
+  // 업로드는 새 프로젝트를 시작하는 진입점이므로 진행 이력과 무관하게 항상 연다.
+  if (target === "upload") return true;
+
+  // 새로고침으로 복구한 원문 프로젝트에는 분석 결과만 남고, 마스킹 원문과
+  // 확정된 maskedText는 의도적으로 남지 않는다. 이 상태에서 완료 이력만 보고
+  // 마스킹 화면을 다시 열면 "검수할 문서가 없습니다"라는 막다른 화면이 된다.
+  if (
+    target === "masking" &&
+    !!state.analysis &&
+    !state.maskedText &&
+    state.sourceType !== "analysis-json"
+  ) {
+    return false;
+  }
+
   if (state.completedSteps.includes(target)) return true;
 
   const targetIdx = STEP_ORDER.indexOf(target);
