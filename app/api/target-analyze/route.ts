@@ -36,10 +36,16 @@ export async function POST(req: Request) {
         error:
           budget.reason === "PROJECT_BUDGET_EXHAUSTED"
             ? "이 프로젝트에서 브랜드 심층 분석을 이미 최대 개수만큼 사용했습니다."
-            : "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.",
+            : `요청이 너무 잦습니다. ${budget.retryAfterSeconds}초 후 다시 시도해주세요.`,
         reason: budget.reason,
+        retryAfterSeconds: budget.retryAfterSeconds,
+        remainingAttempts: budget.remainingAttempts,
+        remainingResults: budget.remainingResults,
       },
-      { status: 429 },
+      {
+        status: 429,
+        headers: budget.retryAfterSeconds ? { "Retry-After": String(budget.retryAfterSeconds) } : undefined,
+      },
     );
   }
 

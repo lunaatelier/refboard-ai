@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { InMemoryBudgetStore } from "./providerBudget";
 
-const LIMITS = { resultLimit: 3, attemptLimit: 8 };
+const LIMITS = { resultLimit: 3, windowMs: 60_000, maxAttemptsPerWindow: 8 };
 
 describe("InMemoryBudgetStore — 결과 한도", () => {
   it("성공을 resultLimit만큼 기록하면 그다음 reserveAttempt는 PROJECT_BUDGET_EXHAUSTED", () => {
@@ -29,8 +29,8 @@ describe("InMemoryBudgetStore — 결과 한도", () => {
   });
 });
 
-describe("InMemoryBudgetStore — 시도 한도(실패 포함)", () => {
-  it("attemptLimit만큼 reserveAttempt하면 그다음은 RATE_LIMITED", () => {
+describe("InMemoryBudgetStore — 윈도우 기반 rate limit", () => {
+  it("maxAttemptsPerWindow만큼 reserveAttempt하면 그다음은 RATE_LIMITED + retryAfterSeconds", () => {
     const store = new InMemoryBudgetStore();
     for (let i = 0; i < 8; i += 1) {
       const check = store.reserveAttempt("p1", "generate-image", LIMITS);
@@ -39,6 +39,36 @@ describe("InMemoryBudgetStore — 시도 한도(실패 포함)", () => {
     const check = store.reserveAttempt("p1", "generate-image", LIMITS);
     assert.equal(check.ok, false);
     assert.equal(check.reason, "RATE_LIMITED");
+    assert.equal(check.remainingAttempts, 0);
+    assert.ok(
+      typeof check.retryAfterSeconds === "number" && check.retryAfterSeconds > 0,
+      "차단 시 몇 초 후 재시도 가능한지 반드시 반환해야 한다",
+    );
+    assert.ok(check.retryAfterSeconds! <= 60, "윈도우(60s)보다 긴 대기시간을 반환하면 안 된다");
+  });
+
+  it("윈도우가 지나면 이전 시도가 만료되어 다시 허용된다", async () => {
+    const store = new InMemoryBudgetStore();
+    const shortWindow = { resultLimit: 3, windowMs: 50, maxAttemptsPerWindow: 2 };
+    assert.equal(store.reserveAttempt("p1", "generate-image", shortWindow).ok, true);
+    assert.equal(store.reserveAttempt("p1", "generate-image", shortWindow).ok, true);
+    const blocked = store.reserveAttempt("p1", "generate-image", shortWindow);
+    assert.equal(blocked.ok, false);
+    assert.equal(blocked.reason, "RATE_LIMITED");
+
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    const afterWindow = store.reserveAttempt("p1", "generate-image", shortWindow);
+    assert.equal(afterWindow.ok, true, "윈도우 만료 후에는 다시 허용되어야 한다");
+  });
+
+  it("remainingAttempts는 윈도우 안에서 남은 시도 수를 정확히 알려준다", () => {
+    const store = new InMemoryBudgetStore();
+    const limits = { resultLimit: 3, windowMs: 60_000, maxAttemptsPerWindow: 3 };
+    const first = store.reserveAttempt("p1", "generate-image", limits);
+    assert.equal(first.remainingAttempts, 2);
+    const second = store.reserveAttempt("p1", "generate-image", limits);
+    assert.equal(second.remainingAttempts, 1);
   });
 });
 
