@@ -14,6 +14,9 @@ export interface SearchedImageLike {
   url: string;
   source: "unsplash" | "pexels";
   attribution: string;
+  sourceUrl: string;
+  usage: "inspiration-only";
+  fetchedAt: string;
 }
 
 const ROLE_BY_INDEX: ImageRole[] = [
@@ -30,6 +33,9 @@ function toImageCandidates(images: SearchedImageLike[]): DirectionImageCandidate
     url: img.url,
     source: img.source,
     attribution: img.attribution,
+    sourceUrl: img.sourceUrl,
+    usage: img.usage,
+    fetchedAt: img.fetchedAt,
     role: ROLE_BY_INDEX[i] ?? "detail",
     selected: i < 4,
     order: i,
@@ -131,7 +137,15 @@ export function replaceImageCandidate(
     ...direction,
     imageCandidates: direction.imageCandidates.map((c) =>
       c.url === url
-        ? { ...c, url: next.url, source: next.source, attribution: next.attribution }
+        ? {
+            ...c,
+            url: next.url,
+            source: next.source,
+            attribution: next.attribution,
+            sourceUrl: next.sourceUrl,
+            usage: next.usage,
+            fetchedAt: next.fetchedAt,
+          }
         : c,
     ),
   };

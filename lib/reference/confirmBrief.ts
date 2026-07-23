@@ -44,7 +44,14 @@ function buildDirectionSnapshot(
 ): ConfirmedReferenceBrief["direction"] {
   const selectedMoodImages = selectedDirection.imageCandidates
     .filter((c) => c.selected)
-    .map((c) => ({ url: c.url, source: c.source, attribution: c.attribution }));
+    .map((c) => ({
+      url: c.url,
+      source: c.source,
+      attribution: c.attribution,
+      sourceUrl: c.sourceUrl,
+      usage: c.usage,
+      fetchedAt: c.fetchedAt,
+    }));
   return {
     paletteOptionId: editedPaletteOption.optionId,
     editedPaletteOption,

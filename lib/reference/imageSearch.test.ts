@@ -59,20 +59,32 @@ describe("parseUnsplashResults / parsePexelsResults — 제외 키워드 필터�
         {
           id: "abc123",
           urls: { small: "https://img/1.jpg" },
+          links: { html: "https://unsplash.com/photos/abc123" },
           user: { name: "Jane" },
           alt_description: "a calm office space",
         },
       ],
     };
     const out = parseUnsplashResults(raw);
-    assert.deepEqual(out, [
-      {
-        id: "unsplash-abc123",
-        url: "https://img/1.jpg",
-        source: "unsplash",
-        attribution: "Jane / Unsplash",
-      },
-    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].id, "unsplash-abc123");
+    assert.equal(out[0].url, "https://img/1.jpg");
+    assert.equal(out[0].source, "unsplash");
+    assert.equal(out[0].attribution, "Jane / Unsplash");
+    // 어트리뷰션은 이미지 자산(url)이 아니라 사진 상세 페이지(links.html)로 링크해야 한다
+    assert.equal(out[0].sourceUrl, "https://unsplash.com/photos/abc123");
+    assert.equal(out[0].usage, "inspiration-only");
+    assert.ok(typeof out[0].fetchedAt === "string" && out[0].fetchedAt.length > 0);
+  });
+
+  it("links.html이 없으면 sourceUrl은 이미지 URL로 폴백한다", () => {
+    const raw = {
+      results: [
+        { id: "no-link", urls: { small: "https://img/2.jpg" }, user: { name: "Jane" } },
+      ],
+    };
+    const out = parseUnsplashResults(raw);
+    assert.equal(out[0].sourceUrl, "https://img/2.jpg");
   });
 
   it("제외 키워드가 alt_description에 매치되면 걸러진다", () => {

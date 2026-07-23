@@ -882,7 +882,14 @@ function SectionDecisionPanel({
                     style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: "var(--radius-md)" }}
                   />
                   <figcaption style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                    {img.attribution}
+                    <a
+                      href={img.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: "inherit" }}
+                    >
+                      {img.attribution}
+                    </a>
                   </figcaption>
                 </figure>
               ))}

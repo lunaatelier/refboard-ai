@@ -7,6 +7,7 @@ import {
   ConfirmBriefError,
 } from "./confirmBrief";
 import type {
+  DirectionImageCandidate,
   DirectionOption,
   MoodOption,
   Palette,
@@ -14,6 +15,22 @@ import type {
   ReferenceAdoption,
   ReferenceResult,
 } from "./types";
+
+function makeImageCandidate(
+  overrides: Partial<DirectionImageCandidate> & Pick<DirectionImageCandidate, "url">,
+): DirectionImageCandidate {
+  return {
+    source: "unsplash",
+    attribution: "A",
+    sourceUrl: `${overrides.url}-page`,
+    usage: "inspiration-only",
+    fetchedAt: "2026-07-23T00:00:00.000Z",
+    role: "detail",
+    selected: true,
+    order: 0,
+    ...overrides,
+  };
+}
 
 function makePalette(mode: "light" | "dark"): Palette {
   return {
@@ -77,22 +94,8 @@ function makeDirectionOption(overrides: Partial<DirectionOption> = {}): Directio
     },
     styleAttributes: { radius: "soft", density: "airy", contrast: "soft" },
     imageCandidates: [
-      {
-        url: "https://img.example/1.jpg",
-        source: "unsplash",
-        attribution: "A",
-        role: "hero",
-        selected: true,
-        order: 0,
-      },
-      {
-        url: "https://img.example/2.jpg",
-        source: "unsplash",
-        attribution: "B",
-        role: "supporting",
-        selected: true,
-        order: 1,
-      },
+      makeImageCandidate({ url: "https://img.example/1.jpg", role: "hero", order: 0 }),
+      makeImageCandidate({ url: "https://img.example/2.jpg", attribution: "B", role: "supporting", order: 1 }),
     ],
     recommendedDirections: [],
     avoidDirections: [],
@@ -241,14 +244,9 @@ describe("confirmBrief — 팔레트/무드 확정 검증", () => {
     const refs = makeReferences({
       directionOptions: [
         makeDirectionOption({
-          imageCandidates: Array.from({ length: 5 }, (_, i) => ({
-            url: `https://img.example/${i}.jpg`,
-            source: "unsplash" as const,
-            attribution: "A",
-            role: "detail" as const,
-            selected: true,
-            order: i,
-          })),
+          imageCandidates: Array.from({ length: 5 }, (_, i) =>
+            makeImageCandidate({ url: `https://img.example/${i}.jpg`, order: i }),
+          ),
         }),
       ],
     });
@@ -419,34 +417,40 @@ describe("confirmBrief — 방향(P3-5): directionOptions가 무드·이미지�
     assert.deepEqual(brief.direction.avoidDirections, ["화려한 그라디언트"]);
   });
 
-  it("selectedMoodImages는 imageCandidates 중 selected=true만, url/source/attribution만 담는다", () => {
+  it("selectedMoodImages는 imageCandidates 중 selected=true만, 출처 메타데이터(sourceUrl/usage/fetchedAt)까지 담는다", () => {
     const refs = makeReferences({
       directionOptions: [
         makeDirectionOption({
           imageCandidates: [
-            {
+            makeImageCandidate({
               url: "https://img.example/kept.jpg",
               source: "pexels",
               attribution: "Kept",
               role: "hero",
-              selected: true,
               order: 0,
-            },
-            {
+            }),
+            makeImageCandidate({
               url: "https://img.example/excluded.jpg",
               source: "pexels",
               attribution: "Excluded",
               role: "detail",
               selected: false,
               order: 1,
-            },
+            }),
           ],
         }),
       ],
     });
     const brief = buildConfirmedBrief(makeAnalysis(), refs, { now: fixedNow });
     assert.deepEqual(brief.direction.selectedMoodImages, [
-      { url: "https://img.example/kept.jpg", source: "pexels", attribution: "Kept" },
+      {
+        url: "https://img.example/kept.jpg",
+        source: "pexels",
+        attribution: "Kept",
+        sourceUrl: "https://img.example/kept.jpg-page",
+        usage: "inspiration-only",
+        fetchedAt: "2026-07-23T00:00:00.000Z",
+      },
     ]);
   });
 });

@@ -24,10 +24,19 @@ export interface PaletteOption {
   dark: Palette;
 }
 
+// (2026-07-23 수정) sourceUrl/usage/fetchedAt 추가 — P10 라이선스·출처 규칙("모든 외부
+// 후보에 provider, sourceUrl, usage, fetchedAt을 저장한다")을 ReferenceCandidate만
+// 지키고 있었고 무드 이미지(Unsplash/Pexels)는 url(이미지 자산)만 있어 출처 페이지
+// 링크·조회 시각이 없었다(외부 리뷰로 지적됨). sourceUrl은 이미지 자산 URL(url)이
+// 아니라 provider의 사진 상세 페이지 링크 — Unsplash/Pexels 둘 다 어트리뷰션 시
+// 사진 페이지로 링크하도록 요구한다.
 export interface MoodImage {
   url: string;
   source: "unsplash" | "pexels";
   attribution: string;
+  sourceUrl: string;
+  usage: "inspiration-only";
+  fetchedAt: string;
 }
 
 // 방향 카드 공통 스타일 속성 (P3) — MoodOption.styleAttributes와 DirectionOption이 공유.
@@ -228,6 +237,9 @@ export interface DirectionImageCandidate {
   url: string;
   source: "unsplash" | "pexels";
   attribution: string;
+  sourceUrl: string;
+  usage: "inspiration-only";
+  fetchedAt: string;
   role: ImageRole;
   selected: boolean; // 최대 4장까지 selected=true (후보는 최대 6장)
   order: number; // 선택된 이미지 표시 순서

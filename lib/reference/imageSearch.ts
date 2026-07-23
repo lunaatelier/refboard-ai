@@ -20,6 +20,9 @@ export interface SearchedImage {
   url: string;
   source: "unsplash" | "pexels";
   attribution: string;
+  sourceUrl: string;
+  usage: "inspiration-only";
+  fetchedAt: string;
 }
 
 const UNSPLASH_COLORS = [
@@ -100,6 +103,11 @@ export function parseUnsplashResults(
       url: r.urls.small,
       source: "unsplash" as const,
       attribution: `${r?.user?.name ?? "Unknown"} / Unsplash`,
+      // 어트리뷰션은 이미지 자산이 아니라 사진 상세 페이지로 링크해야 한다(Unsplash
+      // API 가이드라인) — links.html이 그 페이지. 없으면 이미지 URL로 폴백.
+      sourceUrl: typeof r?.links?.html === "string" ? r.links.html : r.urls.small,
+      usage: "inspiration-only" as const,
+      fetchedAt: new Date().toISOString(),
     }));
 }
 
@@ -116,6 +124,10 @@ export function parsePexelsResults(
       url: p.src.medium,
       source: "pexels" as const,
       attribution: `${p?.photographer ?? "Unknown"} / Pexels`,
+      // Pexels는 사진 상세 페이지 URL이 최상위 url 필드다.
+      sourceUrl: typeof p?.url === "string" ? p.url : p.src.medium,
+      usage: "inspiration-only" as const,
+      fetchedAt: new Date().toISOString(),
     }));
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
