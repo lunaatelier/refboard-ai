@@ -102,7 +102,13 @@ export default function TargetsTab({
 }: TargetsTabProps) {
   const [listBusy, setListBusy] = useState(false);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string>();
+  // 목록 생성(fetchMore) 실패와 개별 대상 심층분석(analyze) 실패는 서로 다른 모듈이라
+  // 실패 메시지·재시도 버튼을 분리한다(P10 실패 격리 규칙 — "재시도 버튼은 실패한
+  // 모듈에만 표시된다"). 예전엔 하나의 error state를 공유해서, 특정 대상 분석이
+  // 실패해도 화면 위쪽에 "목록 생성에 실패했어요" + 목록 재조회 버튼이 떠 엉뚱한
+  // 재시도 동작으로 이어졌다(외부 리뷰로 지적됨).
+  const [listError, setListError] = useState<string>();
+  const [analysisErrors, setAnalysisErrors] = useState<Record<string, string>>({});
   const [openId, setOpenId] = useState<string>();
   const [menuOpenId, setMenuOpenId] = useState<string>();
   const [manualName, setManualName] = useState("");
@@ -200,11 +206,14 @@ export default function TargetsTab({
 
   const fetchMore = async () => {
     setListBusy(true);
-    setError(undefined);
+    setListError(undefined);
     try {
       const res = await fetch("/api/targets-list", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(projectId ? { "x-project-id": projectId } : {}),
+        },
         body: JSON.stringify({
           title: analysis.title,
           description: analysis.description,
@@ -238,7 +247,7 @@ export default function TargetsTab({
         return { ...prev, analysisTargetList: [...prevList, ...added] };
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "목록 생성에 실패했습니다.");
+      setListError(e instanceof Error ? e.message : "목록 생성에 실패했습니다.");
     } finally {
       setListBusy(false);
     }
@@ -289,6 +298,12 @@ export default function TargetsTab({
     const controller = new AbortController();
     analyzeAbortRef.current[item.id] = controller;
     setBusyIds((prev) => new Set(prev).add(item.id));
+    setAnalysisErrors((prev) => {
+      if (!(item.id in prev)) return prev;
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
     patchItem(item.id, { analysisStatus: "analyzing" });
     try {
       const res = await fetch("/api/target-analyze", {
@@ -328,7 +343,10 @@ export default function TargetsTab({
       setOpenId(item.id);
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return;
-      setError(e instanceof Error ? e.message : "분석에 실패했습니다.");
+      setAnalysisErrors((prev) => ({
+        ...prev,
+        [item.id]: e instanceof Error ? e.message : "분석에 실패했습니다.",
+      }));
       patchItem(item.id, { analysisStatus: "listed" });
     } finally {
       if (analyzeAbortRef.current[item.id] === controller) {
@@ -447,8 +465,8 @@ export default function TargetsTab({
             추가
           </button>
         </div>
-        {error && (
-          <ErrorState title="목록 생성에 실패했어요" detail={error} onRetry={fetchMore} />
+        {listError && (
+          <ErrorState title="목록 생성에 실패했어요" detail={listError} onRetry={fetchMore} />
         )}
       </div>
 
@@ -505,6 +523,13 @@ export default function TargetsTab({
               <p style={{ fontSize: 14, color: "var(--text-placeholder)" }}>
                 출처: {item.source === "spec" ? "설계서" : item.source === "manual" ? "직접 입력" : "Gemini"}
               </p>
+              {analysisErrors[item.id] && (
+                <ErrorState
+                  title="분석에 실패했어요"
+                  detail={analysisErrors[item.id]}
+                  onRetry={() => analyze(item, true)}
+                />
+              )}
               <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {item.analysisStatus !== "analyzed" ? (
                   <button

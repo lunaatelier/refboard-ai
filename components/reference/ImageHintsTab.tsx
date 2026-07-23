@@ -148,7 +148,10 @@ export default function ImageHintsTab({
       }
       const res = await fetch("/api/image-hints", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(projectId ? { "x-project-id": projectId } : {}),
+        },
         body: JSON.stringify({
           skeletons: toFill,
           directives,
@@ -212,7 +215,10 @@ export default function ImageHintsTab({
       const skeleton = skeletons.find((s) => s.key === hint.key);
       const res = await fetch("/api/image-hints", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(projectId ? { "x-project-id": projectId } : {}),
+        },
         body: JSON.stringify({
           skeletons: [
             {
