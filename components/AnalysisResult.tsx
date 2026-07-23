@@ -463,6 +463,7 @@ export default function AnalysisResult({
     <div
       style={{
         ...card,
+        borderRadius: "var(--radius-md)",
         padding: "var(--space-base) var(--space-md)",
         background: "var(--primary-soft)",
         border: "1px solid var(--primary)",

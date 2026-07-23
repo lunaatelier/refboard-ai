@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Key, Save } from "lucide-react";
+import { FilePlus2, Key, Save } from "lucide-react";
 import AnalysisResult from "@/components/AnalysisResult";
 import { describeScope } from "@/components/DirectiveEditor";
 import ImageConsentPanel, {
@@ -23,6 +23,7 @@ import { addDictionaryEntry, listDictionary } from "@/lib/dictionary/store";
 import { buildConfirmedBrief } from "@/lib/reference/confirmBrief";
 import { evaluateReviewStatus } from "@/lib/reference/reviewStatus";
 import {
+  clearWorkflowSnapshot,
   loadWorkflowSnapshot,
   saveWorkflowSnapshot,
 } from "@/lib/state/persistence";
@@ -97,6 +98,7 @@ export default function Home() {
   // 시도하고, 그 시도가 끝나기 전까지는 자동 저장을 보류해 초기 빈 상태로 기존
   // 저장분을 덮어쓰지 않는다.
   const hasAttemptedRestoreRef = useRef(false);
+  const persistencePausedRef = useRef(false);
   const [restoreNotice, setRestoreNotice] = useState<string>();
 
   // 문서 속 이미지 원본 (Step 9) — 원문급 민감. 메모리에만, opt-in 동의분만 외부 전송.
@@ -440,6 +442,47 @@ export default function Home() {
     downloadJson(json, `drg-analysis-${new Date().toISOString().slice(0, 10)}.json`);
   };
 
+  const handleStartNewProject = async () => {
+    const confirmed = window.confirm(
+      "현재 프로젝트의 분석 결과와 이후 작업을 지우고 새 프로젝트를 시작할까요?\n필요한 내용은 먼저 분석 결과 JSON으로 저장해 주세요.",
+    );
+    if (!confirmed) return;
+
+    // 기존 자동 저장 타이머가 초기화 직전에 현재 프로젝트를 다시 저장하는 경합을 막는다.
+    persistencePausedRef.current = true;
+    try {
+      await clearWorkflowSnapshot();
+
+      // 원문급 데이터와 복원키를 포함해 현재 프로젝트에 속한 메모리 상태도 함께 폐기한다.
+      secureMappingsRef.current = [];
+      lastMaskedExportIdRef.current = undefined;
+      importedExportIdRef.current = undefined;
+      imagesRef.current = [];
+      autoAnalyzedForRef.current = undefined;
+
+      setWorkflow({ ...initialWorkflowState });
+      setDraft(null);
+      setFileDisplayName(undefined);
+      setRecoveryNotice(undefined);
+      setRestoreNotice(undefined);
+      setImageInsights([]);
+      setImageBusy(false);
+      setImageError(undefined);
+      setUploadError(undefined);
+      setJsonImportError(undefined);
+      setParsing(false);
+      setAnalyzing(false);
+      setAnalysisError(undefined);
+      setConfirmBriefError(undefined);
+    } catch {
+      window.alert(
+        "저장된 프로젝트를 지우지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      );
+    } finally {
+      persistencePausedRef.current = false;
+    }
+  };
+
   const handleSaveRecoveryKey = () => {
     // 복원키 파일 내보내기 (Step 14) — 실명이 포함되므로 생성부터 다운로드까지
     // 전부 브라우저에서만. 서버로는 어떤 바이트도 나가지 않는다.
@@ -589,8 +632,10 @@ export default function Home() {
   // 끝나기 전이거나 아직 아무것도 시작하지 않았으면 저장하지 않는다.
   useEffect(() => {
     if (!hasAttemptedRestoreRef.current) return;
+    if (persistencePausedRef.current) return;
     if (workflow.currentStep === "upload" && !workflow.analysis) return;
     const timer = setTimeout(() => {
+      if (persistencePausedRef.current) return;
       void saveWorkflowSnapshot(workflow).catch(() => {});
     }, 500);
     return () => clearTimeout(timer);
@@ -625,7 +670,11 @@ export default function Home() {
 
   return (
     <Workspace state={workflow} onNavigate={handleNavigate}>
-      {restoreNotice && <Alert tone="info">{restoreNotice}</Alert>}
+      {restoreNotice && (
+        <div style={{ marginBottom: "var(--space-md)" }}>
+          <Alert tone="info">{restoreNotice}</Alert>
+        </div>
+      )}
       {workflow.currentStep === "upload" && (
         <LandingUpload
           onFile={handleFile}
@@ -762,24 +811,30 @@ export default function Home() {
               }
             />
             {workflow.completedSteps.includes("analysis") && (
-              <div style={{ display: "flex", gap: "var(--space-md)", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "var(--space-sm)",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
                 <button
                   onClick={handleSaveAnalysisJson}
-                  className="btn-tertiary"
+                  className="btn-weak-primary"
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: "var(--space-sm)",
                     padding: "10px var(--space-base)",
                     borderRadius: "var(--radius-md)",
-                    border: "none",
+                    border: "1px solid var(--primary)",
                     fontWeight: 600,
                     fontSize: 14,
                   }}
                 >
                   <Save size={18} />
-                  분석 결과 JSON 저장 — 나중에 레퍼런스·무드부터 재시작
-                  (마스킹본이라 안전)
+                  분석 결과 JSON 저장
                 </button>
                 {secureMappingsRef.current.length > 0 && (
                   <button
@@ -801,6 +856,24 @@ export default function Home() {
                     때도 실명본 복구 가능 (실명 포함, 로컬 전용)
                   </button>
                 )}
+                <button
+                  onClick={() => void handleStartNewProject()}
+                  className="btn-weak-danger"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-sm)",
+                    padding: "10px var(--space-base)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--error)",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    marginLeft: "auto",
+                  }}
+                >
+                  <FilePlus2 size={18} />
+                  새 프로젝트 시작
+                </button>
               </div>
             )}
           </div>
