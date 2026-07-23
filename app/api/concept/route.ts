@@ -6,6 +6,7 @@ import { deriveForcedMode } from "@/lib/analysis/requirements";
 import { normalizeConcept } from "@/lib/concept/normalize";
 import { assertConceptJsonInvariant } from "@/lib/concept/versionGuard";
 import { assertBriefMatchesAnalysis, ConfirmBriefError } from "@/lib/reference/confirmBrief";
+import { checkBudget, recordFailure, recordSuccess } from "@/lib/reference/apiGuard";
 import type { ProjectAnalysis } from "@/lib/analysis/types";
 import type { ConfirmedReferenceBrief } from "@/lib/reference/types";
 
@@ -17,6 +18,8 @@ import type { ConfirmedReferenceBrief } from "@/lib/reference/types";
 // Gemini로 나갈 때 buildSourceMaterial이 걸러내는 지점에 적용된다.
 
 export const runtime = "nodejs";
+
+const FEATURE = "concept";
 
 // 3안의 차별화 축은 도메인이 아니라 항상 이 세 가지로 고정한다(P9-A 확정 —
 // 이전에는 도메인별로 다크/라이트·GNB 위치 등을 축으로 썼으나, 팔레트·무드는
@@ -50,6 +53,9 @@ export async function POST(req: Request) {
     }
     throw e;
   }
+
+  const gate = checkBudget(req, FEATURE, "이 프로젝트에서 컨셉 생성을 이미 최대 횟수만큼 사용했습니다.");
+  if (!gate.ok) return gate.response!;
 
   const directives = Array.isArray(body?.directives) ? body.directives : [];
   const representative = body?.representative ?? {};
@@ -161,8 +167,10 @@ ${buildSourceMaterial(analysis)}
       ...(baseContentVariantId ? { baseContentVariantId } : {}),
     };
     assertConceptJsonInvariant(versioned);
+    recordSuccess(FEATURE, gate);
     return NextResponse.json({ concept: versioned });
   } catch (e) {
+    recordFailure(FEATURE, gate, e);
     const message = e instanceof Error ? e.message : "컨셉 생성에 실패했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });
   }

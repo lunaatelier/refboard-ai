@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { generateGroundedJson } from "@/lib/ai/client";
 import { buildDirectiveBlock } from "@/lib/ai/prompts";
+import { checkBudget, recordFailure, recordSuccess } from "@/lib/reference/apiGuard";
 
 // 분석 대상 브랜드 1단계 목록 (Step 10-c) — Gemini 검색 grounding으로 넓게 15~20개.
 // rate limit 대응: 넓은 목록은 한 호출로 묶어 뽑는다 (flow-spec 부록).
 
 export const runtime = "nodejs";
+
+const FEATURE = "targets-list";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -33,9 +36,13 @@ ${excludeNames.length > 0 ? `이미 목록에 있는 것 (제외): ${excludeName
 12~18개를 찾아 반드시 JSON 배열만 출력:
 [{ "name": string, "url": string(실서비스 공식 URL), "oneLineSummary": string(한 줄 특징, 한국어) }]`;
 
+  const gate = checkBudget(req, FEATURE, "이 프로젝트에서 브랜드 목록 생성을 이미 최대 횟수만큼 사용했습니다.");
+  if (!gate.ok) return gate.response!;
+
   try {
     /* eslint-disable @typescript-eslint/no-explicit-any */
     const { data: raw } = await generateGroundedJson<any[]>(prompt);
+    recordSuccess(FEATURE, gate);
     const items = (Array.isArray(raw) ? raw : [])
       .filter(
         (t) =>
@@ -52,6 +59,7 @@ ${excludeNames.length > 0 ? `이미 목록에 있는 것 (제외): ${excludeName
       }));
     return NextResponse.json({ targets: items });
   } catch (e) {
+    recordFailure(FEATURE, gate, e);
     const message =
       e instanceof Error ? e.message : "목록 생성에 실패했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });

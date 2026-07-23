@@ -3,12 +3,15 @@ import { generateJson } from "@/lib/ai/client";
 import { buildDirectiveBlock } from "@/lib/ai/prompts";
 import { platformsForDomain } from "@/lib/reference/platforms";
 import type { DomainHint } from "@/lib/analysis/types";
+import { checkBudget, recordFailure, recordSuccess } from "@/lib/reference/apiGuard";
 
 // 섹션별 레퍼런스 검색어 생성 (Step 10-b)
 // 입력은 confirmed 섹션 요약(마스킹됨)뿐. 검색어는 플랫폼 검색 URL에 들어가므로
 // 실명·기밀이 절대 포함되면 안 된다 → 일반 명사 영어 키워드만 생성하도록 강제.
 
 export const runtime = "nodejs";
+
+const FEATURE = "section-queries";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -77,8 +80,12 @@ ${platformProfileLines}
 반드시 JSON 배열만 출력:
 [{ "sectionId": string, "searchQuery": string, "layoutCandidates": string[], "queriesByPlatform": { [platformId: string]: string } }]`;
 
+  const gate = checkBudget(req, FEATURE, "이 프로젝트에서 검색어 생성을 이미 최대 횟수만큼 사용했습니다.");
+  if (!gate.ok) return gate.response!;
+
   try {
     const raw = await generateJson<any[]>(prompt);
+    recordSuccess(FEATURE, gate);
     const queries = (Array.isArray(raw) ? raw : [])
       .filter((q) => typeof q?.sectionId === "string" && typeof q?.searchQuery === "string")
       .map((q) => {
@@ -106,6 +113,7 @@ ${platformProfileLines}
       });
     return NextResponse.json({ queries });
   } catch (e) {
+    recordFailure(FEATURE, gate, e);
     const message =
       e instanceof Error ? e.message : "검색어 생성에 실패했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });

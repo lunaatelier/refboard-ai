@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateJson, type InlineImage } from "@/lib/ai/client";
+import { checkBudget, recordFailure, recordSuccess } from "@/lib/reference/apiGuard";
 
 // 이미지 opt-in 분석 (Step 9) — 사용자가 명시적으로 동의한 이미지만 이 라우트에 온다.
 // 응답 설명문은 클라이언트에서 재마스킹된 뒤에만 저장된다 (이중 방어).
@@ -7,6 +8,7 @@ import { generateJson, type InlineImage } from "@/lib/ai/client";
 
 export const runtime = "nodejs";
 
+const FEATURE = "analyze-images";
 const MAX_IMAGES = 10;
 const MAX_BASE64_CHARS = 2_800_000; // ≈ 2MB
 
@@ -54,11 +56,15 @@ export async function POST(req: Request) {
 
 반드시 JSON 배열만 출력: [{ "assetId": string, "description": string }]`;
 
+  const gate = checkBudget(req, FEATURE, "이 프로젝트에서 이미지 분석을 이미 최대 횟수만큼 사용했습니다.");
+  if (!gate.ok) return gate.response!;
+
   try {
     const result = await generateJson<{ assetId: string; description: string }[]>(
       prompt,
       images.map((i): InlineImage => ({ mimeType: i.mimeType, data: i.data })),
     );
+    recordSuccess(FEATURE, gate);
     const insights = (Array.isArray(result) ? result : [])
       .filter(
         (r) => typeof r?.assetId === "string" && typeof r?.description === "string",
@@ -66,6 +72,7 @@ export async function POST(req: Request) {
       .map((r) => ({ assetId: r.assetId, description: r.description }));
     return NextResponse.json({ insights });
   } catch (e) {
+    recordFailure(FEATURE, gate, e);
     const message = e instanceof Error ? e.message : "이미지 분석에 실패했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });
   }

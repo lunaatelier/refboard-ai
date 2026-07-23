@@ -3,6 +3,7 @@ import { generateJson } from "@/lib/ai/client";
 import { buildDirectiveBlock } from "@/lib/ai/prompts";
 import type { ConceptPage } from "@/lib/concept/types";
 import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
+import { checkBudget, recordFailure, recordSuccess } from "@/lib/reference/apiGuard";
 
 // 온디맨드 콘텐츠 변형 매핑 (§6.7, P1 item 12) — 이미 확정된 구조(uiStructure/
 // keyVisual/designBasis/layoutPattern)는 건드리지 않고, 선택한 비기준 콘텐츠
@@ -10,6 +11,8 @@ import type { ProjectAnalysis, ProjectDirective } from "@/lib/analysis/types";
 // 구조 3안 생성 API(/api/concept)를 다시 부르지 않는다 — 그래서 별도 route다.
 
 export const runtime = "nodejs";
+
+const FEATURE = "concept-content-variant";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -43,6 +46,9 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+
+  const gate = checkBudget(req, FEATURE, "이 프로젝트에서 콘텐츠 변형 적용을 이미 최대 횟수만큼 사용했습니다.");
+  if (!gate.ok) return gate.response!;
 
   const directives: ProjectDirective[] = Array.isArray(body?.directives)
     ? body.directives
@@ -91,8 +97,10 @@ ${structureLines}
         },
       })),
     }));
+    recordSuccess(FEATURE, gate);
     return NextResponse.json({ pages: nextPages });
   } catch (e) {
+    recordFailure(FEATURE, gate, e);
     const message = e instanceof Error ? e.message : "콘텐츠 매핑 생성에 실패했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });
   }

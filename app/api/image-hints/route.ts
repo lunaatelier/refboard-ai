@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { generateJson } from "@/lib/ai/client";
 import { buildDirectiveBlock } from "@/lib/ai/prompts";
+import { checkBudget, recordFailure, recordSuccess } from "@/lib/reference/apiGuard";
 
 // 이미지 힌트 프롬프트 생성 (Step 11) — 스케일·방향은 클라이언트(순수 함수)가 판정,
 // 여기서는 각 힌트의 영어 생성 프롬프트 문구만 채운다. 실제 이미지 생성은 후순위.
 
 export const runtime = "nodejs";
+
+const FEATURE = "image-hints";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -61,6 +64,9 @@ ${lines}
 반드시 JSON 배열만 출력 (입력 순서 유지):
 [{ "index": number, "prompt": string }]`;
 
+  const gate = checkBudget(req, FEATURE, "이 프로젝트에서 이미지 힌트 생성을 이미 최대 횟수만큼 사용했습니다.");
+  if (!gate.ok) return gate.response!;
+
   try {
     const raw = await generateJson<any[]>(prompt);
     const prompts = new Map<number, string>();
@@ -69,12 +75,14 @@ ${lines}
         prompts.set(r.index, r.prompt.replace(/\[[^\]]+\]/g, "").trim());
       }
     }
+    recordSuccess(FEATURE, gate);
     return NextResponse.json({
       prompts: (skeletons as any[]).map(
         (_, i) => prompts.get(i + 1) ?? "",
       ),
     });
   } catch (e) {
+    recordFailure(FEATURE, gate, e);
     const message =
       e instanceof Error ? e.message : "프롬프트 생성에 실패했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });

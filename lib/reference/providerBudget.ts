@@ -122,9 +122,33 @@ export const budgetStore: BudgetStore = new InMemoryBudgetStore();
 // 묶는다 — 완전히 열어두는 것보다 안전한 폴백.
 export const ANONYMOUS_PROJECT_ID = "anonymous";
 
+// §P4 "호출 효율 기준" 표를 그대로 옮긴다. resultLimit은 표의 "프로젝트 기준 상한"을
+// 그대로 쓰되, "N회 + 사용자 재생성/재시도"처럼 명시적으로 반복 허용을 표기한 기능은
+// 재생성 UX가 막히지 않도록 표의 숫자보다 넉넉하게 잡았다(예: mood "1회+재생성"→8).
+// maxAttemptsPerWindow(분당)는 전부 표에 없는 값 — 폭주 방지용 안전판으로 신규 도입.
 export const FEATURE_LIMITS: Record<string, FeatureLimits> = {
-  // §P4: 브랜드 심층 분석 최대 3개 + 1분당 5회 시도까지(재시도 여유, 폭주 방지)
+  // §P4: 브랜드 심층 분석 최대 3개
   "target-analyze": { resultLimit: 3, windowMs: 60_000, maxAttemptsPerWindow: 5 },
-  // §P4: 이미지 생성 최대 3장 + 1분당 5회 시도까지
+  // §P4: 이미지 생성 최대 3장
   "generate-image": { resultLimit: 3, windowMs: 60_000, maxAttemptsPerWindow: 5 },
+  // §P4: Gemini 분석 "1회 + 실패 재시도" — 지시 수정 후 재분석도 허용해야 해서 여유를 둠
+  analyze: { resultLimit: 5, windowMs: 60_000, maxAttemptsPerWindow: 5 },
+  // §P4: 선택 이미지 분석 "선택 시 1회 + 실패 재시도"
+  "analyze-images": { resultLimit: 5, windowMs: 60_000, maxAttemptsPerWindow: 5 },
+  // §P4: 글로벌 방향(무드) "1회 + 사용자 재생성" — 팔레트별 재생성 버튼이 있어 여유를 둠
+  mood: { resultLimit: 8, windowMs: 60_000, maxAttemptsPerWindow: 5 },
+  // §P4: 사진 검색 "약 3회" — 컬러/제외키워드/페이지 재생성이 핵심 UX라 provider당 여유를 둠
+  "mood-images": { resultLimit: 30, windowMs: 60_000, maxAttemptsPerWindow: 10 },
+  // §P4: 이미지 힌트 "선택적 batch AI 1회" — 개별 힌트 다듬기 재작성도 여기 포함
+  "image-hints": { resultLimit: 10, windowMs: 60_000, maxAttemptsPerWindow: 5 },
+  // §P4: 섹션 검색어 "선택적 향상 1회" — 방향 변경 시 재요청 여유
+  "section-queries": { resultLimit: 5, windowMs: 60_000, maxAttemptsPerWindow: 5 },
+  // §P4: 브랜드 목록 "최대 1회" — 단, "+더 찾기"(excludeNames)로 반복 호출되는 UX가 있어 여유를 둠
+  "targets-list": { resultLimit: 5, windowMs: 60_000, maxAttemptsPerWindow: 5 },
+  // §P4: Gemini 컨셉 "1회 + 사용자 재생성"
+  concept: { resultLimit: 5, windowMs: 60_000, maxAttemptsPerWindow: 5 },
+  // §P4: 콘텐츠 변형 온디맨드 "액션당 1회, 캐시 적중 0회, 상한 (변형수-1)×선택안1개" —
+  // 정확한 상한은 문서마다 다른 변형 수에 의존해 서버가 알 수 없으므로, 남용 방지용
+  // 방어적 상한만 둔다(클라이언트 캐시가 이미 정상 재사용을 대부분 걸러낸다).
+  "concept-content-variant": { resultLimit: 20, windowMs: 60_000, maxAttemptsPerWindow: 8 },
 };

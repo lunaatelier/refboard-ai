@@ -34,6 +34,7 @@ interface ConceptWorkspaceProps {
   makeTransform: (restored: boolean) => TextTransform;
   confirmed: boolean;
   onConfirm: () => void;
+  projectId?: string;
 }
 
 const card: React.CSSProperties = {
@@ -56,6 +57,7 @@ export default function ConceptWorkspace({
   makeTransform,
   confirmed,
   onConfirm,
+  projectId,
 }: ConceptWorkspaceProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -96,7 +98,10 @@ export default function ConceptWorkspace({
     try {
       const res = await fetch("/api/concept", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(projectId ? { "x-project-id": projectId } : {}),
+        },
         body: JSON.stringify({
           analysis,
           directives,
@@ -176,7 +181,10 @@ export default function ConceptWorkspace({
     try {
       const res = await fetch("/api/concept/content-variant", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(projectId ? { "x-project-id": projectId } : {}),
+        },
         body: JSON.stringify({
           analysis,
           directives,

@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { generateJson } from "@/lib/ai/client";
 import { buildMoodPrompt, parseMoodResponse } from "@/lib/reference/mood";
 import type { PaletteOption } from "@/lib/reference/types";
+import { checkBudget, recordFailure, recordSuccess } from "@/lib/reference/apiGuard";
 
 // 무드 후보 3종 생성 (Step 10-a, P3) — 입력은 마스킹된 분석 요약 + 확정된
 // 팔레트 후보 목록뿐. 각 무드는 팔레트 후보 하나와 1:1로 짝지어진다.
 
 export const runtime = "nodejs";
+
+const FEATURE = "mood";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -38,12 +41,17 @@ export async function POST(req: Request) {
     paletteOptions,
   });
 
+  const gate = checkBudget(req, FEATURE, "이 프로젝트에서 무드 생성을 이미 최대 횟수만큼 사용했습니다.");
+  if (!gate.ok) return gate.response!;
+
   try {
     const raw = await generateJson<unknown[]>(prompt);
     const moods = parseMoodResponse(raw, paletteOptions);
     if (moods.length === 0) throw new Error("무드 생성 결과가 비어 있습니다.");
+    recordSuccess(FEATURE, gate);
     return NextResponse.json({ moods });
   } catch (e) {
+    recordFailure(FEATURE, gate, e);
     const message = e instanceof Error ? e.message : "무드 생성에 실패했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });
   }

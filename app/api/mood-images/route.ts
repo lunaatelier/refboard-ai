@@ -6,6 +6,7 @@ import {
   parseUnsplashResults,
   type ImageSearchParams,
 } from "@/lib/reference/imageSearch";
+import { checkBudget, recordFailure, recordSuccess } from "@/lib/reference/apiGuard";
 
 // 무드보드 이미지 검색/재생성 (Step 10-a, P3-2) — Unsplash 우선, 실패/키없음
 // 시 Pexels 폴백. 검색어는 무드의 영어 imageQuery(또는 사용자가 편집한 검색어)뿐
@@ -17,6 +18,8 @@ import {
 // 클라이언트가 query의 피사체 단어를 그대로 두는 편집 동작이다.
 
 export const runtime = "nodejs";
+
+const FEATURE = "mood-images";
 
 async function searchUnsplash(params: ImageSearchParams) {
   const key = process.env.UNSPLASH_ACCESS_KEY;
@@ -62,18 +65,25 @@ export async function POST(req: Request) {
         : undefined,
   };
 
+  const gate = checkBudget(req, FEATURE, "이 프로젝트에서 이미지 검색을 이미 최대 횟수만큼 사용했습니다.");
+  if (!gate.ok) return gate.response!;
+
   try {
     const unsplash = await searchUnsplash(params);
     if (unsplash && unsplash.length > 0) {
+      recordSuccess(FEATURE, gate);
       return NextResponse.json({ images: unsplash });
     }
     const pexels = await searchPexels(params);
     if (pexels && pexels.length > 0) {
+      recordSuccess(FEATURE, gate);
       return NextResponse.json({ images: pexels });
     }
     // 키 미설정/할당량 소진/결과 없음 → 이미지 없이 진행 (키워드만으로도 무드 사용 가능)
+    recordSuccess(FEATURE, gate);
     return NextResponse.json({ images: [] });
-  } catch {
+  } catch (e) {
+    recordFailure(FEATURE, gate, e);
     return NextResponse.json({ images: [] });
   }
 }

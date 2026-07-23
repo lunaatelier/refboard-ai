@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { generateJson } from "@/lib/ai/client";
 import { buildAnalysisPrompt } from "@/lib/ai/prompts";
 import { normalizeAnalysis } from "@/lib/analysis/normalize";
+import { checkBudget, recordFailure, recordSuccess } from "@/lib/reference/apiGuard";
 
 // Phase 2 분석 (Step 7) — 입력은 maskedText만 (보안 하드 게이트).
 // 원문·복원매핑은 이 라우트에 절대 도달하지 않는다. keptTargets는
@@ -9,6 +10,7 @@ import { normalizeAnalysis } from "@/lib/analysis/normalize";
 
 export const runtime = "nodejs";
 
+const FEATURE = "analyze";
 const MAX_TEXT = 200_000;
 
 export async function POST(req: Request) {
@@ -45,12 +47,17 @@ export async function POST(req: Request) {
     ? body.imageNotes.filter((x: unknown): x is string => typeof x === "string")
     : [];
 
+  const gate = checkBudget(req, FEATURE, "이 프로젝트에서 분석을 이미 최대 횟수만큼 사용했습니다.");
+  if (!gate.ok) return gate.response!;
+
   try {
     const raw = await generateJson(
       buildAnalysisPrompt(maskedText, keptTargets, directives, imageNotes),
     );
+    recordSuccess(FEATURE, gate);
     return NextResponse.json({ analysis: normalizeAnalysis(raw, maskedText) });
   } catch (e) {
+    recordFailure(FEATURE, gate, e);
     const message = e instanceof Error ? e.message : "분석에 실패했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });
   }

@@ -73,6 +73,7 @@ interface SectionRefsTabProps {
   directives: ProjectDirective[];
   references: ReferenceResult;
   onChange: (next: ReferenceResultUpdater) => void;
+  projectId?: string;
 }
 
 const card: React.CSSProperties = {
@@ -97,6 +98,7 @@ export default function SectionRefsTab({
   directives,
   references,
   onChange,
+  projectId,
 }: SectionRefsTabProps) {
   const selectedPages = analysis.pages.filter((p) => p.selected);
   // 적용한 레퍼런스가 오래된 근거로 채택됐는지 배지로 보여주기 위한 현재 기준
@@ -255,7 +257,10 @@ export default function SectionRefsTab({
       const images = await imageCacheRef.current.get(key, async () => {
         const res = await fetch("/api/mood-images", {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            ...(projectId ? { "x-project-id": projectId } : {}),
+          },
           body: JSON.stringify({ query }),
         });
         const body = await res.json().catch(() => null);
@@ -288,7 +293,10 @@ export default function SectionRefsTab({
       const queries = await sectionQueriesCacheRef.current.get(key, async () => {
         const res = await fetch("/api/section-queries", {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            ...(projectId ? { "x-project-id": projectId } : {}),
+          },
           body: JSON.stringify({
             domain: analysis.domain,
             directives,

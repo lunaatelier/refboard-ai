@@ -385,7 +385,10 @@ export default function Home() {
       // 동의한 이미지만 전송 — 나머지는 어떤 경우에도 외부로 나가지 않는다
       const res = await fetch("/api/analyze-images", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(workflow.projectId ? { "x-project-id": workflow.projectId } : {}),
+        },
         body: JSON.stringify({
           images: consented.map((i) => ({
             assetId: i.assetId,
@@ -486,7 +489,10 @@ export default function Home() {
       // 외부(Gemini)로는 maskedText + 유지 확정된 공개 엔티티 실명만 나간다
       const res = await fetch("/api/analyze", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(workflow.projectId ? { "x-project-id": workflow.projectId } : {}),
+        },
         body: JSON.stringify({
           maskedText: workflow.maskedText,
           keptTargets: (workflow.extractedAnalysisTargets ?? []).map(
@@ -994,6 +1000,7 @@ export default function Home() {
                   : [...prev.completedSteps, "concept"],
               }))
             }
+            projectId={workflow.projectId}
             />
           </div>
         ) : (

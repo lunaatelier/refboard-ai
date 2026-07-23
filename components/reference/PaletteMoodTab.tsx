@@ -56,6 +56,7 @@ interface PaletteMoodTabProps {
   directives: ProjectDirective[];
   references: ReferenceResult;
   onChange: (next: ReferenceResultUpdater) => void;
+  projectId?: string;
 }
 
 const card: React.CSSProperties = {
@@ -87,11 +88,15 @@ interface MoodImageQuery {
 async function fetchMoodImages(
   params: MoodImageQuery,
   signal?: AbortSignal,
+  projectId?: string,
 ): Promise<SearchedImageLike[]> {
   try {
     const res = await fetch("/api/mood-images", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(projectId ? { "x-project-id": projectId } : {}),
+      },
       body: JSON.stringify(params),
       signal,
     });
@@ -115,6 +120,7 @@ export default function PaletteMoodTab({
   directives,
   references,
   onChange,
+  projectId,
 }: PaletteMoodTabProps) {
   const [directionBusy, setDirectionBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -212,6 +218,7 @@ export default function PaletteMoodTab({
           page: regenPage,
         },
         signal,
+        projectId,
       );
       // 그 사이 방향 3안이 재생성/재선택돼 이 응답이 더 이상 유효하지 않으면
       // (§P10-A) 조용히 버린다 — busy 해제만 finally에서 계속 수행한다.
@@ -242,6 +249,7 @@ export default function PaletteMoodTab({
           page: regenPage,
         },
         signal,
+        projectId,
       );
       if (!directionGuard.isCurrent("directions", epoch)) return;
       setRegenPage((p) => p + 1);
@@ -336,7 +344,10 @@ export default function PaletteMoodTab({
     try {
       const res = await fetch("/api/mood", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(projectId ? { "x-project-id": projectId } : {}),
+        },
         body: JSON.stringify({
           title: analysis.title,
           description: analysis.description,
@@ -356,7 +367,7 @@ export default function PaletteMoodTab({
 
       // 방향 3안 각각의 대표 이미지 — 배치로 한 번에 가져온다 (§P4 "약 3회").
       const imageLists = await Promise.all(
-        moods.map((m) => fetchMoodImages({ query: m.imageQuery }, signal)),
+        moods.map((m) => fetchMoodImages({ query: m.imageQuery }, signal, projectId)),
       );
       if (!directionGuard.isCurrent("directions", epoch)) return;
       const imagesByMoodId = Object.fromEntries(

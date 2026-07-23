@@ -2,12 +2,7 @@ import { NextResponse } from "next/server";
 import { generateGroundedJson } from "@/lib/ai/client";
 import { buildDirectiveBlock } from "@/lib/ai/prompts";
 import { buildVerifiedSources } from "@/lib/reference/sourceVerification";
-import {
-  ANONYMOUS_PROJECT_ID,
-  budgetStore,
-  FEATURE_LIMITS,
-} from "@/lib/reference/providerBudget";
-import { classifyError, logProviderEvent } from "@/lib/reference/observability";
+import { checkBudget, recordFailure, recordSuccess } from "@/lib/reference/apiGuard";
 
 // 분석 대상 브랜드 2단계 깊은 분석 (Step 10-c) — 7개 축을 구조화 질문으로 강제.
 // grounding으로 출처 URL 확보 (환각 방지). 결과는 "추천/추정 포함" 배지로 표기.
@@ -27,40 +22,8 @@ export async function POST(req: Request) {
   }
   const directives = Array.isArray(body?.directives) ? body.directives : [];
 
-  // 입력 검증을 통과한 뒤에만 예산을 소진한다 — 캐시 적중·입력 거절은 차감하지
-  // 않는다(P10-B). 프로젝트 ID가 없는 호출은 공용 폴백 키로 묶는다.
-  const projectId = req.headers.get("x-project-id") || ANONYMOUS_PROJECT_ID;
-  const requestId = crypto.randomUUID();
-  const startedAt = Date.now();
-  const budget = budgetStore.reserveAttempt(projectId, FEATURE, FEATURE_LIMITS[FEATURE]);
-  if (!budget.ok) {
-    logProviderEvent({
-      feature: FEATURE,
-      event: budget.reason === "PROJECT_BUDGET_EXHAUSTED" ? "budget_exhausted" : "rate_limited",
-      projectId,
-      requestId,
-      statusCode: 429,
-      latencyMs: Date.now() - startedAt,
-      remainingResults: budget.remainingResults,
-      remainingAttempts: budget.remainingAttempts,
-    });
-    return NextResponse.json(
-      {
-        error:
-          budget.reason === "PROJECT_BUDGET_EXHAUSTED"
-            ? "이 프로젝트에서 브랜드 심층 분석을 이미 최대 개수만큼 사용했습니다."
-            : `요청이 너무 잦습니다. ${budget.retryAfterSeconds}초 후 다시 시도해주세요.`,
-        reason: budget.reason,
-        retryAfterSeconds: budget.retryAfterSeconds,
-        remainingAttempts: budget.remainingAttempts,
-        remainingResults: budget.remainingResults,
-      },
-      {
-        status: 429,
-        headers: budget.retryAfterSeconds ? { "Retry-After": String(budget.retryAfterSeconds) } : undefined,
-      },
-    );
-  }
+  const gate = checkBudget(req, FEATURE, "이 프로젝트에서 브랜드 심층 분석을 이미 최대 개수만큼 사용했습니다.");
+  if (!gate.ok) return gate.response!;
 
   const prompt = `당신은 시니어 프로덕트 디자이너다. 웹 검색을 활용해 "${name}" (${url})의 디자인을 깊게 분석하라.
 ${buildDirectiveBlock(directives, "reference")}
@@ -88,15 +51,7 @@ ${buildDirectiveBlock(directives, "reference")}
       Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
     const modelStatedUrl = str(raw?.sourceUrl) || undefined;
     const verifiedSources = await buildVerifiedSources(url, sources, modelStatedUrl);
-    budgetStore.recordSuccess(projectId, FEATURE);
-    logProviderEvent({
-      feature: FEATURE,
-      event: "success",
-      projectId,
-      requestId,
-      statusCode: 200,
-      latencyMs: Date.now() - startedAt,
-    });
+    recordSuccess(FEATURE, gate);
     return NextResponse.json({
       analysis: {
         layoutStrategy: str(raw?.layoutStrategy),
@@ -111,15 +66,7 @@ ${buildDirectiveBlock(directives, "reference")}
       },
     });
   } catch (e) {
-    logProviderEvent({
-      feature: FEATURE,
-      event: "failure",
-      projectId,
-      requestId,
-      statusCode: 502,
-      latencyMs: Date.now() - startedAt,
-      errorCode: classifyError(e),
-    });
+    recordFailure(FEATURE, gate, e);
     const message = e instanceof Error ? e.message : "분석에 실패했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });
   }

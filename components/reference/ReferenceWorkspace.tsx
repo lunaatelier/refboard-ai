@@ -108,6 +108,7 @@ export default function ReferenceWorkspace({
           directives={directives}
           references={references}
           onChange={onChange}
+          projectId={projectId}
         />
       )}
       {tab === "section-refs" && (
@@ -116,6 +117,7 @@ export default function ReferenceWorkspace({
           directives={directives}
           references={references}
           onChange={onChange}
+          projectId={projectId}
         />
       )}
       {tab === "targets" && (
