@@ -7,6 +7,7 @@ import {
   TooLargeError,
   TooManyRedirectsError,
 } from "@/lib/parse/link";
+import { getCachedOgMeta, setCachedOgMeta } from "@/lib/reference/ogCache";
 
 // URL 붙여넣기 OG 미리보기 (P5-5, 개선 지시서 P5 item 14) — 사용자가 수집한
 // 레퍼런스 URL 자체의 공개 메타데이터(제목/썸네일)만 가져온다. 프로젝트 원문이
@@ -38,6 +39,11 @@ export async function POST(req: Request) {
     );
   }
 
+  const cached = getCachedOgMeta(rawUrl);
+  if (cached) {
+    return NextResponse.json(cached);
+  }
+
   try {
     const { response: res, finalUrl } = await fetchChecked(url, AbortSignal.timeout(TIMEOUT_MS), fetch);
     if (!res.ok) {
@@ -53,6 +59,7 @@ export async function POST(req: Request) {
     const html = await readLimitedText(res);
     // 상대경로 이미지가 있으면 리다이렉트 이전이 아니라 실제 도착 URL 기준으로 풀어야 한다.
     const meta = extractOgMeta(html, finalUrl.toString());
+    setCachedOgMeta(rawUrl, meta);
     return NextResponse.json(meta);
   } catch (e) {
     if (e instanceof BlockedTargetError) {

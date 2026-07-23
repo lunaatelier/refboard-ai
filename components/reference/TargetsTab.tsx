@@ -269,7 +269,7 @@ export default function TargetsTab({
   const analyze = async (item: AnalysisTargetListItem, force = false) => {
     // 캐시 확인 — 프로젝트 넘어 재활용
     if (!force) {
-      const cached = getCachedTargetAnalysis(item.name);
+      const cached = getCachedTargetAnalysis(item.name, item.url, analysis.domain);
       if (cached) {
         onChange((prev) => ({
           ...prev,
@@ -317,7 +317,7 @@ export default function TargetsTab({
         confidence: "추천",
         analyzedAt: new Date().toISOString(),
       };
-      setCachedTargetAnalysis(item.name, full);
+      setCachedTargetAnalysis(item.name, item.url, analysis.domain, full);
       onChange((prev) => ({
         ...prev,
         analysisTargetList: (prev.analysisTargetList ?? []).map((t) =>

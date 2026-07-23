@@ -44,11 +44,16 @@ export class SessionRequestCache<T> {
 
 // provider(unsplash/pexels 등)+query+filter 조합 → 안정적인 캐시 키. 대소문자·
 // 좌우 공백·excludeKeywords 순서 차이로 같은 요청이 다른 키가 되지 않게 정규화한다.
+// orientation은 지금은 항상 "landscape" 고정값이라(lib/reference/imageSearch.ts) 실제로
+// 캐시 충돌을 일으키지는 않지만, P10 캐시 규칙(§"무드 이미지: provider+query+color+
+// orientation")대로 키에 명시해둔다 — 나중에 orientation이 파라미터화되면(예: 모바일
+// 세로형 힌트) 자동으로 올바르게 구분된다.
 export function buildImageQueryCacheKey(params: {
   query: string;
   colorHex?: string;
   excludeKeywords?: string[];
   page?: number;
+  orientation?: string;
 }): string {
   const excludeKeywords = [...(params.excludeKeywords ?? [])]
     .map((k) => k.trim().toLowerCase())
@@ -60,6 +65,7 @@ export function buildImageQueryCacheKey(params: {
     params.colorHex?.toLowerCase() ?? "",
     excludeKeywords,
     params.page ?? 1,
+    (params.orientation ?? "landscape").toLowerCase(),
   ].join("::");
 }
 

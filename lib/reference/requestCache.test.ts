@@ -101,6 +101,18 @@ describe("buildImageQueryCacheKey", () => {
     assert.notEqual(base, withColor);
     assert.notEqual(base, page2);
   });
+
+  it("orientation을 생략하면 'landscape'와 같은 키가 된다(현재 서버 기본값과 일치)", () => {
+    const omitted = buildImageQueryCacheKey({ query: "modern office" });
+    const explicit = buildImageQueryCacheKey({ query: "modern office", orientation: "landscape" });
+    assert.equal(omitted, explicit);
+  });
+
+  it("orientation이 다르면 다른 키가 된다", () => {
+    const landscape = buildImageQueryCacheKey({ query: "modern office", orientation: "landscape" });
+    const portrait = buildImageQueryCacheKey({ query: "modern office", orientation: "portrait" });
+    assert.notEqual(landscape, portrait);
+  });
 });
 
 describe("buildSectionQueriesCacheKey", () => {
