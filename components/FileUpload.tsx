@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { isImageFile } from "@/lib/parse/image";
-import { isBrowserParsable, isServerParsable } from "@/lib/parse/txt";
+import { isBrowserParsable, isWorkerParsable } from "@/lib/parse/txt";
 
 interface FileUploadProps {
   onFile: (file: File) => void;
@@ -17,7 +17,7 @@ export default function FileUpload({ onFile }: FileUploadProps) {
     if (!file) return;
     if (
       !isBrowserParsable(file.name) &&
-      !isServerParsable(file.name) &&
+      !isWorkerParsable(file.name) &&
       !isImageFile(file.name)
     ) {
       setError(

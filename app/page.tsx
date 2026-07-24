@@ -46,7 +46,8 @@ import {
   isImageFile,
 } from "@/lib/parse/image";
 import type { PptxImage } from "@/lib/parse/pptx";
-import { parseViaServer } from "@/lib/parse/server";
+import { createParseWorker } from "@/lib/parse/createParseWorker";
+import { parseDocumentLocally } from "@/lib/parse/parseDocumentLocally";
 import { isBrowserParsable, parseTextFile } from "@/lib/parse/txt";
 import { canAccessStep } from "@/lib/state/guards";
 import {
@@ -203,12 +204,14 @@ export default function Home() {
     let text: string;
     let labeledEntities: LabeledEntityCandidate[] = [];
     try {
-      // txt/md = 브라우저 파싱(원문이 PC를 안 떠남) / pdf·pptx = 자사 서버(메모리·무저장)
+      // txt/md = 브라우저 파싱(원문이 PC를 안 떠남) / pdf·pptx = 브라우저 Worker 파싱
+      // (P0 item 7 이관, 원문이 자사 서버로도 올라가지 않음). 실패해도 서버로
+      // 자동 폴백하지 않는다 — 원문 재전송·4.5MB 요청 상한 문제가 재발한다.
       if (isBrowserParsable(file.name)) {
         text = await parseTextFile(file);
         imagesRef.current = [];
       } else {
-        const parsed = await parseViaServer(file);
+        const parsed = await parseDocumentLocally(file, { createWorker: createParseWorker });
         text = parsed.text;
         labeledEntities = parsed.labeledEntities;
         // 민감 가능성 힌트: 해당 슬라이드 텍스트에 개인정보성 키워드가 있으면 표시

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import JSZip from "jszip";
-import { extractPptxImages, extractPptxText } from "./pptx";
+import { extractPptxImages, extractPptxText, parsePptxDocument } from "./pptx";
+import { ZipBombError } from "./zipGuard";
 
 function slideXml(texts: string[]): string {
   const runs = texts.map((t) => `<a:r><a:t>${t}</a:t></a:r>`).join("");
@@ -145,5 +146,61 @@ describe("pptx — 이미지 추출 (Step 9)", () => {
     assert.equal(images[0].sourceSlide, 2); // rels 계보
     assert.equal(images[0].mimeType, "image/png");
     assert.ok(images[0].base64.length > 0);
+  });
+});
+
+describe("pptx — parsePptxDocument (zip 단일 압축해제 통합 추출)", () => {
+  const PNG_B64 =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+  async function buildCombinedPptx(): Promise<ArrayBuffer> {
+    const cell = (t: string) => `<a:tc><a:txBody><a:p><a:r><a:t>${t}</a:t></a:r></a:p></a:txBody></a:tc>`;
+    const row = (cells: string[]) => `<a:tr>${cells.map(cell).join("")}</a:tr>`;
+    const tbl = `<a:tbl>${row(["작성자", "소속"])}${row(["가상담당자B", "디자인팀"])}</a:tbl>`;
+    const slide1 = `<?xml version="1.0"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><p:txBody>${tbl}</p:txBody></p:sld>`;
+    const slide2 = slideXml(["로그인 화면"]);
+
+    const zip = new JSZip();
+    zip.file("ppt/slides/slide1.xml", slide1);
+    zip.file("ppt/slides/slide2.xml", slide2);
+    zip.file(
+      "ppt/slides/_rels/slide2.xml.rels",
+      `<?xml version="1.0"?><Relationships><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/></Relationships>`,
+    );
+    zip.file("ppt/media/image1.png", PNG_B64, { base64: true });
+    zip.file("[Content_Types].xml", "<Types/>");
+    return zip.generateAsync({ type: "arraybuffer" });
+  }
+
+  it("텍스트·labeledEntities·이미지를 한 번의 zip 로드로 함께 반환한다", async () => {
+    const data = await buildCombinedPptx();
+    const result = await parsePptxDocument(data);
+
+    assert.ok(result.text.includes("로그인 화면"));
+    const person = result.labeledEntities.find((e) => e.kind === "personName");
+    assert.equal(person?.raw, "가상담당자B");
+    assert.equal(result.text.slice(person!.start, person!.end), "가상담당자B");
+
+    assert.equal(result.images.length, 1);
+    assert.equal(result.images[0].sourceSlide, 2);
+    assert.equal(result.images[0].mimeType, "image/png");
+  });
+
+  it("extractPptxText/extractPptxImages(하위호환 wrapper)와 동일한 값을 낸다", async () => {
+    const data = await buildCombinedPptx();
+    const combined = await parsePptxDocument(data);
+    const { text, labeledEntities } = await extractPptxText(data);
+    const images = await extractPptxImages(data);
+
+    assert.deepEqual(combined.text, text);
+    assert.deepEqual(combined.labeledEntities, labeledEntities);
+    assert.deepEqual(combined.images, images);
+  });
+
+  it("zip 엔트리가 기본 상한(5000개)을 넘으면 거부한다", async () => {
+    const zip = new JSZip();
+    for (let i = 0; i < 5001; i++) zip.file(`ppt/slides/junk${i}.xml`, "");
+    const data = await zip.generateAsync({ type: "arraybuffer" });
+    await assert.rejects(() => parsePptxDocument(data), ZipBombError);
   });
 });

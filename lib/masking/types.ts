@@ -78,7 +78,7 @@ export interface Detection {
 
 // 표 헤더 라벨(작성자/소속 등) 기반 자동 탐지 후보 — 정규식 대신 문서의 표
 // 구조(헤더 열 이름)로 판단하므로 personName/company를 규칙 없이도 잡을 수 있다.
-// 생성처: lib/parse/pptx.ts extractPptxText(). 소비처: lib/masking/detect.ts.
+// 생성처: lib/parse/pptx.ts parsePptxDocument(). 소비처: lib/masking/detect.ts.
 export interface LabeledEntityCandidate {
   kind: "personName" | "company";
   raw: string;

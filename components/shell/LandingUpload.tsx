@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clipboard, Link, Lock, RefreshCw, Zap } from "lucide-react";
+import { Clipboard, Link, Lock, RefreshCw } from "lucide-react";
 import { clipboardFileName } from "@/lib/parse/image";
 import AnalysisJsonUpload from "../AnalysisJsonUpload";
 import FileUpload from "../FileUpload";
@@ -28,9 +28,9 @@ const TIPS = [
     body: "브라우저에서 처리되어 원문이 외부로 전송되지 않습니다.",
   },
   {
-    icon: Zap,
+    icon: Lock,
     title: "PDF / PPTX",
-    body: "서버에서 분석 후 즉시 삭제됩니다.",
+    body: "브라우저에서 처리되어 원문이 외부로 전송되지 않습니다.",
   },
   {
     icon: Clipboard,

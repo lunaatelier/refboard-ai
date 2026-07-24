@@ -1,9 +1,13 @@
 import JSZip from "jszip";
 import type { LabeledEntityCandidate } from "../masking/types";
+import type { DocumentParseResult, PptxImage } from "./types";
+import { assertZipSafe, DecompressBudget } from "./zipGuard";
 
-// 서버 파싱 래퍼 — PPTX 텍스트 추출 (phase1-masking-spec §7.2)
-// pptx = zip 안의 slide XML. <a:t> 텍스트 런만 추출한다. 이미지는 건드리지 않음(Step 9).
-// 슬라이드 헤더를 남겨 이후 분석(Step 7 sourceSlides 계보)에 활용한다.
+export type { PptxImage } from "./types";
+
+// 서버 라우트·Worker 공용 — PPTX 텍스트+labeledEntities+이미지 추출 (phase1-masking-spec §7.2)
+// pptx = zip 안의 slide XML. <a:t> 텍스트 런만 추출한다. 이미지는 opt-in 동의 전까지
+// 외부로 나가지 않는다(Step 9). 슬라이드 헤더를 남겨 이후 분석(Step 7 sourceSlides 계보)에 활용한다.
 
 const SLIDE_PATH = /^ppt\/slides\/slide(\d+)\.xml$/;
 
@@ -45,15 +49,6 @@ function decodeXmlEntities(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
-// 슬라이드에서 추출된 이미지 (Step 9) — ⚠️ 원문급 민감. 서버는 메모리 처리만,
-// 클라이언트도 메모리(ref)에만 보관하고 영속화하지 않는다.
-export interface PptxImage {
-  assetId: string;
-  sourceSlide?: number;
-  mimeType: string;
-  base64: string;
-}
-
 const IMAGE_MIME: Record<string, string> = {
   png: "image/png",
   jpg: "image/jpeg",
@@ -64,46 +59,8 @@ const IMAGE_MIME: Record<string, string> = {
 
 const MAX_IMAGES = 20;
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2MB
-
-export async function extractPptxImages(
-  data: ArrayBuffer,
-): Promise<PptxImage[]> {
-  const zip = await JSZip.loadAsync(data);
-
-  // 슬라이드 rels → 어떤 슬라이드가 어떤 media를 참조하는지 (계보)
-  const slideByMedia = new Map<string, number>();
-  const relFiles = Object.keys(zip.files).filter((n) =>
-    /^ppt\/slides\/_rels\/slide\d+\.xml\.rels$/.test(n),
-  );
-  for (const relName of relFiles) {
-    const slideNo = parseInt(relName.match(/slide(\d+)\.xml\.rels$/)![1], 10);
-    const xml = await zip.files[relName].async("string");
-    for (const m of xml.matchAll(/Target="\.\.\/(media\/[^"]+)"/g)) {
-      const mediaPath = `ppt/${m[1]}`;
-      if (!slideByMedia.has(mediaPath)) slideByMedia.set(mediaPath, slideNo);
-    }
-  }
-
-  const mediaFiles = Object.keys(zip.files)
-    .filter((n) => /^ppt\/media\//.test(n))
-    .filter((n) => IMAGE_MIME[n.slice(n.lastIndexOf(".") + 1).toLowerCase()])
-    .sort();
-
-  const images: PptxImage[] = [];
-  for (const name of mediaFiles) {
-    if (images.length >= MAX_IMAGES) break;
-    const bytes = await zip.files[name].async("uint8array");
-    if (bytes.length > MAX_IMAGE_BYTES) continue;
-    const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
-    images.push({
-      assetId: `img-${images.length + 1}`,
-      sourceSlide: slideByMedia.get(name),
-      mimeType: IMAGE_MIME[ext],
-      base64: await zip.files[name].async("base64"),
-    });
-  }
-  return images;
-}
+// 개별 이미지 상한(20 × 2MB)만으로는 이론상 40MB까지 누적될 수 있어 전체 상한을 별도로 둔다.
+const MAX_TOTAL_IMAGE_BYTES = 40 * 1024 * 1024; // 40MB
 
 interface RunInfo {
   index: number; // 슬라이드 XML 내 절대 위치
@@ -180,15 +137,10 @@ function findLabeledCells(
   return results;
 }
 
-export interface PptxTextResult {
-  text: string;
-  // 표 헤더 라벨(작성자/소속 등)로 판별된 자동 탐지 후보 — detect()에 그대로 전달
-  labeledEntities: LabeledEntityCandidate[];
-}
-
-export async function extractPptxText(data: ArrayBuffer): Promise<PptxTextResult> {
-  const zip = await JSZip.loadAsync(data);
-
+async function extractTextAndLabels(
+  zip: JSZip,
+  budget: DecompressBudget,
+): Promise<{ text: string; labeledEntities: LabeledEntityCandidate[] }> {
   const slides = Object.keys(zip.files)
     .map((name) => {
       const m = name.match(SLIDE_PATH);
@@ -203,6 +155,7 @@ export async function extractPptxText(data: ArrayBuffer): Promise<PptxTextResult
 
   for (const slide of slides) {
     const xml = await zip.files[slide.name].async("string");
+    budget.consume(xml.length);
     const runs = extractRuns(xml);
     if (runs.length === 0) continue;
     const rawBody = runs.map((r) => r.text).join("\n");
@@ -241,4 +194,75 @@ export async function extractPptxText(data: ArrayBuffer): Promise<PptxTextResult
   }
 
   return { text: parts.join("\n\n"), labeledEntities };
+}
+
+async function extractImages(zip: JSZip, budget: DecompressBudget): Promise<PptxImage[]> {
+  // 슬라이드 rels → 어떤 슬라이드가 어떤 media를 참조하는지 (계보)
+  const slideByMedia = new Map<string, number>();
+  const relFiles = Object.keys(zip.files).filter((n) =>
+    /^ppt\/slides\/_rels\/slide\d+\.xml\.rels$/.test(n),
+  );
+  for (const relName of relFiles) {
+    const slideNo = parseInt(relName.match(/slide(\d+)\.xml\.rels$/)![1], 10);
+    const xml = await zip.files[relName].async("string");
+    budget.consume(xml.length);
+    for (const m of xml.matchAll(/Target="\.\.\/(media\/[^"]+)"/g)) {
+      const mediaPath = `ppt/${m[1]}`;
+      if (!slideByMedia.has(mediaPath)) slideByMedia.set(mediaPath, slideNo);
+    }
+  }
+
+  const mediaFiles = Object.keys(zip.files)
+    .filter((n) => /^ppt\/media\//.test(n))
+    .filter((n) => IMAGE_MIME[n.slice(n.lastIndexOf(".") + 1).toLowerCase()])
+    .sort();
+
+  const images: PptxImage[] = [];
+  let totalImageBytes = 0;
+  for (const name of mediaFiles) {
+    if (images.length >= MAX_IMAGES) break;
+    const bytes = await zip.files[name].async("uint8array");
+    budget.consume(bytes.length);
+    if (bytes.length > MAX_IMAGE_BYTES) continue;
+    if (totalImageBytes + bytes.length > MAX_TOTAL_IMAGE_BYTES) break;
+    totalImageBytes += bytes.length;
+    const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
+    images.push({
+      assetId: `img-${images.length + 1}`,
+      sourceSlide: slideByMedia.get(name),
+      mimeType: IMAGE_MIME[ext],
+      base64: await zip.files[name].async("base64"),
+    });
+  }
+  return images;
+}
+
+// PPTX 통합 파싱 진입점 — zip을 한 번만 열어 텍스트·labeledEntities·이미지를
+// 같은 archive에서 함께 추출한다(서버 라우트가 이전엔 extractPptxText/
+// extractPptxImages를 병렬 호출해 같은 파일을 두 번 압축 해제했다 — 브라우저
+// 파싱 이관 시 메모리 부담이 커서 통합).
+export async function parsePptxDocument(data: ArrayBuffer): Promise<DocumentParseResult> {
+  const zip = await JSZip.loadAsync(data);
+  assertZipSafe(zip);
+  const budget = new DecompressBudget(300 * 1024 * 1024);
+
+  const { text, labeledEntities } = await extractTextAndLabels(zip, budget);
+  const images = await extractImages(zip, budget);
+
+  return { text, labeledEntities, images };
+}
+
+// 하위 호환 wrapper — 기존 테스트/호출부가 텍스트만 또는 이미지만 필요로 할 때.
+// 내부적으로 zip을 한 번만 여는 parsePptxDocument를 그대로 쓴다(핫 패스인
+// route.ts/worker는 parsePptxDocument를 직접 호출해 두 번 부르지 않는다).
+export async function extractPptxText(
+  data: ArrayBuffer,
+): Promise<{ text: string; labeledEntities: LabeledEntityCandidate[] }> {
+  const { text, labeledEntities } = await parsePptxDocument(data);
+  return { text, labeledEntities };
+}
+
+export async function extractPptxImages(data: ArrayBuffer): Promise<PptxImage[]> {
+  const { images } = await parsePptxDocument(data);
+  return images;
 }

@@ -98,8 +98,8 @@ NVIDIA_API_KEY=
 
 ### 4.2 파싱 위치 (보안 강화)
 - **txt/md**: 가능하면 **브라우저에서 직접 파싱** → 원문이 PC를 떠나지 않음 (가장 강한 보안).
-- **pdf/pptx**: `unpdf`(edge/브라우저 호환)와 `jszip`(isomorphic)이 브라우저에서 그대로 동작함을 확인해 **브라우저 파싱으로 이관 중**(2026-07-18 P0 결정, `docs/refboard-ai-phase2-4-improvement-final.md` §P0-7). 파싱은 Web Worker에서 실행하고, pptx는 압축 해제 후 크기·파일 개수 상한으로 zip bomb을 방어한다. 기존 서버 경로(`app/api/parse`)는 브라우저 파서와의 동등성 테스트를 통과한 뒤에만 제거한다 — 그 전까지는 서버 경로가 남아 있으며, 서버 파싱을 쓰는 동안에는 메모리 처리·무저장 원칙을 그대로 따른다.
-- 그래서 **마스킹 엔진은 서버/클라 양쪽에서 동작하는 isomorphic 순수 함수**로 작성한다(`lib/masking/`). 브라우저 파싱(txt/md, 그리고 이관 완료 후 pdf/pptx)의 경우 마스킹도 클라이언트에서 수행.
+- **pdf/pptx**: `unpdf`(edge/브라우저 호환)와 `jszip`(isomorphic)이 브라우저에서 그대로 동작함을 확인해 **브라우저 Worker 파싱으로 이관 완료**(2026-07-18 P0 결정, `docs/refboard-ai-phase2-4-improvement-final.md` §P0-7, 이관 구현은 이후 세션). `lib/parse/parseDocumentLocally.ts`가 메인 스레드 진입점(파일당 Worker 1개, transfer list, 타임아웃·취소, 성공/실패/취소 즉시 `terminate()`)이고, 실제 파싱은 `lib/parse/parse.worker.ts`에서 실행한다. pptx는 `lib/parse/zipGuard.ts`가 압축 해제 전 메타데이터로 엔트리 수·단일/전체 압축 해제 크기·압축률 상한을 검사하고, 실제 압축 해제 중에도 누적 크기를 재검사해 zip bomb을 방어한다. 기존 서버 경로(`app/api/parse`)는 삭제하지 않고 동등성 검증·백업 용도로 남아 있으나, 앱의 기본 경로가 아니며 브라우저 파싱 실패 시 자동 폴백으로 호출하지 않는다(그러면 원문이 다시 서버로 올라가고 Vercel Functions 4.5MB 요청 상한에 걸린다).
+- 그래서 **마스킹 엔진은 서버/클라 양쪽에서 동작하는 isomorphic 순수 함수**로 작성한다(`lib/masking/`). 브라우저 파싱(txt/md·pdf/pptx 전부)의 경우 마스킹도 클라이언트에서 수행.
 
 ### 4.2.1 업로드 범위
 - **Phase 1 File Upload Complete 범위 = txt/md/pdf/pptx 텍스트만.** 여기까지가 안전한 기본 경로.
@@ -161,7 +161,7 @@ interface SecureClientMemory {
 
 ```
 [1] 기획서 업로드 (txt/md/pdf/pptx)
-      ↓  txt/md → 브라우저 파싱 / pdf·pptx → 자사 서버 파싱(메모리, 무저장)
+      ↓  txt/md/pdf/pptx 전부 브라우저 파싱(Worker, §4.2) — 원문이 자사 서버로도 안 올라감
 [2] 로컬 텍스트 추출 (parsedText = SecureClientMemory)
       ↓
 [3] 마스킹 모듈 (3계층)  ← Phase 1, 하드 게이트 / isomorphic 엔진
