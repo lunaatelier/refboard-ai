@@ -9,6 +9,7 @@ import ImageConsentPanel, {
   type ImageInsight,
 } from "@/components/ImageConsentPanel";
 import ConceptWorkspace from "@/components/concept/ConceptWorkspace";
+import DesignMdPanel from "@/components/concept/DesignMdPanel";
 import ReferenceWorkspace from "@/components/reference/ReferenceWorkspace";
 import MaskingReview from "@/components/MaskingReview";
 import LandingUpload from "@/components/shell/LandingUpload";
@@ -62,7 +63,6 @@ import {
 } from "@/lib/state/recoveryKey";
 import {
   initialWorkflowState,
-  STEP_LABELS,
   type Step,
   type WorkflowState,
 } from "@/lib/state/workflow";
@@ -1086,6 +1086,7 @@ export default function Home() {
                 completedSteps: prev.completedSteps.includes("concept")
                   ? prev.completedSteps
                   : [...prev.completedSteps, "concept"],
+                currentStep: "design-md",
               }))
             }
             projectId={workflow.projectId}
@@ -1100,11 +1101,7 @@ export default function Home() {
         ))}
 
       {workflow.currentStep === "design-md" && (
-        <Panel title={STEP_LABELS[workflow.currentStep]}>
-          <p style={{ color: "var(--text-muted)" }}>
-            디자인 MD는 Phase 5 (제품 B 스키마 확정 후) 구현됩니다.
-          </p>
-        </Panel>
+        <DesignMdPanel analysis={workflow.analysis} concept={workflow.conceptJson} />
       )}
     </Workspace>
   );

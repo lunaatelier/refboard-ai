@@ -208,7 +208,7 @@ interface SecureClientMemory {
 | Phase 2 | **분석** | Gemini 분석: ProjectAnalysis, Page[], 후보 Section[], 도메인/태그, contentType 판정 + 사용자 confirmed 게이트 | 분석 결과 + 확정된 Page/Section | **완료** (실 Gemini 호출 라이브 검증) |
 | Phase 3 | **수집** | confirmed Section 단위로 레퍼런스(플랫폼20종+grounding)·무드·팔레트·이미지힌트·layoutPattern·스킨 프리뷰 부착 | 섹션별 레퍼런스·무드 화면 | **완료** (실 Gemini+Unsplash/Pexels 라이브 검증, 결정 검토 게이트 포함) |
 | Phase 4 | **종합** | Concept JSON(SSoT) 생성, 3안 비교, 클라이언트 렌더링(HTML/PPT/PDF) | Concept JSON + 컨셉 산출물 | **완료** (컨셉 3안 실 생성 라이브 검증. PPT/PDF 다운로드 버튼은 화면상 연결돼 있으나 실다운로드까지는 미검증) |
-| Phase 5 | **변환** | Concept JSON → 외부 표준 디자인 MD 스키마로 변환 | 표준 스키마 MD | **진행중 — 앱 배선 미완성.** 렌더러(`lib/render/designMd.ts`)와 테스트는 완성돼 있으나 `app/page.tsx`의 "디자인 MD" 단계는 아직 안내 문구만 있는 플레이스홀더(`app/page.tsx` "design-md" 분기). 남은 일: `app/api/concept/route.ts`가 `ConceptOption.designBasis`를 스냅샷하게 만들고, 그 값을 받아 렌더러를 실제로 호출하는 화면 배선 |
+| Phase 5 | **변환** | Concept JSON → 외부 표준 디자인 MD 스키마로 변환 | 표준 스키마 MD | **완료** — `DesignMdPanel`(`components/concept/DesignMdPanel.tsx`)이 A/B/C 중 변환할 안을 고르게 하고 `lib/render/designMd.ts`의 `renderDesignMd()`를 클라이언트에서 호출해 결과 MD를 표시·복사·다운로드한다. `designBasis`는 `normalizeConcept()`가 이미 스냅샷하므로 별도 배선 불필요했음 |
 | Phase 6 (검토) | — | Tauri 데스크톱(오프라인) / 사내 프라이빗 AI 연동 / 이미지 생성 API | — | 보류 (의도적 — 계획대로) |
 
 **Phase 3 내부 순서:** 팔레트·무드를 먼저 확정한 뒤 그 KeyVisual 데이터로 스킨 프리뷰를 입힌다(순서 고정).
