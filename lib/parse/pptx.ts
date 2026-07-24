@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import type { LabeledEntityCandidate } from "../masking/types";
+import { bytesToBase64 } from "./base64";
 import type { DocumentParseResult, PptxImage } from "./types";
 import { assertZipSafe, DecompressBudget } from "./zipGuard";
 
@@ -221,6 +222,10 @@ async function extractImages(zip: JSZip, budget: DecompressBudget): Promise<Pptx
   let totalImageBytes = 0;
   for (const name of mediaFiles) {
     if (images.length >= MAX_IMAGES) break;
+    // .async()는 호출할 때마다 새 압축 해제 스트림을 만든다 — "uint8array" 다음에
+    // "base64"를 또 부르면 같은 엔트리를 두 번 압축 해제하게 된다(단일 압축해제
+    // 목표·DecompressBudget 예산 검사와 어긋남). 이미 읽은 bytes를 그대로
+    // base64로 변환한다.
     const bytes = await zip.files[name].async("uint8array");
     budget.consume(bytes.length);
     if (bytes.length > MAX_IMAGE_BYTES) continue;
@@ -231,7 +236,7 @@ async function extractImages(zip: JSZip, budget: DecompressBudget): Promise<Pptx
       assetId: `img-${images.length + 1}`,
       sourceSlide: slideByMedia.get(name),
       mimeType: IMAGE_MIME[ext],
-      base64: await zip.files[name].async("base64"),
+      base64: bytesToBase64(bytes),
     });
   }
   return images;

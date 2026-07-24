@@ -56,8 +56,22 @@ export function assertZipSafe(
   let totalUncompressed = 0;
   for (const name of names) {
     const data = (zip.files[name] as unknown as { _data?: ZipEntryInternalData })._data;
-    const uncompressed = data?.uncompressedSize ?? 0;
-    const compressed = data?.compressedSize ?? 0;
+    const uncompressed = data?.uncompressedSize;
+    const compressed = data?.compressedSize;
+
+    // fail-closed: 크기 메타데이터를 못 읽으면(JSZip 내부 구현 변경, 예상 밖
+    // 객체 등) 0으로 간주해 통과시키지 않는다 — 그러면 핵심 방어가 조용히
+    // 꺼진다. 못 믿을 땐 거부한다.
+    if (
+      typeof uncompressed !== "number" ||
+      !Number.isFinite(uncompressed) ||
+      uncompressed < 0 ||
+      typeof compressed !== "number" ||
+      !Number.isFinite(compressed) ||
+      compressed < 0
+    ) {
+      throw new ZipBombError("압축 파일 크기 정보를 확인할 수 없습니다.");
+    }
 
     if (uncompressed > limits.maxEntryUncompressedBytes) {
       throw new ZipBombError("압축 해제 시 항목 하나의 크기가 비정상적으로 큽니다.");

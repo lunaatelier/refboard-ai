@@ -2,6 +2,7 @@
 // 이미지 바이트는 서버 파싱이 필요 없으므로 자사 서버에도 올라가지 않는다.
 // 외부(Gemini) 전송은 기존 Step 9 경로 그대로 opt-in 동의를 거친 경우에만.
 
+import { bytesToBase64 } from "./base64";
 import { getExtension } from "./txt";
 
 export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif"] as const;
@@ -36,11 +37,5 @@ export function clipboardFileName(mimeType: string): string {
 }
 
 export async function fileToBase64(file: File): Promise<string> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let binary = "";
-  const chunk = 0x8000; // String.fromCharCode 인자 수 제한 회피
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
+  return bytesToBase64(new Uint8Array(await file.arrayBuffer()));
 }

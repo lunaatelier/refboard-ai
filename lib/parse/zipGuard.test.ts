@@ -80,6 +80,30 @@ describe("zipGuard — assertZipSafe (압축 해제 전 메타데이터 검사)"
     const zip = await buildZip(entries);
     assert.throws(() => assertZipSafe(zip, BASE_LIMITS), ZipBombError);
   });
+
+  it("fail-closed: _data 메타데이터가 없는 엔트리는 0바이트로 봐주지 않고 거부한다", () => {
+    // JSZip 내부 구현이 바뀌거나 예상 밖 객체가 들어와 _data.uncompressedSize를
+    // 못 읽는 상황을 재현 — 이때 0으로 간주해 통과시키면 핵심 방어가 조용히
+    // 꺼진다(실제 리뷰에서 지적된 갭). undefined ?? 0처럼 fail-open이면 안 된다.
+    const fakeZip = { files: { "a.xml": { dir: false } } } as unknown as JSZip;
+    assert.throws(() => assertZipSafe(fakeZip, BASE_LIMITS), ZipBombError);
+  });
+
+  it("fail-closed: 크기 값이 숫자가 아니거나 음수면 거부한다", () => {
+    const fakeZip = {
+      files: {
+        "a.xml": { dir: false, _data: { uncompressedSize: NaN, compressedSize: 10 } },
+      },
+    } as unknown as JSZip;
+    assert.throws(() => assertZipSafe(fakeZip, BASE_LIMITS), ZipBombError);
+
+    const negativeZip = {
+      files: {
+        "a.xml": { dir: false, _data: { uncompressedSize: 10, compressedSize: -1 } },
+      },
+    } as unknown as JSZip;
+    assert.throws(() => assertZipSafe(negativeZip, BASE_LIMITS), ZipBombError);
+  });
 });
 
 describe("zipGuard — DecompressBudget (실제 압축 해제 중 누적 재검사)", () => {

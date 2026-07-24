@@ -102,6 +102,11 @@ export default function Home() {
   const persistencePausedRef = useRef(false);
   const [restoreNotice, setRestoreNotice] = useState<string>();
 
+  // 문서 파싱 취소용 — 새 업로드가 시작되면 이전 파싱(pdf/pptx Worker)이 아직
+  // 진행 중이어도 즉시 취소한다. 안 그러면 파일 B를 올린 뒤 늦게 끝난 파일 A의
+  // 파싱 결과가 B를 덮어쓸 수 있다.
+  const parseAbortRef = useRef<AbortController | null>(null);
+
   // 문서 속 이미지 원본 (Step 9) — 원문급 민감. 메모리에만, opt-in 동의분만 외부 전송.
   const imagesRef = useRef<(PptxImage & { sensitivityHint: "none" | "possible" })[]>([]);
   const [imageInsights, setImageInsights] = useState<ImageInsight[]>([]);
@@ -125,6 +130,7 @@ export default function Home() {
   const handleFile = async (file: File) => {
     setUploadError(undefined);
     setJsonImportError(undefined);
+    parseAbortRef.current?.abort(); // 이전 업로드가 아직 파싱 중이면 취소
 
     // ── 재활용 모드 (Step 13): 분석 JSON → 마스킹·분석 건너뛰고 ④ 직행 ──
     if (isAnalysisJsonFile(file.name)) {
@@ -203,6 +209,8 @@ export default function Home() {
     setParsing(true);
     let text: string;
     let labeledEntities: LabeledEntityCandidate[] = [];
+    const controller = new AbortController();
+    parseAbortRef.current = controller;
     try {
       // txt/md = 브라우저 파싱(원문이 PC를 안 떠남) / pdf·pptx = 브라우저 Worker 파싱
       // (P0 item 7 이관, 원문이 자사 서버로도 올라가지 않음). 실패해도 서버로
@@ -211,7 +219,10 @@ export default function Home() {
         text = await parseTextFile(file);
         imagesRef.current = [];
       } else {
-        const parsed = await parseDocumentLocally(file, { createWorker: createParseWorker });
+        const parsed = await parseDocumentLocally(file, {
+          createWorker: createParseWorker,
+          signal: controller.signal,
+        });
         text = parsed.text;
         labeledEntities = parsed.labeledEntities;
         // 민감 가능성 힌트: 해당 슬라이드 텍스트에 개인정보성 키워드가 있으면 표시
@@ -225,6 +236,10 @@ export default function Home() {
       setImageInsights([]);
       setImageError(undefined);
     } catch (e) {
+      // 새 업로드가 이 파싱을 취소한 경우 — 최신 업로드가 자기 상태를 알아서
+      // 관리하므로 여기서는 조용히 빠진다(setParsing(false)도 호출하지 않음 —
+      // 그러면 아직 진행 중인 최신 업로드의 "파싱 중" 표시가 잘못 꺼진다).
+      if (e instanceof DOMException && e.name === "AbortError") return;
       setUploadError(e instanceof Error ? e.message : "파싱에 실패했습니다.");
       setParsing(false);
       return;
