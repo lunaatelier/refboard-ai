@@ -22,7 +22,14 @@ function hostnameOf(url: string): string | null {
   try {
     return new URL(url).hostname.toLowerCase();
   } catch {
-    return null;
+    // 프로토콜 없는 도메인(실사용 QA 2026-07-24, rules.ts의 프로토콜 없는 도메인
+    // 규칙과 짝) — "virtualgreen.atlassian.net"처럼 https://가 없어 new URL()이
+    // 바로 실패하는 경우, https://를 붙여 한 번 더 시도한다.
+    try {
+      return new URL(`https://${url}`).hostname.toLowerCase();
+    } catch {
+      return null;
+    }
   }
 }
 

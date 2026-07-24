@@ -9,15 +9,22 @@
 // 호출부가 실수로 에러 메시지·응답 본문을 통째로 넘겨도 로그에 안 남게, 허용 필드를
 // 화이트리스트로 좁혀둔다.
 
+// "in_flight_dedupe"/"stale_discarded"는 타입엔 존재하지만 실제로 기록되는 곳이
+// 없다 — 두 이벤트 모두 SessionRequestCache/RequestGuard(lib/reference/requestCache.ts,
+// requestGuard.ts)라는 클라이언트 전용 코드에서만 발생하는데, 이 모듈의 emit()은
+// 서버 stdout(Vercel 수집)을 전제로 한다. 클라에서 남기려면 로깅 전용 API 라우트를
+// 새로 만들어 매 dedupe/discard마다 서버로 비콘을 보내야 하는데, 단독 사용자
+// 프로젝트에서 그 정도 왕복 비용을 들일 가치가 없다고 판단해 보류(2026-07-24, 사용자
+// 확인). 여러 사용자로 확장되거나 실제 관측 필요성이 생기면 그때 재검토.
 export type ObservabilityEvent =
   | "attempt"
   | "success"
   | "failure"
   | "cache_hit"
-  | "in_flight_dedupe"
+  | "in_flight_dedupe" // 미기록 — 위 설명 참고
   | "rate_limited"
   | "budget_exhausted"
-  | "stale_discarded";
+  | "stale_discarded"; // 미기록 — 위 설명 참고
 
 export interface ProviderLogEntry {
   feature: string; // "target-analyze" | "generate-image" | ... (FEATURE 상수와 맞춤)

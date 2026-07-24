@@ -1,3 +1,4 @@
+import { detectRoleAdjacentNames } from "./nameHeuristic";
 import { classifyDummy, MASK_RULES } from "./rules";
 import type {
   Detection,
@@ -26,6 +27,7 @@ interface Candidate {
   start: number;
   end: number;
   source: "rule" | "dictionary";
+  forceUncertain?: boolean;
 }
 
 export function detect(
@@ -77,6 +79,21 @@ export function detect(
     }
   }
 
+  // 직함 인접 한글 이름 휴리스틱 (실사용 QA 2026-07-24) — 사전에 없는 이름이
+  // txt/md처럼 표 구조가 없는 문서에서 전혀 안 잡히고 그대로 새는 것을 막기 위한
+  // 검토 유도 후보. 사전/표헤더/정규식으로 이미 확정된 매칭과 구간이 겹치면
+  // 그쪽이 이긴다 — 이 루프를 가장 나중에 넣어 동일 구간 우선순위를 보장한다.
+  for (const c of detectRoleAdjacentNames(text)) {
+    candidates.push({
+      kind: "personName",
+      raw: c.raw,
+      start: c.start,
+      end: c.end,
+      source: "rule",
+      forceUncertain: true,
+    });
+  }
+
   // 겹침 제거: 넓은 범위 우선 (예: URL 안의 IP는 URL이 이김)
   const sorted = [...candidates].sort(
     (a, b) => b.end - b.start - (a.end - a.start) || a.start - b.start,
@@ -89,7 +106,7 @@ export function detect(
   kept.sort((a, b) => a.start - b.start);
 
   return kept.map((c, i) => {
-    const dummyConfidence = classifyDummy(c.kind, c.raw);
+    const dummyConfidence = c.forceUncertain ? "uncertain" : classifyDummy(c.kind, c.raw);
     return {
       id: `det-${i}`,
       kind: c.kind,

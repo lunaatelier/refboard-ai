@@ -11,6 +11,15 @@ export interface MaskRule {
 export const MASK_RULES: MaskRule[] = [
   // url을 email보다 먼저 두지만, 우선순위는 detect의 "넓은 범위 우선"이 결정한다.
   { kind: "url", regex: /https?:\/\/[^\s<>"'\])]+/g },
+  // 프로토콜 없는 도메인 (실사용 QA 2026-07-24): "협업툴: virtualgreen.atlassian.net"처럼
+  // 문서에 https:// 없이 도메인만 적는 경우가 흔한데 위 규칙이 놓쳐 그대로 샜다.
+  // 알려진 TLD로 끝나는 도메인만 잡아 오탐을 억제한다 — urlRules.ts의 사내협업툴
+  // 목록(atlassian.net/notion.so/slack.com 등)이 전부 이 목록의 TLD로 끝난다.
+  {
+    kind: "url",
+    regex:
+      /\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+(?:com|net|org|io|ai|dev|app|so|site|team|co\.kr|kr|me|info|biz|tech|cloud)\b(?:\/[^\s<>"'\])]*)?/g,
+  },
   {
     kind: "email",
     regex: /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g,

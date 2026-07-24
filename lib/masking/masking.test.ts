@@ -61,6 +61,42 @@ describe("detect — 규칙 탐지", () => {
     assert.equal(ds[0].source, "rule");
     assert.equal(ds[0].enabled, true);
   });
+
+  it("프로토콜 없는 도메인도 URL로 탐지된다 (실사용 QA 2026-07-24)", () => {
+    const ds = detect("협업툴: virtualgreen.atlassian.net");
+    const url = ds.find((d) => d.kind === "url");
+    assert.equal(url?.raw, "virtualgreen.atlassian.net");
+    assert.equal(url?.enabled, true);
+  });
+
+  it("사전에 없는 인명도 직함 인접 휴리스틱으로 검토 후보에 오른다", () => {
+    const text = "담당자: 김민준 팀장 (010-1234-5678), PM 박서연, 디자인 리드 이도현";
+    const names = detect(text)
+      .filter((d) => d.kind === "personName")
+      .map((d) => d.raw);
+    assert.deepEqual(new Set(names), new Set(["김민준", "박서연", "이도현"]));
+  });
+
+  it("직함 인접 휴리스틱 후보는 uncertain으로 태깅되고 기본 마스킹 적용된다", () => {
+    const ds = detect("PM 박서연").filter((d) => d.kind === "personName");
+    assert.equal(ds.length, 1);
+    assert.equal(ds[0].dummyConfidence, "uncertain");
+    assert.equal(ds[0].enabled, true);
+  });
+
+  it("'대표'는 직함 인접 휴리스틱 대상이 아니다 (대표 이미지 등 일반 용법 오탐 방지)", () => {
+    const ds = detect("이 배너는 대표 이미지로 사용됩니다").filter(
+      (d) => d.kind === "personName",
+    );
+    assert.equal(ds.length, 0);
+  });
+
+  it("사전에 이미 등록된 인명은 휴리스틱보다 사전 매칭이 우선한다", () => {
+    const ds = detect("담당자: 가상담당자A", dict).filter((d) => d.kind === "personName");
+    assert.equal(ds.length, 1);
+    assert.equal(ds[0].source, "dictionary");
+    assert.equal(ds[0].dummyConfidence, undefined);
+  });
 });
 
 describe("detect — 더미 패턴 (실사용#13/#29)", () => {
@@ -245,6 +281,12 @@ describe("Step 6 — URL 마스킹 예외 규칙", () => {
 
   it("매칭 없는 일반 URL → 기본 가림", () => {
     const rule = classifyUrl("https://www.example.com/page", ["VirtualOutdoor"]);
+    assert.equal(rule.suggestedAction, "mask");
+  });
+
+  it("프로토콜 없는 사내 협업툴 도메인도 internal-tool로 분류된다 (실사용 QA 2026-07-24)", () => {
+    const rule = classifyUrl("virtualgreen.atlassian.net", ["VirtualOutdoor"]);
+    assert.equal(rule.reason, "internal-tool");
     assert.equal(rule.suggestedAction, "mask");
   });
 });
